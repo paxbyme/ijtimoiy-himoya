@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: get user role from custom claims
+    function getRole() {
+      return request.auth.token.role;
+    }
+
+    // Helper: get user's department from custom claims
+    function getDepartment() {
+      return request.auth.token.departmentId;
+    }
+
+    // Users collection - read own profile or manager reads department staff
+    match /users/{userId} {
+      allow read: if isAuth() && (
+        request.auth.uid == userId ||
+        (getRole() == 'MANAGER' && resource.data.departmentId == getDepartment())
+      );
+      // All writes go through backend (Admin SDK)
+      allow write: if false;
+    }
+
+    // Departments - managers can read their own department
+    match /departments/{deptId} {
+      allow read: if isAuth() && (
+        getRole() == 'MANAGER' && getDepartment() == deptId
+      );
+      allow write: if false;
+    }
+
+    // Tasks - staff sees own tasks, manager sees department tasks
+    match /tasks/{taskId} {
+      allow read: if isAuth() && (
+        resource.data.assignedTo == request.auth.uid ||
+        (getRole() == 'MANAGER' && resource.data.departmentId == getDepartment())
+      );
+      allow write: if false;
+    }
+
+    // Conversations - only participants can read
+    match /conversations/{convId} {
+      allow read: if isAuth() && request.auth.uid in resource.data.participants;
+      allow write: if false;
+    }
+
+    // Messages - only participants of the conversation can read/write
+    match /messages/{msgId} {
+      allow read: if isAuth() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid
+      );
+      // Allow sending messages if sender is authenticated user
+      allow create: if isAuth() && request.resource.data.senderId == request.auth.uid;
+      // Allow updating readAt on received messages
+      allow update: if isAuth() &&
+        resource.data.receiverId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+    }
+
+    // AI Rules - managers read their department rules
+    match /ai_rules/{ruleId} {
+      allow read: if isAuth() && (
+        getRole() == 'MANAGER' && resource.data.departmentId == getDepartment()
+      );
+      allow write: if false;
+    }
+
+    // AI Conversations - staff reads own AI chats
+    match /ai_conversations/{convId} {
+      allow read: if isAuth() && resource.data.staffId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // KPI Scores - staff sees own, manager sees department
+    match /kpi_scores/{scoreId} {
+      allow read: if isAuth() && (
+        resource.data.staffId == request.auth.uid ||
+        (getRole() == 'MANAGER' && resource.data.departmentId == getDepartment())
+      );
+      allow write: if false;
+    }
+
+    // Documents - manager reads department documents
+    match /documents/{docId} {
+      allow read: if isAuth() && (
+        getRole() == 'MANAGER' && resource.data.departmentId == getDepartment()
+      );
+      allow write: if false;
+    }
+
+    // Document chunks - no direct client access
+    match /document_chunks/{chunkId} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,47 @@
+# Java / Gradle
+backend/.gradle/
+backend/build/
+backend/bin/
+backend/*.jar
+backend/*.war
+backend/out/
+
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/out/
+
+# Flutter
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Flutter.podspec
+
+# Scripts
+scripts/node_modules/
+
+# Firebase
+.firebase/
+
+# Environment
+.env
+.env.local
+.env.*.local
+backend/src/main/resources/application-local.properties
+backend/src/main/resources/firebase-service-account.json
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

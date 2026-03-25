@@ -1,0 +1,264 @@
+package com.manager.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.manager.config.GeminiConfig;
+import okhttp3.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+@Service
+public class GeminiService {
+
+    private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
+
+    private final GeminiConfig geminiConfig;
+    private final OkHttpClient httpClient;
+    private final ObjectMapper objectMapper;
+
+    public GeminiService(GeminiConfig geminiConfig) {
+        this.geminiConfig = geminiConfig;
+        this.httpClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build();
+        this.objectMapper = new ObjectMapper();
+    }
+
+    public String chat(String systemInstruction, List<Map<String, Object>> history, String userMessage) throws IOException {
+        String url = String.format(
+                "%s/v1beta/models/%s:generateContent?key=%s",
+                geminiConfig.getBaseUrl(), geminiConfig.getModel(), geminiConfig.getApiKey()
+        );
+
+        Map<String, Object> requestBody = buildRequestBody(systemInstruction, history, userMessage);
+        String json = objectMapper.writeValueAsString(requestBody);
+
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                log.error("Gemini API error: status={} body={}", response.code(), errorBody);
+                throw new IOException("Gemini API error: " + response.code() + " - " + errorBody);
+            }
+
+            String responseBody = response.body().string();
+            log.debug("Gemini chat response received");
+            return extractTextFromResponse(responseBody);
+        }
+    }
+
+    /**
+     * Stream chat response from Gemini. Calls onToken for each text chunk.
+     * Returns the full assembled response.
+     */
+    public String chatStream(String systemInstruction, List<Map<String, Object>> history,
+                             String userMessage, Consumer<String> onToken) throws IOException {
+        String url = String.format(
+                "%s/v1beta/models/%s:streamGenerateContent?key=%s&alt=sse",
+                geminiConfig.getBaseUrl(), geminiConfig.getModel(), geminiConfig.getApiKey()
+        );
+
+        Map<String, Object> requestBody = buildRequestBody(systemInstruction, history, userMessage);
+        String json = objectMapper.writeValueAsString(requestBody);
+
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                throw new IOException("Gemini streaming error: " + response.code() + " - " + errorBody);
+            }
+
+            StringBuilder fullResponse = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(response.body().byteStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("data: ")) {
+                        String data = line.substring(6).trim();
+                        if (data.equals("[DONE]")) break;
+                        try {
+                            String text = extractTextFromResponse(data);
+                            if (text != null && !text.isEmpty() &&
+                                    !text.equals("I'm sorry, I couldn't generate a response.")) {
+                                fullResponse.append(text);
+                                onToken.accept(text);
+                            }
+                        } catch (Exception ignored) {
+                            // Skip malformed chunks
+                        }
+                    }
+                }
+            }
+
+            String result = fullResponse.toString();
+            return result.isEmpty() ? "I'm sorry, I couldn't generate a response." : result;
+        }
+    }
+
+    public float[] embed(String text) throws IOException {
+        String url = String.format(
+                "%s/v1beta/models/%s:embedContent?key=%s",
+                geminiConfig.getBaseUrl(), geminiConfig.getEmbeddingModel(), geminiConfig.getApiKey()
+        );
+
+        Map<String, Object> requestBody = new HashMap<>();
+        Map<String, Object> content = new HashMap<>();
+        Map<String, String> part = new HashMap<>();
+        part.put("text", text);
+        content.put("parts", List.of(part));
+        requestBody.put("content", content);
+
+        String json = objectMapper.writeValueAsString(requestBody);
+
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                throw new IOException("Gemini Embedding API error: " + response.code() + " - " + errorBody);
+            }
+
+            String responseBody = response.body().string();
+            JsonNode rootNode = objectMapper.readTree(responseBody);
+            JsonNode values = rootNode.path("embedding").path("values");
+
+            if (values.isArray()) {
+                float[] embeddings = new float[values.size()];
+                for (int i = 0; i < values.size(); i++) {
+                    embeddings[i] = (float) values.get(i).asDouble();
+                }
+                return embeddings;
+            }
+            throw new IOException("Failed to parse embedding response");
+        }
+    }
+
+    /**
+     * Batch embed multiple texts in a single API call.
+     */
+    public List<float[]> batchEmbed(List<String> texts) throws IOException {
+        String url = String.format(
+                "%s/v1beta/models/%s:batchEmbedContents?key=%s",
+                geminiConfig.getBaseUrl(), geminiConfig.getEmbeddingModel(), geminiConfig.getApiKey()
+        );
+
+        List<Map<String, Object>> requests = new ArrayList<>();
+        for (String text : texts) {
+            Map<String, Object> req = new HashMap<>();
+            Map<String, Object> content = new HashMap<>();
+            content.put("parts", List.of(Map.of("text", text)));
+            req.put("model", "models/" + geminiConfig.getEmbeddingModel());
+            req.put("content", content);
+            requests.add(req);
+        }
+
+        Map<String, Object> requestBody = Map.of("requests", requests);
+        String json = objectMapper.writeValueAsString(requestBody);
+
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                throw new IOException("Gemini Batch Embedding error: " + response.code() + " - " + errorBody);
+            }
+
+            String responseBody = response.body().string();
+            JsonNode rootNode = objectMapper.readTree(responseBody);
+            JsonNode embeddings = rootNode.path("embeddings");
+
+            List<float[]> results = new ArrayList<>();
+            if (embeddings.isArray()) {
+                for (JsonNode embedding : embeddings) {
+                    JsonNode values = embedding.path("values");
+                    if (values.isArray()) {
+                        float[] vec = new float[values.size()];
+                        for (int i = 0; i < values.size(); i++) {
+                            vec[i] = (float) values.get(i).asDouble();
+                        }
+                        results.add(vec);
+                    }
+                }
+            }
+            return results;
+        }
+    }
+
+    private Map<String, Object> buildRequestBody(String systemInstruction,
+                                                   List<Map<String, Object>> history,
+                                                   String userMessage) {
+        Map<String, Object> requestBody = new HashMap<>();
+
+        // System instruction
+        if (systemInstruction != null && !systemInstruction.isEmpty()) {
+            Map<String, Object> systemInstr = new HashMap<>();
+            Map<String, String> textPart = new HashMap<>();
+            textPart.put("text", systemInstruction);
+            systemInstr.put("parts", List.of(textPart));
+            requestBody.put("system_instruction", systemInstr);
+        }
+
+        // Build contents array
+        List<Map<String, Object>> contents = new ArrayList<>();
+
+        // Add history
+        if (history != null) {
+            contents.addAll(history);
+        }
+
+        // Add new user message
+        Map<String, Object> userContent = new HashMap<>();
+        userContent.put("role", "user");
+        Map<String, String> userPart = new HashMap<>();
+        userPart.put("text", userMessage);
+        userContent.put("parts", List.of(userPart));
+        contents.add(userContent);
+
+        requestBody.put("contents", contents);
+        return requestBody;
+    }
+
+    private String extractTextFromResponse(String responseBody) throws IOException {
+        JsonNode rootNode = objectMapper.readTree(responseBody);
+        JsonNode candidates = rootNode.path("candidates");
+        if (candidates.isArray() && !candidates.isEmpty()) {
+            JsonNode content = candidates.get(0).path("content");
+            JsonNode parts = content.path("parts");
+            if (parts.isArray() && !parts.isEmpty()) {
+                return parts.get(0).path("text").asText();
+            }
+        }
+        return "I'm sorry, I couldn't generate a response.";
+    }
+}

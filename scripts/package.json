@@ -1,0 +1,13 @@
+{
+  "name": "manager-scripts",
+  "version": "1.0.0",
+  "scripts": {
+    "create-manager": "npx tsx create_manager.ts",
+    "seed-data": "npx tsx seed_data.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
