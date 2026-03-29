@@ -60,7 +60,8 @@ export default function EmployeeDetailPage() {
     queryKey: ["employee-tasks", employeeId],
     queryFn: async () => {
       const res = await api.get(`/tasks?assigneeId=${employeeId}`);
-      return (res.data.data || res.data) as Task[];
+      const data = res.data.data || res.data;
+      return (Array.isArray(data) ? data : data?.content ?? []) as Task[];
     },
   });
 

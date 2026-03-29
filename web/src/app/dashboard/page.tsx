@@ -37,7 +37,8 @@ export default function DashboardPage() {
     queryKey: ["staff"],
     queryFn: async () => {
       const res = await api.get("/users/staff");
-      return (res.data.data || res.data) as User[];
+      const data = res.data.data || res.data;
+      return (Array.isArray(data) ? data : data?.content ?? []) as User[];
     },
   });
 
@@ -45,7 +46,8 @@ export default function DashboardPage() {
     queryKey: ["tasks"],
     queryFn: async () => {
       const res = await api.get("/tasks");
-      return (res.data.data || res.data) as Task[];
+      const data = res.data.data || res.data;
+      return (Array.isArray(data) ? data : data?.content ?? []) as Task[];
     },
   });
 

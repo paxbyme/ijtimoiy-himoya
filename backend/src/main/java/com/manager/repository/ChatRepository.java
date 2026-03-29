@@ -105,8 +105,8 @@ public class ChatRepository {
                 .receiverId(doc.getString("receiverId"))
                 .content(doc.getString("content"))
                 .type(doc.getString("type"))
-                .createdAt(doc.getString("createdAt"))
-                .readAt(doc.getString("readAt"))
+                .createdAt(timestampToString(doc, "createdAt"))
+                .readAt(timestampToString(doc, "readAt"))
                 .build();
     }
 
@@ -126,8 +126,17 @@ public class ChatRepository {
                 .id(doc.getId())
                 .participants((List<String>) doc.get("participants"))
                 .lastMessage(doc.getString("lastMessage"))
-                .lastMessageAt(doc.getString("lastMessageAt"))
+                .lastMessageAt(timestampToString(doc, "lastMessageAt"))
                 .unreadCount(doc.getLong("unreadCount") != null ? doc.getLong("unreadCount").intValue() : 0)
                 .build();
+    }
+
+    private String timestampToString(DocumentSnapshot doc, String field) {
+        Object value = doc.get(field);
+        if (value == null) return null;
+        if (value instanceof com.google.cloud.Timestamp ts) {
+            return ts.toDate().toInstant().toString();
+        }
+        return value.toString();
     }
 }

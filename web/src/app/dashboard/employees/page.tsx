@@ -52,7 +52,8 @@ export default function EmployeesPage() {
     queryKey: ["staff"],
     queryFn: async () => {
       const res = await api.get("/users/staff");
-      return (res.data.data || res.data) as User[];
+      const data = res.data.data || res.data;
+      return (Array.isArray(data) ? data : data?.content ?? []) as User[];
     },
   });
 

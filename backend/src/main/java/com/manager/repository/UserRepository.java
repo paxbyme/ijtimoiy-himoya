@@ -80,7 +80,16 @@ public class UserRepository {
                 .departmentId(doc.getString("departmentId"))
                 .managerId(doc.getString("managerId"))
                 .isActive(doc.getBoolean("isActive"))
-                .createdAt(doc.getString("createdAt"))
+                .createdAt(timestampToString(doc, "createdAt"))
                 .build();
+    }
+
+    private String timestampToString(DocumentSnapshot doc, String field) {
+        Object value = doc.get(field);
+        if (value == null) return null;
+        if (value instanceof com.google.cloud.Timestamp ts) {
+            return ts.toDate().toInstant().toString();
+        }
+        return value.toString();
     }
 }

@@ -29,6 +29,11 @@ scripts/node_modules/
 
 # Firebase
 .firebase/
+backend/firebase-service-account.json
+backend/*-firebase-adminsdk-*.json
+google-services.json
+mobile/android/app/google-services.json
+mobile/ios/Runner/GoogleService-Info.plist
 
 # Environment
 .env
@@ -36,6 +41,9 @@ scripts/node_modules/
 .env.*.local
 backend/src/main/resources/application-local.properties
 backend/src/main/resources/firebase-service-account.json
+
+# Android signing
+mobile/android/key.properties
 
 # IDE
 .idea/

@@ -115,10 +115,19 @@ public class TaskRepository {
                 .departmentId(doc.getString("departmentId"))
                 .status(doc.getString("status"))
                 .priority(doc.getString("priority"))
-                .deadline(doc.getString("deadline"))
-                .completedAt(doc.getString("completedAt"))
-                .createdAt(doc.getString("createdAt"))
+                .deadline(timestampToString(doc, "deadline"))
+                .completedAt(timestampToString(doc, "completedAt"))
+                .createdAt(timestampToString(doc, "createdAt"))
                 .assigneeName(doc.getString("assigneeName"))
                 .build();
+    }
+
+    private String timestampToString(DocumentSnapshot doc, String field) {
+        Object value = doc.get(field);
+        if (value == null) return null;
+        if (value instanceof com.google.cloud.Timestamp ts) {
+            return ts.toDate().toInstant().toString();
+        }
+        return value.toString();
     }
 }

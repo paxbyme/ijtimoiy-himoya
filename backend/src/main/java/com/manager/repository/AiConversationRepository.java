@@ -72,8 +72,8 @@ public class AiConversationRepository {
                             .departmentId(doc.getString("departmentId"))
                             .title(doc.getString("title"))
                             .messageCount(messageCount)
-                            .createdAt(doc.getString("createdAt"))
-                            .updatedAt(doc.getString("updatedAt"))
+                            .createdAt(timestampToString(doc, "createdAt"))
+                            .updatedAt(timestampToString(doc, "updatedAt"))
                             .build();
                 })
                 .sorted((a, b) -> {
@@ -91,5 +91,14 @@ public class AiConversationRepository {
 
     public void delete(String id) throws ExecutionException, InterruptedException {
         firestore.collection(COLLECTION).document(id).delete().get();
+    }
+
+    private String timestampToString(DocumentSnapshot doc, String field) {
+        Object value = doc.get(field);
+        if (value == null) return null;
+        if (value instanceof com.google.cloud.Timestamp ts) {
+            return ts.toDate().toInstant().toString();
+        }
+        return value.toString();
     }
 }
