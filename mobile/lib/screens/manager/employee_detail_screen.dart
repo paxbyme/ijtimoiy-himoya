@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/user_model.dart';
 import '../../models/task_model.dart';
 import '../../models/kpi_model.dart';
@@ -18,8 +19,14 @@ class EmployeeDetailScreen extends ConsumerWidget {
     final staffAsync = ref.watch(_employeeProvider(employeeId));
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.pop();
+      },
+      child: Scaffold(
       appBar: AppBar(
+        leading: BackButton(onPressed: () => context.pop()),
         title: const Text('Employee Details'),
       ),
       body: staffAsync.when(
@@ -135,10 +142,11 @@ class EmployeeDetailScreen extends ConsumerWidget {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Text(
-                                'Rank: #${kpi.rank}',
-                                style: theme.textTheme.bodyMedium,
-                              ),
+                              if (kpi.rank != null)
+                                Text(
+                                  'Rank: #${kpi.rank}',
+                                  style: theme.textTheme.bodyMedium,
+                                ),
                               Text(
                                 'Period: ${kpi.period}',
                                 style: theme.textTheme.bodySmall?.copyWith(
@@ -175,6 +183,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

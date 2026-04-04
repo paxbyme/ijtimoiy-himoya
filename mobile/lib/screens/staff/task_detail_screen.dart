@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/loading_widget.dart';
 
 class TaskDetailScreen extends ConsumerWidget {
@@ -13,10 +15,17 @@ class TaskDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasksAsync = ref.watch(myTasksProvider);
+    final userProfile = ref.watch(userProfileProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.pop();
+      },
+      child: Scaffold(
       appBar: AppBar(
+        leading: BackButton(onPressed: () => context.pop()),
         title: const Text('Task Details'),
       ),
       body: tasksAsync.when(
@@ -83,7 +92,12 @@ class TaskDetailScreen extends ConsumerWidget {
                         _buildDetailRow(
                           context,
                           'Assigned By',
-                          task.assignedBy,
+                          userProfile.maybeWhen(
+                            data: (u) => u?.managerId == task.assignedBy
+                                ? 'Your Manager'
+                                : task.assignedBy,
+                            orElse: () => task.assignedBy,
+                          ),
                           Icons.person_outline,
                         ),
                         if (task.assigneeName != null) ...[
@@ -142,6 +156,7 @@ class TaskDetailScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

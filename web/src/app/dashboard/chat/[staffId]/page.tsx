@@ -48,7 +48,7 @@ export default function ChatStaffPage() {
   const { data: staffUser, isLoading: staffLoading } = useQuery({
     queryKey: ["staff-user", staffId],
     queryFn: async () => {
-      const res = await api.get(`/users/${staffId}`);
+      const res = await api.get(`/users/staff/${staffId}`);
       return (res.data.data || res.data) as User;
     },
   });

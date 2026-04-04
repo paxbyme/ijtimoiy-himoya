@@ -69,6 +69,12 @@ public class ChatRepository {
         firestore.collection(CONVERSATIONS_COLLECTION).document(id).update(updates).get();
     }
 
+    public ConversationDto findConversationById(String conversationId) throws ExecutionException, InterruptedException {
+        DocumentSnapshot doc = firestore.collection(CONVERSATIONS_COLLECTION).document(conversationId).get().get();
+        if (!doc.exists()) return null;
+        return conversationFromDoc(doc);
+    }
+
     public ConversationDto findConversationByParticipants(String userId1, String userId2) throws ExecutionException, InterruptedException {
         ApiFuture<QuerySnapshot> future = firestore.collection(CONVERSATIONS_COLLECTION)
                 .whereArrayContains("participants", userId1)
@@ -122,12 +128,14 @@ public class ChatRepository {
 
     @SuppressWarnings("unchecked")
     private ConversationDto conversationFromDoc(DocumentSnapshot doc) {
+        Object rawUnread = doc.get("unreadCount");
+        Object unreadCount = (rawUnread instanceof Map) ? rawUnread : new HashMap<>();
         return ConversationDto.builder()
                 .id(doc.getId())
                 .participants((List<String>) doc.get("participants"))
                 .lastMessage(doc.getString("lastMessage"))
                 .lastMessageAt(timestampToString(doc, "lastMessageAt"))
-                .unreadCount(doc.getLong("unreadCount") != null ? doc.getLong("unreadCount").intValue() : 0)
+                .unreadCount(unreadCount)
                 .build();
     }
 

@@ -46,9 +46,9 @@ import { format } from "date-fns";
 const createTaskSchema = z.object({
   title: z.string().min(2, "Title is required"),
   description: z.string().min(1, "Description is required"),
-  assigneeId: z.string().min(1, "Assignee is required"),
+  assignedTo: z.string().min(1, "Assignee is required"),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
-  dueDate: z.string().optional(),
+  deadline: z.string().optional(),
 });
 
 type CreateTaskData = z.infer<typeof createTaskSchema>;
@@ -107,7 +107,13 @@ export default function TasksPage() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CreateTaskData) => {
-      const res = await api.post("/tasks", data);
+      const res = await api.post("/tasks", {
+        title: data.title,
+        description: data.description,
+        assignedTo: data.assignedTo,
+        priority: data.priority,
+        deadline: data.deadline,
+      });
       return res.data;
     },
     onSuccess: () => {
@@ -197,7 +203,7 @@ export default function TasksPage() {
               <div className="space-y-2">
                 <Label>Assignee</Label>
                 <Controller
-                  name="assigneeId"
+                  name="assignedTo"
                   control={control}
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={(v: string | null) => { if (v) field.onChange(v); }}>
@@ -214,9 +220,9 @@ export default function TasksPage() {
                     </Select>
                   )}
                 />
-                {errors.assigneeId && (
+                {errors.assignedTo && (
                   <p className="text-xs text-red-500">
-                    {errors.assigneeId.message}
+                    {errors.assignedTo.message}
                   </p>
                 )}
               </div>
@@ -243,8 +249,8 @@ export default function TasksPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date (optional)</Label>
-                <Input id="dueDate" type="date" {...register("dueDate")} />
+                <Label htmlFor="deadline">Due Date (optional)</Label>
+                <Input id="deadline" type="date" {...register("deadline")} />
               </div>
 
               <DialogFooter>
@@ -342,8 +348,8 @@ export default function TasksPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {task.dueDate
-                      ? format(new Date(task.dueDate), "MMM d, yyyy")
+                    {task.deadline
+                      ? format(new Date(task.deadline), "MMM d, yyyy")
                       : "-"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">

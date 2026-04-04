@@ -52,10 +52,12 @@ export default function DashboardPage() {
   });
 
   const { data: kpiData } = useQuery({
-    queryKey: ["kpi-average"],
+    queryKey: ["kpi-rankings"],
     queryFn: async () => {
-      const res = await api.get("/kpi/average");
-      return (res.data.data || res.data) as number;
+      const res = await api.get("/kpi/rankings");
+      const scores = (res.data.data || res.data) as { score: number }[];
+      if (!Array.isArray(scores) || scores.length === 0) return 0;
+      return scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
     },
   });
 

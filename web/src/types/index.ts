@@ -13,15 +13,15 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  assigneeId: string;
+  assignedTo: string;
+  assignedBy: string;
   assigneeName?: string;
-  managerId: string;
+  departmentId: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  dueDate?: string;
+  deadline?: string;
   completedAt?: string;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface AiRule {
@@ -37,12 +37,12 @@ export interface AiRule {
 
 export interface KpiScore {
   id: string;
-  userId: string;
-  userName?: string;
+  staffId: string;
+  staffName?: string;
   score: number;
   period: string;
-  details?: Record<string, number>;
-  createdAt: string;
+  rank?: number;
+  breakdown?: Record<string, number>;
 }
 
 export interface ChatMessage {

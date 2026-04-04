@@ -212,6 +212,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
               ],
             ),
             child: SafeArea(
+              bottom: false,
               child: Row(
                 children: [
                   Expanded(

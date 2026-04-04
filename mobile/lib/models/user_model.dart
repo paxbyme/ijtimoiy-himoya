@@ -23,7 +23,7 @@ class User {
     return User(
       id: json['id']?.toString() ?? '',
       phone: json['phone'] ?? '',
-      displayName: json['displayName'] ?? '',
+      displayName: json['name'] ?? json['displayName'] ?? '',
       role: json['role'] ?? '',
       departmentId: json['departmentId']?.toString(),
       managerId: json['managerId']?.toString(),

@@ -19,27 +19,41 @@ public class ChatService {
     }
 
     public ChatMessageDto sendMessage(SendMessageRequest req, String senderId) throws Exception {
-        // Find or create conversation
-        ConversationDto conversation = chatRepository.findConversationByParticipants(senderId, req.getReceiverId());
+        // Deterministic conversation ID: sorted participant IDs joined with "_"
+        List<String> ids = Arrays.asList(senderId, req.getReceiverId());
+        Collections.sort(ids);
+        String conversationId = ids.get(0) + "_" + ids.get(1);
+
+        // Find or create conversation using the deterministic ID
+        ConversationDto conversation = chatRepository.findConversationById(conversationId);
         if (conversation == null) {
             conversation = ConversationDto.builder()
-                    .participants(Arrays.asList(senderId, req.getReceiverId()))
+                    .id(conversationId)
+                    .participants(ids)
                     .lastMessage(req.getContent())
                     .lastMessageAt(Instant.now().toString())
-                    .unreadCount(1)
+                    .unreadCount(Map.of(req.getReceiverId(), 1))
                     .build();
-            conversation = chatRepository.saveConversation(conversation);
+            chatRepository.saveConversation(conversation);
         } else {
             Map<String, Object> updates = new HashMap<>();
             updates.put("lastMessage", req.getContent());
             updates.put("lastMessageAt", Instant.now().toString());
-            updates.put("unreadCount", (conversation.getUnreadCount() != null ? conversation.getUnreadCount() : 0) + 1);
-            chatRepository.updateConversation(conversation.getId(), updates);
+            // Increment receiver's unread count
+            @SuppressWarnings("unchecked")
+            Map<String, Object> currentUnread = conversation.getUnreadCount() instanceof Map
+                    ? new HashMap<>((Map<String, Object>) conversation.getUnreadCount())
+                    : new HashMap<>();
+            int prev = currentUnread.containsKey(req.getReceiverId())
+                    ? ((Number) currentUnread.get(req.getReceiverId())).intValue() : 0;
+            currentUnread.put(req.getReceiverId(), prev + 1);
+            updates.put("unreadCount", currentUnread);
+            chatRepository.updateConversation(conversationId, updates);
         }
 
-        // Save message
+        // Save message with the deterministic conversationId
         ChatMessageDto message = ChatMessageDto.builder()
-                .conversationId(conversation.getId())
+                .conversationId(conversationId)
                 .senderId(senderId)
                 .receiverId(req.getReceiverId())
                 .content(req.getContent())

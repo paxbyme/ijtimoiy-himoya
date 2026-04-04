@@ -35,7 +35,26 @@ class KpiScreen extends ConsumerWidget {
             ],
           ),
         ),
-        data: (kpi) => RefreshIndicator(
+        data: (kpi) {
+          if (kpi == null) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bar_chart, size: 64,
+                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+                  const SizedBox(height: 16),
+                  Text('No KPI data yet', style: theme.textTheme.bodyLarge),
+                  const SizedBox(height: 8),
+                  Text('Complete tasks to see your performance score.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      )),
+                ],
+              ),
+            );
+          }
+          return RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(myKpiProvider);
             await ref.read(myKpiProvider.future);
@@ -77,23 +96,25 @@ class KpiScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
 
                 // Ranking
-                Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Text(
-                        '#${kpi.rank}',
-                        style: TextStyle(
-                          color: theme.colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
+                if (kpi.rank != null) ...[
+                  Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        child: Text(
+                          '#${kpi.rank}',
+                          style: TextStyle(
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
+                      title: const Text('Department Ranking'),
+                      subtitle: Text('You are ranked #${kpi.rank} in your department'),
                     ),
-                    title: const Text('Department Ranking'),
-                    subtitle: Text('You are ranked #${kpi.rank} in your department'),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                ],
 
                 // Breakdown
                 if (kpi.breakdown != null) ...[
@@ -138,7 +159,8 @@ class KpiScreen extends ConsumerWidget {
               ],
             ),
           ),
-        ),
+        );
+        },
       ),
     );
   }

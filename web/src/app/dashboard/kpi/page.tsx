@@ -64,7 +64,7 @@ export default function KpiPage() {
   );
 
   const chartData = sortedScores.map((score) => ({
-    name: score.userName || `User ${score.userId.slice(0, 6)}`,
+    name: score.staffName || `User ${score.staffId?.slice(0, 6) ?? '?'}`,
     score: score.score,
   }));
 
@@ -112,10 +112,11 @@ export default function KpiPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="current">Current Period</SelectItem>
-            <SelectItem value="2026-Q1">Q1 2026</SelectItem>
-            <SelectItem value="2025-Q4">Q4 2025</SelectItem>
-            <SelectItem value="2025-Q3">Q3 2025</SelectItem>
-            <SelectItem value="2025-Q2">Q2 2025</SelectItem>
+            <SelectItem value="2026-04">April 2026</SelectItem>
+            <SelectItem value="2026-03">March 2026</SelectItem>
+            <SelectItem value="2026-02">February 2026</SelectItem>
+            <SelectItem value="2026-01">January 2026</SelectItem>
+            <SelectItem value="2025-12">December 2025</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -178,7 +179,7 @@ export default function KpiPage() {
                 </TableHeader>
                 <TableBody>
                   {sortedScores.map((score, index) => {
-                    const name = score.userName || `User ${score.userId.slice(0, 6)}`;
+                    const name = score.staffName || `User ${score.staffId?.slice(0, 6) ?? '?'}`;
                     const initials = name
                       .split(" ")
                       .map((n) => n[0])
@@ -187,7 +188,7 @@ export default function KpiPage() {
                       .slice(0, 2);
 
                     return (
-                      <TableRow key={score.id}>
+                      <TableRow key={score.id || score.staffId}>
                         <TableCell>{getRankBadge(index)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">

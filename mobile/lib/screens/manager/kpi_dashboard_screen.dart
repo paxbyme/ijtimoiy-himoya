@@ -41,9 +41,13 @@ class KpiDashboardScreen extends ConsumerWidget {
             );
           }
 
-          // Sort by rank
+          // Sort by rank (nulls last, then by score descending)
           final sorted = List.of(rankings)
-            ..sort((a, b) => a.rank.compareTo(b.rank));
+            ..sort((a, b) {
+              final ra = a.rank ?? 999;
+              final rb = b.rank ?? 999;
+              return ra.compareTo(rb);
+            });
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -223,7 +227,7 @@ class KpiDashboardScreen extends ConsumerWidget {
                                   SizedBox(
                                     width: 40,
                                     child: _buildRankBadge(
-                                        context, kpi.rank),
+                                        context, kpi.rank ?? 0),
                                   ),
                                   Expanded(
                                     child: Text(

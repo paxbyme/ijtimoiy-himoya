@@ -34,6 +34,7 @@ public class UserRepository {
     public List<UserDto> findByDepartmentId(String departmentId) throws ExecutionException, InterruptedException {
         ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION)
                 .whereEqualTo("departmentId", departmentId)
+                .whereEqualTo("role", "STAFF")
                 .get();
         return future.get().getDocuments().stream()
                 .map(this::fromDoc)

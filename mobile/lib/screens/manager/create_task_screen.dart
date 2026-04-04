@@ -93,8 +93,14 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     final staffAsync = ref.watch(_staffForTaskProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.pop();
+      },
+      child: Scaffold(
       appBar: AppBar(
+        leading: BackButton(onPressed: () => context.pop()),
         title: const Text('Create Task'),
       ),
       body: SingleChildScrollView(
@@ -223,6 +229,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -41,7 +41,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final profile = await ref.read(userProfileProvider.future);
 
       if (mounted) {
-        if (profile != null && profile.isManager) {
+        if (profile == null) {
+          throw Exception('Failed to load user profile. Check your connection.');
+        } else if (profile.isManager) {
           context.go('/manager/home');
         } else {
           context.go('/staff/ai-chat');
@@ -73,7 +75,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (message.contains('too-many-requests')) {
       return 'Too many attempts. Please try again later.';
     }
-    if (message.contains('network')) {
+    if (message.contains('network') || message.contains('connection') ||
+        message.contains('profile')) {
       return 'Network error. Please check your connection.';
     }
     return 'Login failed. Please try again.';

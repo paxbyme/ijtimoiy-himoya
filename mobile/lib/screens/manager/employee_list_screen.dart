@@ -181,7 +181,7 @@ class EmployeeListScreen extends ConsumerWidget {
                 ),
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Password is required';
-                  if (v.length < 6) return 'Min 6 characters';
+                  if (v.length < 8) return 'Min 8 characters';
                   return null;
                 },
               ),

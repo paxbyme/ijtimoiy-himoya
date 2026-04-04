@@ -51,7 +51,7 @@ export default function EmployeeDetailPage() {
   const { data: employee, isLoading: employeeLoading } = useQuery({
     queryKey: ["employee", employeeId],
     queryFn: async () => {
-      const res = await api.get(`/users/${employeeId}`);
+      const res = await api.get(`/users/staff/${employeeId}`);
       return (res.data.data || res.data) as User;
     },
   });
@@ -68,7 +68,7 @@ export default function EmployeeDetailPage() {
   const { data: kpiScores, isLoading: kpiLoading } = useQuery({
     queryKey: ["employee-kpi", employeeId],
     queryFn: async () => {
-      const res = await api.get(`/kpi/user/${employeeId}`);
+      const res = await api.get(`/kpi/${employeeId}`);
       return (res.data.data || res.data) as KpiScore[];
     },
   });
@@ -236,8 +236,8 @@ export default function EmployeeDetailPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {task.dueDate
-                          ? format(new Date(task.dueDate), "MMM d, yyyy")
+                        {task.deadline
+                          ? format(new Date(task.deadline), "MMM d, yyyy")
                           : "-"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">

@@ -33,7 +33,7 @@ class KpiScore {
   final String? departmentId;
   final String period;
   final double score;
-  final int rank;
+  final int? rank;
   final KpiBreakdown? breakdown;
 
   KpiScore({
@@ -43,7 +43,7 @@ class KpiScore {
     this.departmentId,
     required this.period,
     required this.score,
-    required this.rank,
+    this.rank,
     this.breakdown,
   });
 
@@ -55,7 +55,7 @@ class KpiScore {
       departmentId: json['departmentId']?.toString(),
       period: json['period'] ?? '',
       score: (json['score'] ?? 0).toDouble(),
-      rank: json['rank'] ?? 0,
+      rank: json['rank'] as int?,
       breakdown: json['breakdown'] != null
           ? KpiBreakdown.fromJson(json['breakdown'])
           : null,

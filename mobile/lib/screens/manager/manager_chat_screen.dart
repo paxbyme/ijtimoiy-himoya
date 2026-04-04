@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import 'employee_list_screen.dart' show staffListProvider;
 
 class ManagerChatScreen extends ConsumerStatefulWidget {
   final String staffId;
@@ -49,11 +51,8 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    final conversationId = _getConversationId(senderId);
-    ref
-        .read(firestoreServiceProvider)
-        .sendMessage(conversationId, senderId, widget.staffId, text);
     _messageController.clear();
+    ref.read(apiServiceProvider).sendChatMessage(widget.staffId, text);
     _scrollToBottom();
   }
 
@@ -62,9 +61,26 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
     final userProfile = ref.watch(userProfileProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
+    final staffAsync = ref.watch(staffListProvider);
+    final staffName = staffAsync.maybeWhen(
+      data: (list) {
+        for (final s in list) {
+          if (s.id == widget.staffId) return s.displayName;
+        }
+        return null;
+      },
+      orElse: () => null,
+    ) ?? widget.staffId;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.pop();
+      },
+      child: Scaffold(
       appBar: AppBar(
-        title: Text('Chat with ${widget.staffId}'),
+        leading: BackButton(onPressed: () => context.pop()),
+        title: Text(staffName),
       ),
       body: userProfile.when(
         loading: () => const LoadingWidget(),
@@ -161,6 +177,7 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
             ],
           );
         },
+      ),
       ),
     );
   }

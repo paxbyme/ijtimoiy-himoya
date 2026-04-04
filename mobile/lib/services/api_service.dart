@@ -48,7 +48,8 @@ class ApiService {
 
   Future<List<User>> getStaffList() async {
     final response = await _dio.get('/users/staff');
-    final List<dynamic> list = response.data['data'] ?? response.data;
+    final data = response.data['data'] ?? response.data;
+    final List<dynamic> list = data is Map ? (data['content'] ?? []) : data;
     return list.map((e) => User.fromJson(e)).toList();
   }
 
@@ -61,13 +62,15 @@ class ApiService {
 
   Future<List<Task>> getTasks() async {
     final response = await _dio.get('/tasks');
-    final List<dynamic> list = response.data['data'] ?? response.data;
+    final data = response.data['data'] ?? response.data;
+    final List<dynamic> list = data is Map ? (data['content'] ?? []) : data;
     return list.map((e) => Task.fromJson(e)).toList();
   }
 
   Future<List<Task>> getMyTasks() async {
-    final response = await _dio.get('/tasks/my');
-    final List<dynamic> list = response.data['data'] ?? response.data;
+    final response = await _dio.get('/tasks');
+    final data = response.data['data'] ?? response.data;
+    final List<dynamic> list = data is Map ? (data['content'] ?? []) : data;
     return list.map((e) => Task.fromJson(e)).toList();
   }
 
@@ -83,9 +86,11 @@ class ApiService {
 
   // ---- KPI ----
 
-  Future<KpiScore> getMyKpi() async {
-    final response = await _dio.get('/kpi/my');
-    return KpiScore.fromJson(response.data['data'] ?? response.data);
+  Future<KpiScore?> getMyKpi() async {
+    final response = await _dio.get('/kpi/me');
+    final data = response.data['data'];
+    if (data == null) return null;
+    return KpiScore.fromJson(data);
   }
 
   Future<List<KpiScore>> getKpiRankings() async {
@@ -185,29 +190,29 @@ class ApiService {
   // ---- AI Rules ----
 
   Future<List<AiRule>> getAiRules() async {
-    final response = await _dio.get('/ai/rules');
+    final response = await _dio.get('/ai-rules');
     final List<dynamic> list = response.data['data'] ?? response.data;
     return list.map((e) => AiRule.fromJson(e)).toList();
   }
 
   Future<AiRule> createAiRule(Map<String, dynamic> data) async {
-    final response = await _dio.post('/ai/rules', data: data);
+    final response = await _dio.post('/ai-rules', data: data);
     return AiRule.fromJson(response.data['data'] ?? response.data);
   }
 
   Future<AiRule> updateAiRule(String id, Map<String, dynamic> data) async {
-    final response = await _dio.put('/ai/rules/$id', data: data);
+    final response = await _dio.put('/ai-rules/$id', data: data);
     return AiRule.fromJson(response.data['data'] ?? response.data);
   }
 
   Future<void> deleteAiRule(String id) async {
-    await _dio.delete('/ai/rules/$id');
+    await _dio.delete('/ai-rules/$id');
   }
 
   // ---- Chat ----
 
   Future<void> sendChatMessage(String receiverId, String content) async {
-    await _dio.post('/chat/messages', data: {
+    await _dio.post('/chat/send', data: {
       'receiverId': receiverId,
       'content': content,
     });

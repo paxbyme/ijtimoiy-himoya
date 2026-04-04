@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -16,5 +17,5 @@ public class ConversationDto {
     private List<String> participants;
     private String lastMessage;
     private String lastMessageAt;
-    private Integer unreadCount;
+    private Object unreadCount; // Map<String, Integer> per-user counts
 }

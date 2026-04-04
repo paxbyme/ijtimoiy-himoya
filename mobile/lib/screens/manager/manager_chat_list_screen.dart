@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import 'employee_list_screen.dart' show staffListProvider;
 
 class ManagerChatListScreen extends ConsumerWidget {
   const ManagerChatListScreen({super.key});
@@ -29,6 +30,11 @@ class ManagerChatListScreen extends ConsumerWidget {
 
           final conversationsAsync =
               ref.watch(conversationsProvider(user.id));
+          final staffAsync = ref.watch(staffListProvider);
+          final staffMap = staffAsync.maybeWhen(
+            data: (list) => {for (final s in list) s.id: s.displayName},
+            orElse: () => <String, String>{},
+          );
 
           return conversationsAsync.when(
             loading: () => const LoadingWidget(),
@@ -51,6 +57,8 @@ class ManagerChatListScreen extends ConsumerWidget {
                     (p) => p != user.id,
                     orElse: () => 'Unknown',
                   );
+                  final displayName =
+                      staffMap[otherParticipant] ?? otherParticipant;
                   final unread = conv.unreadCount[user.id] ?? 0;
 
                   return Card(
@@ -63,7 +71,7 @@ class ManagerChatListScreen extends ConsumerWidget {
                         ),
                       ),
                       title: Text(
-                        otherParticipant,
+                        displayName,
                         style: TextStyle(
                           fontWeight: unread > 0
                               ? FontWeight.bold

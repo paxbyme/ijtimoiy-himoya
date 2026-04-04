@@ -117,6 +117,7 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
                   ],
                 ),
                 child: SafeArea(
+                  bottom: false,
                   child: Row(
                     children: [
                       Expanded(
@@ -170,10 +171,8 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    ref
-        .read(firestoreServiceProvider)
-        .sendMessage(conversationId, senderId, receiverId, text);
     _messageController.clear();
+    ref.read(apiServiceProvider).sendChatMessage(receiverId, text);
     _scrollToBottom();
   }
 }
