@@ -1,9 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_message_model.dart';
 import '../models/conversation_model.dart';
+import '../models/user_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Stream<List<User>> staffStream(String departmentId) {
+    return _firestore
+        .collection('users')
+        .where('departmentId', isEqualTo: departmentId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => User.fromJson({...doc.data(), 'id': doc.id}))
+            .where((u) => u.role == 'STAFF' && u.isActive)
+            .toList());
+  }
 
   Stream<List<ChatMessage>> messagesStream(String conversationId) {
     return _firestore

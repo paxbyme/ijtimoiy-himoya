@@ -98,24 +98,28 @@ export default function DashboardPage() {
           title="Total Employees"
           value={staff.length}
           icon={Users}
+          color="blue"
           description={`${staff.filter((s) => s.isActive).length} active`}
         />
         <StatsCard
           title="Active Tasks"
           value={activeTasks}
           icon={CheckSquare}
+          color="violet"
           description={`${tasks.length} total tasks`}
         />
         <StatsCard
           title="Average KPI"
           value={averageKpi.toFixed(1)}
           icon={BarChart3}
+          color="emerald"
           description="Team performance score"
         />
         <StatsCard
           title="Pending Tasks"
           value={pendingTasks}
           icon={Clock}
+          color="amber"
           description="Awaiting action"
         />
       </div>

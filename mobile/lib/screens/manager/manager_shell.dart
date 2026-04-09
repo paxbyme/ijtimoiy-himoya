@@ -8,35 +8,32 @@ class ManagerShell extends StatelessWidget {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/manager/home') ||
-        location.startsWith('/manager/employees')) {
-      return 0;
-    }
-    if (location.startsWith('/manager/tasks')) {
-      return 1;
-    }
+    if (location.startsWith('/manager/home')) return 0;
+    if (location.startsWith('/manager/employees')) return 1;
+    if (location.startsWith('/manager/tasks')) return 2;
     if (location.startsWith('/manager/kpi') ||
         location.startsWith('/manager/ai-rules')) {
-      return 2;
-    }
-    if (location.startsWith('/manager/chat')) {
       return 3;
     }
+    if (location.startsWith('/manager/chat')) return 4;
     return 0;
   }
 
   void _onTap(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go('/manager/employees');
+        context.go('/manager/home');
         break;
       case 1:
-        context.go('/manager/tasks');
+        context.go('/manager/employees');
         break;
       case 2:
-        context.go('/manager/kpi');
+        context.go('/manager/tasks');
         break;
       case 3:
+        context.go('/manager/kpi');
+        break;
+      case 4:
         context.go('/manager/chat');
         break;
     }
@@ -46,28 +43,33 @@ class ManagerShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: child,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex(context),
-        onTap: (index) => _onTap(context, index),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outlined),
-            activeIcon: Icon(Icons.people),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex(context),
+        onDestinationSelected: (index) => _onTap(context, index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
             label: 'Employees',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.task_alt_outlined),
-            activeIcon: Icon(Icons.task_alt),
+            selectedIcon: Icon(Icons.task_alt),
             label: 'Tasks',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
-            activeIcon: Icon(Icons.bar_chart),
+            selectedIcon: Icon(Icons.bar_chart),
             label: 'KPIs',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.chat_outlined),
-            activeIcon: Icon(Icons.chat),
+            selectedIcon: Icon(Icons.chat),
             label: 'Chat',
           ),
         ],

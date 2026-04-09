@@ -6,8 +6,17 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
 
-final staffListProvider = FutureProvider<List<User>>((ref) async {
-  return ref.read(apiServiceProvider).getStaffList();
+final staffListProvider = StreamProvider<List<User>>((ref) {
+  final userAsync = ref.watch(userProfileProvider);
+  return userAsync.when(
+    data: (user) {
+      final departmentId = user?.departmentId;
+      if (departmentId == null) return Stream.value([]);
+      return ref.read(firestoreServiceProvider).staffStream(departmentId);
+    },
+    loading: () => Stream.value([]),
+    error: (_, __) => Stream.value([]),
+  );
 });
 
 class EmployeeListScreen extends ConsumerWidget {
@@ -61,10 +70,7 @@ class EmployeeListScreen extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(staffListProvider);
-              await ref.read(staffListProvider.future);
-            },
+            onRefresh: () async {},
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: staff.length,
@@ -196,7 +202,6 @@ class EmployeeListScreen extends ConsumerWidget {
                       'phone': phoneController.text.trim(),
                       'password': passwordController.text,
                     });
-                    ref.invalidate(staffListProvider);
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(

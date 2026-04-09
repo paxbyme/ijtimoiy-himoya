@@ -4,11 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/staff/staff_shell.dart';
-import '../screens/staff/ai_chatbot_screen.dart';
-import '../screens/staff/my_tasks_screen.dart';
-import '../screens/staff/task_detail_screen.dart';
+import '../screens/staff/staff_home_screen.dart';
+import '../screens/staff/staff_profile_screen.dart';
 import '../screens/staff/kpi_screen.dart';
-import '../screens/staff/staff_chat_screen.dart';
 import '../screens/manager/manager_shell.dart';
 import '../screens/manager/manager_home_screen.dart';
 import '../screens/manager/employee_list_screen.dart';
@@ -42,7 +40,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && isLoginRoute) {
         final profile = userProfile.value;
         if (profile != null) {
-          return profile.isManager ? '/manager/home' : '/staff/ai-chat';
+          return profile.isManager ? '/manager/home' : '/staff/home';
         }
         // Profile still loading, stay on login for now
         return null;
@@ -62,15 +60,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => StaffShell(child: child),
         routes: [
           GoRoute(
-            path: '/staff/ai-chat',
+            path: '/staff/home',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: AiChatbotScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/staff/tasks',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: MyTasksScreen(),
+              child: StaffHomeScreen(),
             ),
           ),
           GoRoute(
@@ -80,19 +72,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: '/staff/chat',
+            path: '/staff/profile',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: StaffChatScreen(),
+              child: StaffProfileScreen(),
             ),
           ),
         ],
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: '/staff/tasks/:id',
-        builder: (context, state) => TaskDetailScreen(
-          taskId: state.pathParameters['id']!,
-        ),
       ),
 
       // Manager routes
@@ -111,6 +96,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => const NoTransitionPage(
               child: EmployeeListScreen(),
             ),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (context, state) => EmployeeDetailScreen(
+                  employeeId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/manager/tasks',
@@ -137,13 +130,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
         ],
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: '/manager/employees/:id',
-        builder: (context, state) => EmployeeDetailScreen(
-          employeeId: state.pathParameters['id']!,
-        ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,

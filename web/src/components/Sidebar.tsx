@@ -48,10 +48,10 @@ function NavContent({ collapsed = false, onItemClick }: { collapsed?: boolean; o
             href={item.href}
             onClick={onItemClick}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
               isActive
-                ? "bg-blue-50 text-blue-600"
-                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                ? "bg-white/15 text-white shadow-sm"
+                : "text-blue-200 hover:bg-white/10 hover:text-white"
             )}
           >
             <item.icon className="h-4 w-4 shrink-0" />
@@ -71,18 +71,19 @@ export function Sidebar() {
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          "hidden lg:flex flex-col border-r bg-gray-50/50 transition-all duration-300",
+          "hidden lg:flex flex-col transition-all duration-300 bg-gradient-to-b from-blue-900 to-blue-700",
           collapsed ? "w-16" : "w-64"
         )}
       >
-        <div className="flex h-14 items-center justify-between px-4 border-b">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-white/10">
           {!collapsed && (
-            <h1 className="text-lg font-bold text-blue-600">Manager</h1>
+            <h1 className="text-lg font-bold text-white tracking-tight">Manager</h1>
           )}
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={() => setCollapsed(!collapsed)}
+            className="text-white/70 hover:text-white hover:bg-white/10"
           >
             <ChevronLeft
               className={cn(
@@ -105,9 +106,9 @@ export function Sidebar() {
         >
           <Menu className="h-4 w-4" />
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
-          <div className="flex h-14 items-center px-4 border-b">
-            <h1 className="text-lg font-bold text-blue-600">Manager</h1>
+        <SheetContent side="left" className="w-64 p-0 bg-gradient-to-b from-blue-900 to-blue-700 border-r-0">
+          <div className="flex h-14 items-center px-4 border-b border-white/10">
+            <h1 className="text-lg font-bold text-white tracking-tight">Manager</h1>
           </div>
           <ScrollArea className="flex-1">
             <NavContent />

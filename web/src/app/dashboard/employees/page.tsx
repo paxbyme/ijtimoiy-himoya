@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,16 +49,43 @@ type CreateStaffData = z.infer<typeof createStaffSchema>;
 
 export default function EmployeesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
+  const [staff, setStaff] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { userData } = useAuth();
 
-  const { data: staff, isLoading } = useQuery({
-    queryKey: ["staff"],
-    queryFn: async () => {
-      const res = await api.get("/users/staff");
-      const data = res.data.data || res.data;
-      return (Array.isArray(data) ? data : data?.content ?? []) as User[];
-    },
-  });
+  useEffect(() => {
+    if (!userData?.departmentId) return;
+
+    const q = query(
+      collection(db, "users"),
+      where("departmentId", "==", userData.departmentId)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const staffList = snapshot.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name || data.displayName || "",
+            phone: data.phone || "",
+            role: data.role,
+            departmentId: data.departmentId,
+            managerId: data.managerId,
+            isActive: data.isActive ?? true,
+            createdAt:
+              data.createdAt?.toDate?.()?.toISOString() ??
+              data.createdAt ??
+              "",
+          } as User;
+        })
+        .filter((u) => u.role === "STAFF" && u.isActive);
+      setStaff(staffList);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [userData?.departmentId]);
 
   const {
     register,
@@ -76,7 +106,6 @@ export default function EmployeesPage() {
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff"] });
       toast.success("Employee added successfully");
       setDialogOpen(false);
       reset();

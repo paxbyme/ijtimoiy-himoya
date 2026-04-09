@@ -16,23 +16,32 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       textTheme: textTheme,
+      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: colorScheme.surface,
+        scrolledUnderElevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        backgroundColor: Colors.white,
         foregroundColor: colorScheme.onSurface,
         titleTextStyle: GoogleFonts.inter(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
           color: colorScheme.onSurface,
+          letterSpacing: -0.3,
         ),
       ),
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.06),
+        surfaceTintColor: Colors.transparent,
+        color: Colors.white,
+        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: colorScheme.outlineVariant),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.black.withValues(alpha: 0.05)),
         ),
+        margin: EdgeInsets.zero,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -56,6 +65,8 @@ class AppTheme {
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
           minimumSize: const Size(double.infinity, 52),
+          elevation: 2,
+          shadowColor: colorScheme.primary.withValues(alpha: 0.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -68,24 +79,41 @@ class AppTheme {
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
+        elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
       ),
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: colorScheme.surface,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurfaceVariant,
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.white,
         elevation: 8,
-        selectedLabelStyle: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+        shadowColor: Colors.black.withValues(alpha: 0.12),
+        surfaceTintColor: Colors.transparent,
+        height: 68,
+        indicatorColor: colorScheme.primary.withValues(alpha: 0.12),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
-        unselectedLabelStyle: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
-        ),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.primary,
+            );
+          }
+          return GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: colorScheme.onSurfaceVariant,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return IconThemeData(color: colorScheme.primary, size: 22);
+          }
+          return IconThemeData(color: colorScheme.onSurfaceVariant, size: 22);
+        }),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(
@@ -95,8 +123,13 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
+        elevation: 4,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFFEEF2FF),
+        thickness: 1,
       ),
     );
   }

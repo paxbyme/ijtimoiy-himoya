@@ -57,12 +57,12 @@ export default function DashboardLayout({
     : "U";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-screen overflow-hidden bg-slate-50">
       <Sidebar />
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="flex h-14 items-center justify-between border-b bg-white px-4 lg:px-6">
+        <header className="flex h-14 items-center justify-between border-b bg-white shadow-sm px-4 lg:px-6">
           <div className="lg:hidden" /> {/* Spacer for mobile menu button */}
           <div className="hidden lg:block">
             <h2 className="text-sm font-medium text-muted-foreground">
@@ -102,7 +102,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50/50 p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 lg:p-6">
           {children}
         </main>
       </div>
