@@ -43,6 +43,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         if (profile == null) {
           throw Exception('Failed to load user profile. Check your connection.');
+        } else if (profile.role == 'DEVELOPER') {
+          context.go('/developer/home');
         } else if (profile.isManager) {
           context.go('/manager/home');
         } else {

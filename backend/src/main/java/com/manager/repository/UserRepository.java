@@ -59,6 +59,22 @@ public class UserRepository {
         firestore.collection(COLLECTION).document(id).delete().get();
     }
 
+    public List<UserDto> findByRole(String role) throws ExecutionException, InterruptedException {
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION)
+                .whereEqualTo("role", role)
+                .get();
+        return future.get().getDocuments().stream()
+                .map(this::fromDoc)
+                .collect(Collectors.toList());
+    }
+
+    public List<UserDto> findAll() throws ExecutionException, InterruptedException {
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION).get();
+        return future.get().getDocuments().stream()
+                .map(this::fromDoc)
+                .collect(Collectors.toList());
+    }
+
     private Map<String, Object> toMap(UserDto user) {
         Map<String, Object> map = new HashMap<>();
         map.put("id", user.getId());

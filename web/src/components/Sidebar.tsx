@@ -13,30 +13,45 @@ import {
   ChevronLeft,
   Menu,
   Bot,
+  UserCog,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/employees", label: "Employees", icon: Users },
-  { href: "/dashboard/tasks", label: "Tasks", icon: CheckSquare },
-  { href: "/dashboard/ai-chat", label: "AI Chat", icon: Bot },
-  { href: "/dashboard/ai-rules", label: "AI Rules", icon: Brain },
-  { href: "/dashboard/kpi", label: "KPI", icon: BarChart3 },
-  { href: "/dashboard/chat", label: "Chat", icon: MessageSquare },
-  { href: "/dashboard/documents", label: "Documents", icon: FileText },
+type Role = "DEVELOPER" | "MANAGER" | "STAFF";
+
+const navItems: Array<{
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  roles: Role[];
+}> = [
+  { href: "/dashboard",                    label: "Dashboard",   icon: LayoutDashboard, roles: ["MANAGER", "DEVELOPER"] },
+  { href: "/dashboard/employees",          label: "Employees",   icon: Users,           roles: ["MANAGER"] },
+  { href: "/dashboard/tasks",              label: "Tasks",       icon: CheckSquare,     roles: ["MANAGER"] },
+  { href: "/dashboard/ai-chat",            label: "AI Chat",     icon: Bot,             roles: ["MANAGER"] },
+  { href: "/dashboard/ai-rules",           label: "AI Rules",    icon: Brain,           roles: ["MANAGER"] },
+  { href: "/dashboard/kpi",               label: "KPI",         icon: BarChart3,        roles: ["MANAGER"] },
+  { href: "/dashboard/chat",               label: "Chat",        icon: MessageSquare,   roles: ["MANAGER"] },
+  { href: "/dashboard/documents",          label: "Documents",   icon: FileText,        roles: ["MANAGER"] },
+  { href: "/dashboard/admin/managers",     label: "Managers",    icon: UserCog,         roles: ["DEVELOPER"] },
+  { href: "/dashboard/admin/departments",  label: "Departments", icon: Building2,       roles: ["DEVELOPER"] },
 ];
 
 function NavContent({ collapsed = false, onItemClick }: { collapsed?: boolean; onItemClick?: () => void }) {
   const pathname = usePathname();
+  const { userData } = useAuth();
+  const role = (userData?.role ?? "MANAGER") as Role;
+  const visibleItems = navItems.filter((item) => item.roles.includes(role));
 
   return (
     <nav className="flex flex-col gap-1 px-3 py-2">
-      {navItems.map((item) => {
+      {visibleItems.map((item) => {
         const isActive =
           item.href === "/dashboard"
             ? pathname === "/dashboard"

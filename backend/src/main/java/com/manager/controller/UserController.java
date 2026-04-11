@@ -47,8 +47,9 @@ public class UserController {
             @RequestParam(defaultValue = "20") int size,
             HttpServletRequest request) {
         try {
+            String managerId = (String) request.getAttribute("uid");
             String departmentId = (String) request.getAttribute("departmentId");
-            List<UserDto> staff = userService.getStaffByDepartment(departmentId);
+            List<UserDto> staff = userService.getStaffByDepartment(managerId, departmentId);
             return ResponseEntity.ok(ApiResponse.ok(PageResponse.of(staff, page, size)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error("Failed to list staff: " + e.getMessage()));

@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import { Task, User } from "@/types";
 import { StatsCard } from "@/components/StatsCard";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -33,6 +36,15 @@ const statusColors: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  const { userData } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (userData?.role === "DEVELOPER") {
+      router.replace("/dashboard/admin/managers");
+    }
+  }, [userData, router]);
+
   const { data: staffData, isLoading: staffLoading } = useQuery({
     queryKey: ["staff"],
     queryFn: async () => {
@@ -60,6 +72,9 @@ export default function DashboardPage() {
       return scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
     },
   });
+
+  // DEVELOPER is redirected to /admin/managers — render nothing while pending
+  if (userData?.role === "DEVELOPER") return null;
 
   if (staffLoading || tasksLoading) {
     return (

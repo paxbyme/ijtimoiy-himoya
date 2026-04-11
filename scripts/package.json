@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "scripts": {
     "create-manager": "npx tsx create_manager.ts",
-    "seed-data": "npx tsx seed_data.ts"
+    "create-developer": "npx tsx create_developer.ts",
+    "seed-data": "npx tsx seed_data.ts",
+    "fix-staff-dept": "npx tsx fix_staff_department.ts"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

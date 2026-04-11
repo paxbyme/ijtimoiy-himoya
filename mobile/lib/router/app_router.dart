@@ -17,10 +17,15 @@ import '../screens/manager/ai_rules_screen.dart';
 import '../screens/manager/kpi_dashboard_screen.dart';
 import '../screens/manager/manager_chat_list_screen.dart';
 import '../screens/manager/manager_chat_screen.dart';
+import '../screens/developer/developer_shell.dart';
+import '../screens/developer/dev_home_screen.dart';
+import '../screens/developer/dev_managers_screen.dart';
+import '../screens/developer/dev_departments_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _staffShellKey = GlobalKey<NavigatorState>();
 final _managerShellKey = GlobalKey<NavigatorState>();
+final _developerShellKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -40,9 +45,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && isLoginRoute) {
         final profile = userProfile.value;
         if (profile != null) {
+          if (profile.role == 'DEVELOPER') return '/developer/home';
           return profile.isManager ? '/manager/home' : '/staff/home';
         }
-        // Profile still loading, stay on login for now
         return null;
       }
 
@@ -131,6 +136,32 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      // Developer routes
+      ShellRoute(
+        navigatorKey: _developerShellKey,
+        builder: (context, state, child) => DeveloperShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/developer/home',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: DevHomeScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/developer/managers',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: DevManagersScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/developer/departments',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: DevDepartmentsScreen(),
+            ),
+          ),
+        ],
+      ),
+
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/manager/tasks/create',

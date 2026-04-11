@@ -2,11 +2,19 @@ export interface User {
   id: string;
   name: string;
   phone: string;
-  role: 'MANAGER' | 'STAFF';
+  role: 'MANAGER' | 'STAFF' | 'DEVELOPER';
   departmentId: string;
   managerId?: string;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  managerId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Task {

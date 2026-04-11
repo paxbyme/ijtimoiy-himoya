@@ -23,6 +23,15 @@ public class UserService {
     }
 
     public UserDto createStaff(CreateUserRequest req, String managerId, String departmentId) throws Exception {
+        // If JWT token departmentId is stale/empty, fall back to manager's Firestore doc
+        String resolvedDepartmentId = departmentId;
+        if (resolvedDepartmentId == null || resolvedDepartmentId.isEmpty()) {
+            UserDto manager = userRepository.findById(managerId);
+            if (manager != null && manager.getDepartmentId() != null && !manager.getDepartmentId().isEmpty()) {
+                resolvedDepartmentId = manager.getDepartmentId();
+            }
+        }
+
         // Create Firebase Auth user with email = phone@manager.local
         String email = req.getPhone() + "@manager.local";
         UserRecord.CreateRequest createRequest = new UserRecord.CreateRequest()
@@ -33,10 +42,10 @@ public class UserService {
         UserRecord userRecord = FirebaseAuth.getInstance().createUser(createRequest);
         String uid = userRecord.getUid();
 
-        // Set custom claims
+        // Set custom claims — role is clamped to STAFF regardless of request value
         Map<String, Object> claims = new HashMap<>();
-        claims.put("role", req.getRole() != null ? req.getRole() : "STAFF");
-        claims.put("departmentId", departmentId);
+        claims.put("role", "STAFF");
+        claims.put("departmentId", resolvedDepartmentId);
         FirebaseAuth.getInstance().setCustomUserClaims(uid, claims);
 
         // Save to Firestore
@@ -44,8 +53,8 @@ public class UserService {
                 .id(uid)
                 .phone(req.getPhone())
                 .name(req.getDisplayName())
-                .role(req.getRole() != null ? req.getRole() : "STAFF")
-                .departmentId(departmentId)
+                .role("STAFF")
+                .departmentId(resolvedDepartmentId)
                 .managerId(managerId)
                 .isActive(true)
                 .createdAt(Instant.now().toString())
@@ -54,8 +63,15 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public List<UserDto> getStaffByDepartment(String departmentId) throws Exception {
-        return userRepository.findByDepartmentId(departmentId);
+    public List<UserDto> getStaffByDepartment(String managerId, String departmentId) throws Exception {
+        String resolvedDepartmentId = departmentId;
+        if (resolvedDepartmentId == null || resolvedDepartmentId.isEmpty()) {
+            UserDto manager = userRepository.findById(managerId);
+            if (manager != null && manager.getDepartmentId() != null && !manager.getDepartmentId().isEmpty()) {
+                resolvedDepartmentId = manager.getDepartmentId();
+            }
+        }
+        return userRepository.findByDepartmentId(resolvedDepartmentId);
     }
 
     public UserDto getStaffById(String id) throws Exception {
@@ -80,5 +96,54 @@ public class UserService {
         Map<String, Object> updates = new HashMap<>();
         updates.put("isActive", false);
         userRepository.update(id, updates);
+    }
+
+    // ── DEVELOPER / admin operations ──
+
+    public UserDto createManager(CreateUserRequest req) throws Exception {
+        String email = req.getPhone() + "@manager.local";
+        UserRecord.CreateRequest createRequest = new UserRecord.CreateRequest()
+                .setEmail(email)
+                .setPassword(req.getPassword())
+                .setDisplayName(req.getDisplayName());
+
+        UserRecord userRecord = FirebaseAuth.getInstance().createUser(createRequest);
+        String uid = userRecord.getUid();
+        String deptId = req.getDepartmentId() != null ? req.getDepartmentId() : "";
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "MANAGER");
+        claims.put("departmentId", deptId);
+        FirebaseAuth.getInstance().setCustomUserClaims(uid, claims);
+
+        UserDto user = UserDto.builder()
+                .id(uid)
+                .phone(req.getPhone())
+                .name(req.getDisplayName())
+                .role("MANAGER")
+                .departmentId(deptId)
+                .managerId(null)
+                .isActive(true)
+                .createdAt(Instant.now().toString())
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    public List<UserDto> listAllManagers() throws Exception {
+        return userRepository.findByRole("MANAGER");
+    }
+
+    public UserDto updateManager(String id, UpdateUserRequest req) throws Exception {
+        Map<String, Object> updates = new HashMap<>();
+        if (req.getDisplayName() != null) updates.put("name", req.getDisplayName());
+        if (req.getIsActive() != null)     updates.put("isActive", req.getIsActive());
+        if (!updates.isEmpty()) userRepository.update(id, updates);
+        return userRepository.findById(id);
+    }
+
+    public void softDeleteManager(String id) throws Exception {
+        userRepository.update(id, Map.of("isActive", false));
+        FirebaseAuth.getInstance().updateUser(new UserRecord.UpdateRequest(id).setDisabled(true));
     }
 }

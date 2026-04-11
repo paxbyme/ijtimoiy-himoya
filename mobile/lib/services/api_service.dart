@@ -10,6 +10,7 @@ import '../models/kpi_model.dart';
 import '../models/ai_rule_model.dart';
 import '../models/ai_conversation_model.dart';
 import '../models/conversation_model.dart';
+import '../models/department_model.dart';
 
 class ApiService {
   late final Dio _dio;
@@ -222,5 +223,49 @@ class ApiService {
     final response = await _dio.get('/chat/conversations');
     final List<dynamic> list = response.data['data'] ?? response.data;
     return list.map((e) => Conversation.fromJson(e)).toList();
+  }
+
+  // ---- Admin (DEVELOPER) ----
+
+  Future<List<User>> getManagers() async {
+    final response = await _dio.get('/admin/managers?page=0&size=100');
+    final data = response.data['data'] ?? response.data;
+    final List<dynamic> list = data is Map ? (data['content'] ?? []) : data;
+    return list.map((e) => User.fromJson(e)).toList();
+  }
+
+  Future<User> createManager(Map<String, dynamic> data) async {
+    final response = await _dio.post('/admin/managers', data: data);
+    return User.fromJson(response.data['data'] ?? response.data);
+  }
+
+  Future<User> updateManagerData(String id, Map<String, dynamic> data) async {
+    final response = await _dio.put('/admin/managers/$id', data: data);
+    return User.fromJson(response.data['data'] ?? response.data);
+  }
+
+  Future<void> deactivateManager(String id) async {
+    await _dio.delete('/admin/managers/$id');
+  }
+
+  Future<List<Department>> getDepartments() async {
+    final response = await _dio.get('/admin/departments?page=0&size=100');
+    final data = response.data['data'] ?? response.data;
+    final List<dynamic> list = data is Map ? (data['content'] ?? []) : data;
+    return list.map((e) => Department.fromJson(e)).toList();
+  }
+
+  Future<Department> createDepartment(Map<String, dynamic> data) async {
+    final response = await _dio.post('/admin/departments', data: data);
+    return Department.fromJson(response.data['data'] ?? response.data);
+  }
+
+  Future<Department> updateDepartment(String id, Map<String, dynamic> data) async {
+    final response = await _dio.put('/admin/departments/$id', data: data);
+    return Department.fromJson(response.data['data'] ?? response.data);
+  }
+
+  Future<void> deleteDepartment(String id) async {
+    await _dio.delete('/admin/departments/$id');
   }
 }

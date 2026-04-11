@@ -24,7 +24,7 @@ public class CreateUserRequest {
     @Size(min = 2, max = 100, message = "Display name must be 2–100 characters")
     private String displayName;
 
-    @Pattern(regexp = "^(STAFF|MANAGER)$", message = "Role must be STAFF or MANAGER")
+    @Pattern(regexp = "^(STAFF|MANAGER|DEVELOPER)$", message = "Role must be STAFF, MANAGER, or DEVELOPER")
     private String role;
 
     private String departmentId;
