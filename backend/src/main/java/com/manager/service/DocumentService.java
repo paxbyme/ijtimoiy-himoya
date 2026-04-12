@@ -7,6 +7,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
+import org.apache.poi.poifs.filesystem.OfficeXmlFileException;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.slf4j.Logger;
@@ -178,6 +179,10 @@ public class DocumentService {
              HWPFDocument document = new HWPFDocument(bis);
              WordExtractor extractor = new WordExtractor(document)) {
             return extractor.getText();
+        } catch (OfficeXmlFileException e) {
+            // File has .doc extension but is actually Office 2007+ XML (.docx format)
+            log.warn("File with .doc extension is actually OOXML format, retrying as .docx");
+            return extractDocxText(bytes);
         }
     }
 
