@@ -40,8 +40,11 @@ dependencies {
     // PDF text extraction
     implementation("org.apache.pdfbox:pdfbox:3.0.1")
 
-    // DOCX text extraction
+    // DOCX (.docx) text extraction
     implementation("org.apache.poi:poi-ooxml:5.2.5")
+
+    // DOC (.doc legacy binary format) text extraction
+    implementation("org.apache.poi:poi-scratchpad:5.2.5")
 
     // Validation (JSR-380 / Bean Validation)
     implementation("org.springframework.boot:spring-boot-starter-validation")

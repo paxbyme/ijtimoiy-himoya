@@ -5,6 +5,8 @@ import com.manager.repository.DocumentRepository;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.slf4j.Logger;
@@ -137,7 +139,7 @@ public class DocumentService {
         }
     }
 
-    private String extractText(byte[] fileBytes, String fileName) throws IOException {
+    public String extractText(byte[] fileBytes, String fileName) throws IOException {
         if (fileName == null) {
             return new String(fileBytes, StandardCharsets.UTF_8);
         }
@@ -148,10 +150,10 @@ public class DocumentService {
             return extractPdfText(fileBytes);
         } else if (lowerName.endsWith(".docx")) {
             return extractDocxText(fileBytes);
-        } else if (lowerName.endsWith(".csv")) {
-            return new String(fileBytes, StandardCharsets.UTF_8);
+        } else if (lowerName.endsWith(".doc")) {
+            return extractDocText(fileBytes);
         } else {
-            // txt, md, and other text-based files
+            // txt, md, csv, and other text-based files
             return new String(fileBytes, StandardCharsets.UTF_8);
         }
     }
@@ -167,6 +169,14 @@ public class DocumentService {
         try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
              XWPFDocument document = new XWPFDocument(bis);
              XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
+            return extractor.getText();
+        }
+    }
+
+    private String extractDocText(byte[] bytes) throws IOException {
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+             HWPFDocument document = new HWPFDocument(bis);
+             WordExtractor extractor = new WordExtractor(document)) {
             return extractor.getText();
         }
     }
