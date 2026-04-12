@@ -183,7 +183,30 @@ public class DocumentService {
             // File has .doc extension but is actually Office 2007+ XML (.docx format)
             log.warn("File with .doc extension is actually OOXML format, retrying as .docx");
             return extractDocxText(bytes);
+        } catch (IllegalArgumentException e) {
+            // File has .doc extension but is actually HTML (Word HTML format)
+            if (e.getMessage() != null && e.getMessage().contains("HTML")) {
+                log.warn("File with .doc extension is Word HTML format, extracting as HTML");
+                return extractHtmlText(bytes);
+            }
+            throw new IOException("Cannot read .doc file: " + e.getMessage(), e);
         }
+    }
+
+    private String extractHtmlText(byte[] bytes) {
+        String html = new String(bytes, StandardCharsets.UTF_8);
+        return html
+                .replaceAll("(?si)<style[^>]*>.*?</style>", " ")
+                .replaceAll("(?si)<script[^>]*>.*?</script>", " ")
+                .replaceAll("<[^>]+>", " ")
+                .replaceAll("&nbsp;", " ")
+                .replaceAll("&amp;", "&")
+                .replaceAll("&lt;", "<")
+                .replaceAll("&gt;", ">")
+                .replaceAll("&quot;", "\"")
+                .replaceAll("&#[0-9]+;", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     /**
