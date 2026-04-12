@@ -44,6 +44,11 @@ backend/src/main/resources/firebase-service-account.json
 
 # Android signing
 mobile/android/key.properties
+mobile/android/*.jks
+mobile/android/*.keystore
+
+# Flutter Firebase generated files (contain hardcoded API keys)
+mobile/lib/firebase_options.dart
 
 # IDE
 .idea/
