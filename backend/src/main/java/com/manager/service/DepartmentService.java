@@ -71,6 +71,15 @@ public class DepartmentService {
         departmentRepository.delete(id);
     }
 
+    public void removeManagerFromAllDepartments(String managerId) throws Exception {
+        List<DepartmentDto> all = departmentRepository.findAll();
+        for (DepartmentDto dept : all) {
+            if (managerId.equals(dept.getManagerId())) {
+                departmentRepository.update(dept.getId(), Map.of("managerId", ""));
+            }
+        }
+    }
+
     private void assignManager(String departmentId, String managerId) throws Exception {
         Map<String, Object> userUpdates = new HashMap<>();
         userUpdates.put("departmentId", departmentId);

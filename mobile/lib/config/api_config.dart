@@ -3,6 +3,6 @@ class ApiConfig {
 
   static String get baseUrl {
     if (_envApiBaseUrl.isNotEmpty) return _envApiBaseUrl;
-    return 'https://manager-backend.fly.dev/api';
+    return 'https://manager-app-production-53c2.up.railway.app/api';
   }
 }

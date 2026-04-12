@@ -146,4 +146,9 @@ public class UserService {
         userRepository.update(id, Map.of("isActive", false));
         FirebaseAuth.getInstance().updateUser(new UserRecord.UpdateRequest(id).setDisabled(true));
     }
+
+    public void hardDeleteManager(String id) throws Exception {
+        userRepository.delete(id);
+        FirebaseAuth.getInstance().deleteUser(id);
+    }
 }

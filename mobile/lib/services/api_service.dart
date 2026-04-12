@@ -11,6 +11,7 @@ import '../models/ai_rule_model.dart';
 import '../models/ai_conversation_model.dart';
 import '../models/conversation_model.dart';
 import '../models/department_model.dart';
+import '../models/manager_stats_model.dart';
 
 class ApiService {
   late final Dio _dio;
@@ -248,6 +249,15 @@ class ApiService {
     await _dio.delete('/admin/managers/$id');
   }
 
+  Future<void> hardDeleteManager(String id) async {
+    await _dio.delete('/admin/managers/$id/hard');
+  }
+
+  Future<ManagerStats> getManagerStats(String id) async {
+    final response = await _dio.get('/admin/managers/$id/stats');
+    return ManagerStats.fromJson(response.data['data'] ?? response.data);
+  }
+
   Future<List<Department>> getDepartments() async {
     final response = await _dio.get('/admin/departments?page=0&size=100');
     final data = response.data['data'] ?? response.data;
@@ -268,4 +278,49 @@ class ApiService {
   Future<void> deleteDepartment(String id) async {
     await _dio.delete('/admin/departments/$id');
   }
+
+  // ---- Task Attachments ----
+
+  Future<Task> uploadTaskAttachment(String taskId, String filePath, String fileName) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    final response = await _dio.post(
+      '/tasks/$taskId/attachment',
+      data: formData,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    return Task.fromJson(response.data['data'] ?? response.data);
+  }
+
+  Future<Task> acceptTask(String taskId) async {
+    final response = await _dio.put('/tasks/$taskId/accept');
+    return Task.fromJson(response.data['data'] ?? response.data);
+  }
+
+  Future<List<Task>> createBulkTasks(List<String> assignedToList, Map<String, dynamic> taskData) async {
+    final response = await _dio.post('/tasks/bulk', data: {
+      ...taskData,
+      'assignedToList': assignedToList,
+    });
+    final List<dynamic> list = response.data['data'] ?? response.data;
+    return list.map((e) => Task.fromJson(e)).toList();
+  }
+
+  // ---- AI Rules from file ----
+
+  Future<AiRule> uploadAiRuleFromFile(String filePath, String fileName, {String? title, String? category}) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      if (title != null) 'title': title,
+      if (category != null) 'category': category,
+    });
+    final response = await _dio.post(
+      '/ai-rules/upload',
+      data: formData,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    return AiRule.fromJson(response.data['data'] ?? response.data);
+  }
+
 }

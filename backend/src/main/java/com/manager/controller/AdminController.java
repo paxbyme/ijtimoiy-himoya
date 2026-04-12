@@ -1,6 +1,9 @@
 package com.manager.controller;
 
 import com.manager.dto.*;
+import com.manager.repository.KpiRepository;
+import com.manager.repository.TaskRepository;
+import com.manager.repository.UserRepository;
 import com.manager.service.DepartmentService;
 import com.manager.service.UserService;
 import jakarta.validation.Valid;
@@ -8,7 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.YearMonth;
 import java.util.List;
+import java.util.OptionalDouble;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -17,10 +22,20 @@ public class AdminController {
 
     private final UserService userService;
     private final DepartmentService departmentService;
+    private final UserRepository userRepository;
+    private final TaskRepository taskRepository;
+    private final KpiRepository kpiRepository;
 
-    public AdminController(UserService userService, DepartmentService departmentService) {
+    public AdminController(UserService userService,
+                           DepartmentService departmentService,
+                           UserRepository userRepository,
+                           TaskRepository taskRepository,
+                           KpiRepository kpiRepository) {
         this.userService = userService;
         this.departmentService = departmentService;
+        this.userRepository = userRepository;
+        this.taskRepository = taskRepository;
+        this.kpiRepository = kpiRepository;
     }
 
     // ── Managers ──
@@ -58,6 +73,71 @@ public class AdminController {
         }
     }
 
+    @GetMapping("/managers/{id}/stats")
+    public ResponseEntity<ApiResponse<ManagerStatsDto>> getManagerStats(@PathVariable String id) {
+        try {
+            UserDto manager = userService.getStaffById(id);
+            if (manager == null) return ResponseEntity.notFound().build();
+
+            String deptId = manager.getDepartmentId();
+            String deptName = null;
+            int staffTotal = 0, staffActive = 0;
+            int taskTotal = 0, taskCompleted = 0, taskPending = 0, taskInProgress = 0, taskCancelled = 0;
+            Double avgKpi = null;
+            String period = YearMonth.now().toString();
+
+            if (deptId != null && !deptId.isEmpty()) {
+                DepartmentDto dept = departmentService.getById(deptId);
+                if (dept != null) deptName = dept.getName();
+
+                List<UserDto> staff = userRepository.findByDepartmentId(deptId);
+                staffTotal = staff.size();
+                staffActive = (int) staff.stream().filter(s -> Boolean.TRUE.equals(s.getIsActive())).count();
+
+                List<TaskDto> tasks = taskRepository.findByDepartmentId(deptId);
+                taskTotal = tasks.size();
+                for (TaskDto t : tasks) {
+                    switch (t.getStatus() != null ? t.getStatus() : "") {
+                        case "COMPLETED"   -> taskCompleted++;
+                        case "PENDING", "NEW" -> taskPending++;
+                        case "IN_PROGRESS" -> taskInProgress++;
+                        case "CANCELLED"   -> taskCancelled++;
+                    }
+                }
+
+                List<KpiDto> kpis = kpiRepository.findByDepartmentIdAndPeriod(deptId, period);
+                OptionalDouble avg = kpis.stream()
+                        .filter(k -> k.getScore() != null)
+                        .mapToDouble(KpiDto::getScore)
+                        .average();
+                if (avg.isPresent()) avgKpi = Math.round(avg.getAsDouble() * 10.0) / 10.0;
+            }
+
+            ManagerStatsDto stats = ManagerStatsDto.builder()
+                    .id(manager.getId())
+                    .name(manager.getName())
+                    .phone(manager.getPhone())
+                    .departmentId(deptId)
+                    .departmentName(deptName)
+                    .isActive(manager.getIsActive())
+                    .createdAt(manager.getCreatedAt())
+                    .staffTotal(staffTotal)
+                    .staffActive(staffActive)
+                    .taskTotal(taskTotal)
+                    .taskCompleted(taskCompleted)
+                    .taskPending(taskPending)
+                    .taskInProgress(taskInProgress)
+                    .taskCancelled(taskCancelled)
+                    .avgKpiScore(avgKpi)
+                    .currentPeriod(period)
+                    .build();
+
+            return ResponseEntity.ok(ApiResponse.ok(stats));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Failed to get manager stats: " + e.getMessage()));
+        }
+    }
+
     @PutMapping("/managers/{id}")
     public ResponseEntity<ApiResponse<UserDto>> updateManager(
             @PathVariable String id,
@@ -71,12 +151,23 @@ public class AdminController {
     }
 
     @DeleteMapping("/managers/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteManager(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> deactivateManager(@PathVariable String id) {
         try {
             userService.softDeleteManager(id);
             return ResponseEntity.ok(ApiResponse.ok("Manager deactivated", null));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error("Failed to deactivate manager: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/managers/{id}/hard")
+    public ResponseEntity<ApiResponse<Void>> hardDeleteManager(@PathVariable String id) {
+        try {
+            departmentService.removeManagerFromAllDepartments(id);
+            userService.hardDeleteManager(id);
+            return ResponseEntity.ok(ApiResponse.ok("Manager permanently deleted", null));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Failed to delete manager: " + e.getMessage()));
         }
     }
 
