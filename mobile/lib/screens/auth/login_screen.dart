@@ -130,7 +130,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Ijtimoiy himoya',
+                    'Ijtimoiy Yordamchi',
                     style: GoogleFonts.inter(
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
