@@ -11,6 +11,9 @@ class Task {
   final DateTime? completedAt;
   final DateTime? createdAt;
   final String? assigneeName;
+  final String? attachmentUrl;
+  final String? attachmentName;
+  final bool managerAccepted;
 
   Task({
     required this.id,
@@ -25,7 +28,16 @@ class Task {
     this.completedAt,
     this.createdAt,
     this.assigneeName,
+    this.attachmentUrl,
+    this.attachmentName,
+    this.managerAccepted = false,
   });
+
+  bool get isOverdue {
+    if (deadline == null) return false;
+    if (status == 'COMPLETED' || status == 'CANCELLED') return false;
+    return deadline!.isBefore(DateTime.now());
+  }
 
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
@@ -35,12 +47,15 @@ class Task {
       assignedTo: json['assignedTo']?.toString() ?? '',
       assignedBy: json['assignedBy']?.toString() ?? '',
       departmentId: json['departmentId']?.toString(),
-      status: json['status'] ?? 'PENDING',
+      status: json['status'] ?? 'NEW',
       priority: json['priority'] ?? 'MEDIUM',
       deadline: json['deadline'] != null ? DateTime.tryParse(json['deadline']) : null,
       completedAt: json['completedAt'] != null ? DateTime.tryParse(json['completedAt']) : null,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
       assigneeName: json['assigneeName'],
+      attachmentUrl: json['attachmentUrl'],
+      attachmentName: json['attachmentName'],
+      managerAccepted: json['managerAccepted'] == true,
     );
   }
 
@@ -58,6 +73,9 @@ class Task {
       'completedAt': completedAt?.toIso8601String(),
       'createdAt': createdAt?.toIso8601String(),
       'assigneeName': assigneeName,
+      'attachmentUrl': attachmentUrl,
+      'attachmentName': attachmentName,
+      'managerAccepted': managerAccepted,
     };
   }
 }

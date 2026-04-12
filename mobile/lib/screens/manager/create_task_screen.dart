@@ -22,12 +22,9 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  String? _selectedAssignee;
-  String _selectedPriority = 'MEDIUM';
+  final Set<String> _selectedStaff = {};
   DateTime? _deadline;
   bool _isSubmitting = false;
-
-  final _priorities = ['LOW', 'MEDIUM', 'HIGH'];
 
   @override
   void dispose() {
@@ -48,39 +45,51 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     }
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit(List<User> allStaff) async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedAssignee == null) {
+    if (_selectedStaff.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select an assignee')),
+        const SnackBar(content: Text('Kamida bitta xodim tanlang')),
       );
       return;
     }
 
     setState(() => _isSubmitting = true);
 
-    final data = {
+    final taskData = {
       'title': _titleController.text.trim(),
       'description': _descriptionController.text.trim(),
-      'assignedTo': _selectedAssignee,
-      'priority': _selectedPriority,
       if (_deadline != null) 'deadline': _deadline!.toIso8601String(),
     };
 
-    final success =
-        await ref.read(taskNotifierProvider.notifier).createTask(data);
+    bool success;
+    if (_selectedStaff.length == 1) {
+      success = await ref.read(taskNotifierProvider.notifier).createTask({
+        ...taskData,
+        'assignedTo': _selectedStaff.first,
+      });
+    } else {
+      success = await ref.read(taskNotifierProvider.notifier).createBulkTasks(
+            _selectedStaff.toList(),
+            taskData,
+          );
+    }
 
     if (mounted) {
       setState(() => _isSubmitting = false);
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task created successfully')),
+          SnackBar(
+            content: Text(_selectedStaff.length > 1
+                ? '${_selectedStaff.length} ta xodimga topshiriq yuborildi'
+                : 'Topshiriq muvaffaqiyatli yaratildi'),
+          ),
         );
         context.pop();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Failed to create task'),
+            content: const Text('Topshiriq yaratishda xatolik'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -99,137 +108,172 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
         if (!didPop) context.pop();
       },
       child: Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: () => context.pop()),
-        title: const Text('Create Task'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Task Title',
-                  prefixIcon: Icon(Icons.title),
-                ),
-                validator: (v) => v == null || v.trim().isEmpty
-                    ? 'Title is required'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  prefixIcon: Icon(Icons.description),
-                  alignLabelWithHint: true,
-                ),
-                maxLines: 4,
-                validator: (v) => v == null || v.trim().isEmpty
-                    ? 'Description is required'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-
-              // Assignee dropdown
-              staffAsync.when(
-                loading: () => const LinearProgressIndicator(),
-                error: (_, __) => const Text('Failed to load staff'),
-                data: (staff) => DropdownButtonFormField<String>(
-                  initialValue: _selectedAssignee,
+        appBar: AppBar(
+          leading: BackButton(onPressed: () => context.pop()),
+          title: const Text('Topshiriq yaratish'),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _titleController,
                   decoration: const InputDecoration(
-                    labelText: 'Assign To',
-                    prefixIcon: Icon(Icons.person_outline),
+                    labelText: 'Sarlavha',
+                    prefixIcon: Icon(Icons.title),
                   ),
-                  items: staff
-                      .map((s) => DropdownMenuItem(
-                            value: s.id,
-                            child: Text(s.displayName),
-                          ))
-                      .toList(),
-                  onChanged: (v) => setState(() => _selectedAssignee = v),
-                  validator: (v) => v == null ? 'Select an assignee' : null,
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Sarlavha kiritilishi shart'
+                      : null,
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Priority dropdown
-              DropdownButtonFormField<String>(
-                initialValue: _selectedPriority,
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  prefixIcon: Icon(Icons.flag_outlined),
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Tavsif',
+                    prefixIcon: Icon(Icons.description),
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 4,
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Tavsif kiritilishi shart'
+                      : null,
                 ),
-                items: _priorities
-                    .map((p) => DropdownMenuItem(
-                          value: p,
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.circle,
-                                size: 12,
-                                color: p == 'HIGH'
-                                    ? Colors.red
-                                    : p == 'MEDIUM'
-                                        ? Colors.orange
-                                        : Colors.blue,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(p),
-                            ],
+                const SizedBox(height: 16),
+
+                // Multi-select staff
+                staffAsync.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (_, __) =>
+                      const Text('Xodimlar yuklanmadi'),
+                  data: (staff) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Xodimlar',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setState(() => _selectedPriority = v);
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Deadline picker
-              InkWell(
-                onTap: _pickDeadline,
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Deadline',
-                    prefixIcon: Icon(Icons.calendar_today),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                if (_selectedStaff.length == staff.length) {
+                                  _selectedStaff.clear();
+                                } else {
+                                  _selectedStaff
+                                      .addAll(staff.map((s) => s.id));
+                                }
+                              });
+                            },
+                            icon: Icon(
+                              _selectedStaff.length == staff.length
+                                  ? Icons.deselect
+                                  : Icons.select_all,
+                              size: 16,
+                            ),
+                            label: Text(
+                              _selectedStaff.length == staff.length
+                                  ? 'Bekor qilish'
+                                  : 'Barchasini tanlash',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                              color: theme.colorScheme.outlineVariant),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: staff.length,
+                          itemBuilder: (context, index) {
+                            final s = staff[index];
+                            final selected = _selectedStaff.contains(s.id);
+                            return CheckboxListTile(
+                              dense: true,
+                              title: Text(s.displayName),
+                              value: selected,
+                              onChanged: (v) {
+                                setState(() {
+                                  if (v == true) {
+                                    _selectedStaff.add(s.id);
+                                  } else {
+                                    _selectedStaff.remove(s.id);
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      if (_selectedStaff.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '${_selectedStaff.length} ta xodim tanlandi',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                  child: Text(
-                    _deadline != null
-                        ? DateFormat('MMM d, yyyy').format(_deadline!)
-                        : 'Select a deadline',
-                    style: TextStyle(
-                      color: _deadline != null
-                          ? theme.colorScheme.onSurface
-                          : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 16),
+
+                InkWell(
+                  onTap: _pickDeadline,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Muddat',
+                      prefixIcon: Icon(Icons.calendar_today),
+                    ),
+                    child: Text(
+                      _deadline != null
+                          ? DateFormat('dd.MM.yyyy').format(_deadline!)
+                          : 'Muddat tanlash',
+                      style: TextStyle(
+                        color: _deadline != null
+                            ? theme.colorScheme.onSurface
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
+                const SizedBox(height: 32),
 
-              ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Create Task'),
-              ),
-            ],
+                staffAsync.maybeWhen(
+                  data: (staff) => ElevatedButton(
+                    onPressed: _isSubmitting ? null : () => _submit(staff),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text(_selectedStaff.length > 1
+                            ? 'Topshiriq yuborish (${_selectedStaff.length})'
+                            : 'Topshiriq yaratish'),
+                  ),
+                  orElse: () => const SizedBox.shrink(),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }

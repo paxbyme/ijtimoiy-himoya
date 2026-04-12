@@ -18,14 +18,14 @@ class ManagerChatListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Messages'),
+        title: const Text('Xabarlar'),
       ),
       body: userProfile.when(
         loading: () => const LoadingWidget(),
-        error: (_, __) => const Center(child: Text('Error loading profile')),
+        error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
         data: (user) {
           if (user == null) {
-            return const Center(child: Text('Not logged in'));
+            return const Center(child: Text('Tizimga kirilmagan'));
           }
 
           final conversationsAsync =
@@ -39,12 +39,12 @@ class ManagerChatListScreen extends ConsumerWidget {
           return conversationsAsync.when(
             loading: () => const LoadingWidget(),
             error: (_, __) =>
-                const Center(child: Text('Error loading conversations')),
+                const Center(child: Text('Suhbatlarni yuklashda xatolik')),
             data: (conversations) {
               if (conversations.isEmpty) {
                 return const EmptyStateWidget(
                   icon: Icons.chat_outlined,
-                  message: 'No conversations yet.',
+                  message: 'Hali suhbatlar yo\'q.',
                 );
               }
 
@@ -137,7 +137,7 @@ class ManagerChatListScreen extends ConsumerWidget {
     if (diff.inDays == 0) {
       return DateFormat('HH:mm').format(dateTime);
     } else if (diff.inDays == 1) {
-      return 'Yesterday';
+      return 'Kecha';
     } else if (diff.inDays < 7) {
       return DateFormat('EEE').format(dateTime);
     }

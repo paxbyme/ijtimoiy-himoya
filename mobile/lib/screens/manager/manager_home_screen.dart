@@ -19,11 +19,11 @@ class ManagerHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: const Text('Boshqaruv paneli'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
+            tooltip: 'Chiqish',
             onPressed: () async {
               await ref.read(authServiceProvider).signOut();
               if (context.mounted) context.go('/login');
@@ -43,10 +43,10 @@ class ManagerHomeScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Greeting
+              // Salomlashish
               userProfile.when(
                 data: (user) => Text(
-                  'Hello, ${user?.displayName ?? "Manager"}',
+                  'Salom, ${user?.displayName ?? "Menejer"}',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -56,14 +56,14 @@ class ManagerHomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Here\'s an overview of your team',
+                'Jamoangiz haqida umumiy ma\'lumot',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 24),
 
-              // Stats grid
+              // Statistika
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -75,19 +75,19 @@ class ManagerHomeScreen extends ConsumerWidget {
                   staffAsync.when(
                     data: (staff) => StatCard(
                       icon: Icons.people,
-                      title: 'Employees',
+                      title: 'Xodimlar',
                       value: '${staff.length}',
                       color: Colors.blue,
                     ),
                     loading: () => const StatCard(
                       icon: Icons.people,
-                      title: 'Employees',
+                      title: 'Xodimlar',
                       value: '...',
                       color: Colors.blue,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.people,
-                      title: 'Employees',
+                      title: 'Xodimlar',
                       value: '-',
                       color: Colors.blue,
                     ),
@@ -95,43 +95,43 @@ class ManagerHomeScreen extends ConsumerWidget {
                   tasksAsync.when(
                     data: (tasks) => StatCard(
                       icon: Icons.task_alt,
-                      title: 'Total Tasks',
+                      title: 'Jami topshiriqlar',
                       value: '${tasks.length}',
                       color: Colors.green,
                     ),
                     loading: () => const StatCard(
                       icon: Icons.task_alt,
-                      title: 'Total Tasks',
+                      title: 'Jami topshiriqlar',
                       value: '...',
                       color: Colors.green,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.task_alt,
-                      title: 'Total Tasks',
+                      title: 'Jami topshiriqlar',
                       value: '-',
                       color: Colors.green,
                     ),
                   ),
                   tasksAsync.when(
                     data: (tasks) {
-                      final pending =
-                          tasks.where((t) => t.status == 'PENDING').length;
+                      final newTasks =
+                          tasks.where((t) => t.status == 'NEW').length;
                       return StatCard(
                         icon: Icons.pending_actions,
-                        title: 'Pending',
-                        value: '$pending',
+                        title: 'Yangi',
+                        value: '$newTasks',
                         color: Colors.orange,
                       );
                     },
                     loading: () => const StatCard(
                       icon: Icons.pending_actions,
-                      title: 'Pending',
+                      title: 'Yangi',
                       value: '...',
                       color: Colors.orange,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.pending_actions,
-                      title: 'Pending',
+                      title: 'Yangi',
                       value: '-',
                       color: Colors.orange,
                     ),
@@ -140,24 +140,26 @@ class ManagerHomeScreen extends ConsumerWidget {
                     data: (rankings) {
                       final avg = rankings.isEmpty
                           ? 0.0
-                          : rankings.map((k) => k.score).reduce((a, b) => a + b) /
+                          : rankings
+                                  .map((k) => k.score)
+                                  .reduce((a, b) => a + b) /
                               rankings.length;
                       return StatCard(
                         icon: Icons.bar_chart,
-                        title: 'Avg KPI',
+                        title: "O'rt. KPI",
                         value: avg.toStringAsFixed(1),
                         color: Colors.purple,
                       );
                     },
                     loading: () => const StatCard(
                       icon: Icons.bar_chart,
-                      title: 'Avg KPI',
+                      title: "O'rt. KPI",
                       value: '...',
                       color: Colors.purple,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.bar_chart,
-                      title: 'Avg KPI',
+                      title: "O'rt. KPI",
                       value: '-',
                       color: Colors.purple,
                     ),
@@ -166,9 +168,9 @@ class ManagerHomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 24),
 
-              // Quick actions
+              // Tezkor amallar
               Text(
-                'Quick Actions',
+                'Tezkor amallar',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -177,19 +179,19 @@ class ManagerHomeScreen extends ConsumerWidget {
               _buildQuickAction(
                 context,
                 icon: Icons.person_add,
-                title: 'Add Employee',
+                title: 'Xodim qo\'shish',
                 onTap: () => context.go('/manager/employees'),
               ),
               _buildQuickAction(
                 context,
                 icon: Icons.add_task,
-                title: 'Create Task',
+                title: 'Topshiriq yaratish',
                 onTap: () => context.push('/manager/tasks/create'),
               ),
               _buildQuickAction(
                 context,
-                icon: Icons.rule,
-                title: 'Manage AI Rules',
+                icon: Icons.psychology,
+                title: 'AI Qoidalarini boshqarish',
                 onTap: () => context.go('/manager/ai-rules'),
               ),
             ],

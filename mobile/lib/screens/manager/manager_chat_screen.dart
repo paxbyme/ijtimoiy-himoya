@@ -84,10 +84,10 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
       ),
       body: userProfile.when(
         loading: () => const LoadingWidget(),
-        error: (_, __) => const Center(child: Text('Error loading profile')),
+        error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
         data: (user) {
           if (user == null) {
-            return const Center(child: Text('Not logged in'));
+            return const Center(child: Text('Tizimga kirilmagan'));
           }
 
           final conversationId = _getConversationId(user.id);
@@ -99,7 +99,7 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
                 child: messagesAsync.when(
                   loading: () => const LoadingWidget(),
                   error: (_, __) =>
-                      const Center(child: Text('Error loading messages')),
+                      const Center(child: Text('Xabarlarni yuklashda xatolik')),
                   data: (messages) {
                     WidgetsBinding.instance
                         .addPostFrameCallback((_) => _scrollToBottom());
@@ -107,7 +107,7 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
                     if (messages.isEmpty) {
                       return const EmptyStateWidget(
                         icon: Icons.chat_bubble_outline,
-                        message: 'No messages yet. Start the conversation!',
+                        message: 'Hali xabarlar yo\'q. Suhbatni boshlang!',
                       );
                     }
 
@@ -149,7 +149,7 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _sendMessage(user.id),
                           decoration: InputDecoration(
-                            hintText: 'Type a message...',
+                            hintText: 'Xabar yozing...',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(24),
                               borderSide: BorderSide.none,

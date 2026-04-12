@@ -12,12 +12,12 @@ class StaffProfileScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(title: const Text('Profil')),
       body: userProfile.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(child: Text('Failed to load profile')),
+        error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
         data: (user) {
-          if (user == null) return const Center(child: Text('No profile found'));
+          if (user == null) return const Center(child: Text('Profil topilmadi'));
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -47,17 +47,6 @@ class StaffProfileScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 4),
-              Center(
-                child: Chip(
-                  label: Text(user.role),
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  labelStyle: TextStyle(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
               const SizedBox(height: 32),
 
               // Info card
@@ -66,28 +55,28 @@ class StaffProfileScreen extends ConsumerWidget {
                   children: [
                     _infoTile(
                       icon: Icons.phone,
-                      label: 'Phone',
+                      label: 'Telefon',
                       value: user.phone,
                     ),
                     const Divider(height: 1, indent: 56),
                     _infoTile(
                       icon: Icons.badge,
-                      label: 'Employee ID',
+                      label: 'Xodim ID',
                       value: user.id,
                     ),
                     if (user.departmentId != null) ...[
                       const Divider(height: 1, indent: 56),
                       _infoTile(
                         icon: Icons.business,
-                        label: 'Department',
+                        label: 'Bo\'lim',
                         value: user.departmentId!,
                       ),
                     ],
                     const Divider(height: 1, indent: 56),
                     _infoTile(
                       icon: Icons.circle,
-                      label: 'Status',
-                      value: user.isActive ? 'Active' : 'Inactive',
+                      label: 'Holat',
+                      value: user.isActive ? 'Faol' : 'Faol emas',
                       valueColor: user.isActive ? Colors.green : Colors.grey,
                     ),
                   ],
@@ -111,7 +100,7 @@ class StaffProfileScreen extends ConsumerWidget {
                   children: [
                     Icon(Icons.logout),
                     SizedBox(width: 8),
-                    Text('Sign Out'),
+                    Text('Chiqish'),
                   ],
                 ),
               ),

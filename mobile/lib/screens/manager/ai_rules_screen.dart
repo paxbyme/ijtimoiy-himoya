@@ -160,19 +160,6 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  'Ustuvorlik: ${rule.priority}',
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
                                   color: rule.isActive
                                       ? Colors.green.shade100
                                       : Colors.grey.shade200,
@@ -211,8 +198,6 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
     final contentController = TextEditingController(text: rule?.content ?? '');
     final categoryController =
         TextEditingController(text: rule?.category ?? '');
-    final priorityController =
-        TextEditingController(text: rule?.priority.toString() ?? '5');
     bool isActive = rule?.isActive ?? true;
 
     showDialog(
@@ -241,13 +226,6 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                       const InputDecoration(labelText: 'Kategoriya'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: priorityController,
-                  decoration:
-                      const InputDecoration(labelText: 'Ustuvorlik (1-10)'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
                 SwitchListTile(
                   title: const Text('Faol'),
                   value: isActive,
@@ -269,7 +247,6 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                   'title': titleController.text.trim(),
                   'content': contentController.text.trim(),
                   'category': categoryController.text.trim(),
-                  'priority': int.tryParse(priorityController.text) ?? 5,
                   'isActive': isActive,
                 };
 

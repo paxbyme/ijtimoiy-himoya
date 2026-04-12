@@ -42,7 +42,26 @@ class ManagerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
+      body: Stack(
+        children: [
+          // SJMA watermark
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: Opacity(
+                  opacity: 0.04,
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 320,
+                    height: 320,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex(context),
         onDestinationSelected: (index) => _onTap(context, index),
@@ -50,27 +69,27 @@ class ManagerShell extends StatelessWidget {
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            label: 'Bosh sahifa',
           ),
           NavigationDestination(
             icon: Icon(Icons.people_outline),
             selectedIcon: Icon(Icons.people),
-            label: 'Employees',
+            label: 'Xodimlar',
           ),
           NavigationDestination(
             icon: Icon(Icons.task_alt_outlined),
             selectedIcon: Icon(Icons.task_alt),
-            label: 'Tasks',
+            label: 'Topshiriqlar',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart),
-            label: 'KPIs',
+            label: 'KPI',
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_outlined),
             selectedIcon: Icon(Icons.chat),
-            label: 'Chat',
+            label: 'Xabarlar',
           ),
         ],
       ),

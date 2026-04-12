@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
-import '../../widgets/task_card.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
 
@@ -18,8 +18,13 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final _tabs = const ['All', 'Pending', 'In Progress', 'Completed'];
-  final _statusFilters = const ['', 'PENDING', 'IN_PROGRESS', 'COMPLETED'];
+  final _tabs = const [
+    'Hammasi',
+    'Yangi',
+    'Jarayonda',
+    "Muddati o'tgan",
+    'Bajarildi',
+  ];
 
   @override
   void initState() {
@@ -33,6 +38,23 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
     super.dispose();
   }
 
+  List<Task> _filterTasks(List<Task> tasks, int tabIndex) {
+    switch (tabIndex) {
+      case 0:
+        return tasks;
+      case 1:
+        return tasks.where((t) => t.status == 'NEW').toList();
+      case 2:
+        return tasks.where((t) => t.status == 'IN_PROGRESS').toList();
+      case 3:
+        return tasks.where((t) => t.isOverdue).toList();
+      case 4:
+        return tasks.where((t) => t.status == 'COMPLETED').toList();
+      default:
+        return tasks;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tasksAsync = ref.watch(allTasksProvider);
@@ -40,7 +62,7 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Task Management'),
+        title: const Text('Topshiriqlar'),
         bottom: TabBar(
           controller: _tabController,
           tabs: _tabs.map((t) => Tab(text: t)).toList(),
@@ -58,27 +80,27 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Failed to load tasks',
+              Text('Topshiriqlar yuklanmadi',
                   style: TextStyle(color: theme.colorScheme.error)),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => ref.invalidate(allTasksProvider),
-                child: const Text('Retry'),
+                child: const Text('Qayta urinish'),
               ),
             ],
           ),
         ),
         data: (tasks) => TabBarView(
           controller: _tabController,
-          children: _statusFilters.map((filter) {
-            final filtered = filter.isEmpty
-                ? tasks
-                : tasks.where((t) => t.status == filter).toList();
+          children: List.generate(_tabs.length, (index) {
+            final filtered = _filterTasks(tasks, index);
 
             if (filtered.isEmpty) {
-              return const EmptyStateWidget(
+              return EmptyStateWidget(
                 icon: Icons.task_alt,
-                message: 'No tasks found',
+                message: index == 3
+                    ? "Muddati o'tgan topshiriqlar yo'q"
+                    : 'Topshiriqlar topilmadi',
               );
             }
 
@@ -90,13 +112,168 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final task = filtered[index];
-                  return TaskCard(task: task);
+                itemBuilder: (context, i) {
+                  final task = filtered[i];
+                  return _TaskManagerCard(
+                    task: task,
+                    onAccept: task.status == 'COMPLETED' &&
+                            task.attachmentUrl != null &&
+                            !task.managerAccepted
+                        ? () => _acceptTask(task)
+                        : null,
+                  );
                 },
               ),
             );
-          }).toList(),
+          }),
+        ),
+      ),
+    );
+  }
+
+  void _acceptTask(Task task) async {
+    final notifier = ref.read(taskNotifierProvider.notifier);
+    final success = await notifier.acceptTask(task.id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Qabul qilindi' : 'Xatolik yuz berdi'),
+        ),
+      );
+    }
+  }
+}
+
+class _TaskManagerCard extends StatelessWidget {
+  final Task task;
+  final VoidCallback? onAccept;
+
+  const _TaskManagerCard({required this.task, this.onAccept});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isOverdue = task.isOverdue;
+
+    Color statusColor;
+    String statusLabel;
+    if (isOverdue) {
+      statusColor = Colors.red;
+      statusLabel = "Muddati o'tgan";
+    } else {
+      switch (task.status) {
+        case 'NEW':
+        case 'PENDING':
+          statusColor = Colors.orange;
+          statusLabel = 'Yangi';
+          break;
+        case 'IN_PROGRESS':
+          statusColor = Colors.blue;
+          statusLabel = 'Jarayonda';
+          break;
+        case 'COMPLETED':
+          statusColor = Colors.green;
+          statusLabel = 'Bajarildi';
+          break;
+        case 'CANCELLED':
+          statusColor = Colors.grey;
+          statusLabel = 'Bekor qilingan';
+          break;
+        default:
+          statusColor = Colors.grey;
+          statusLabel = task.status;
+      }
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    task.title,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+            if (task.assigneeName != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                task.assigneeName!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            if (task.attachmentUrl != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.attach_file,
+                      size: 14, color: theme.colorScheme.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    task.attachmentName ?? 'Fayl yuklangan',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (onAccept != null) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onAccept,
+                  icon: const Icon(Icons.check_circle, size: 16),
+                  label: const Text('Qabul qildim'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
+            if (task.managerAccepted) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.verified, size: 14, color: Colors.green),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Qabul qilingan',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.green),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );

@@ -27,18 +27,18 @@ class EmployeeDetailScreen extends ConsumerWidget {
       child: Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: () => context.pop()),
-        title: const Text('Employee Details'),
+        title: const Text('Xodim tafsilotlari'),
       ),
       body: staffAsync.when(
         loading: () => const LoadingWidget(),
-        error: (error, _) => Center(child: Text('Error: $error')),
+        error: (error, _) => Center(child: Text('Xatolik: $error')),
         data: (data) {
           final employee = data['employee'] as User?;
           final tasks = data['tasks'] as List<Task>;
           final kpi = data['kpi'] as KpiScore?;
 
           if (employee == null) {
-            return const Center(child: Text('Employee not found'));
+            return const Center(child: Text('Xodim topilmadi'));
           }
 
           return SingleChildScrollView(
@@ -95,7 +95,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  employee.isActive ? 'Active' : 'Inactive',
+                                  employee.isActive ? 'Faol' : 'Faol emas',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: employee.isActive
@@ -116,7 +116,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
                 // KPI Summary
                 if (kpi != null) ...[
                   Text(
-                    'KPI Summary',
+                    'KPI Xulosasi',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -137,18 +137,18 @@ class EmployeeDetailScreen extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Score: ${kpi.score.toStringAsFixed(1)}',
+                                'Ball: ${kpi.score.toStringAsFixed(1)}',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               if (kpi.rank != null)
                                 Text(
-                                  'Rank: #${kpi.rank}',
+                                  'O\'rin: #${kpi.rank}',
                                   style: theme.textTheme.bodyMedium,
                                 ),
                               Text(
-                                'Period: ${kpi.period}',
+                                'Davr: ${kpi.period}',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -164,7 +164,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
 
                 // Tasks
                 Text(
-                  'Assigned Tasks (${tasks.length})',
+                  'Berilgan topshiriqlar (${tasks.length})',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -174,7 +174,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
                   const Card(
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: Center(child: Text('No tasks assigned')),
+                      child: Center(child: Text('Topshiriqlar yo\'q')),
                     ),
                   )
                 else

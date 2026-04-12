@@ -103,16 +103,33 @@ class TaskCard extends StatelessWidget {
   }
 
   Widget _buildStatusChip(BuildContext context) {
+    final isOverdue = task.isOverdue;
     Color color;
-    switch (task.status) {
-      case 'COMPLETED':
-        color = Colors.green;
-        break;
-      case 'IN_PROGRESS':
-        color = Colors.orange;
-        break;
-      default:
-        color = Colors.blue;
+    String label;
+
+    if (isOverdue) {
+      color = Colors.red;
+      label = "Muddati o'tgan";
+    } else {
+      switch (task.status) {
+        case 'COMPLETED':
+          color = Colors.green;
+          label = 'Bajarildi';
+          break;
+        case 'IN_PROGRESS':
+          color = Colors.blue;
+          label = 'Jarayonda';
+          break;
+        case 'CANCELLED':
+          color = Colors.grey;
+          label = 'Bekor qilingan';
+          break;
+        case 'NEW':
+        default:
+          color = Colors.orange;
+          label = 'Yangi';
+          break;
+      }
     }
 
     return Container(
@@ -123,7 +140,7 @@ class TaskCard extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
-        task.status.replaceAll('_', ' '),
+        label,
         style: TextStyle(
           color: color,
           fontSize: 11,

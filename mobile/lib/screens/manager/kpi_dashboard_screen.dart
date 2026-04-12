@@ -15,7 +15,7 @@ class KpiDashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('KPI Dashboard'),
+        title: const Text('KPI Paneli'),
       ),
       body: rankingsAsync.when(
         loading: () => const LoadingWidget(),
@@ -23,12 +23,12 @@ class KpiDashboardScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Failed to load KPI data',
+              Text('KPI ma\'lumotlarini yuklab bo\'lmadi',
                   style: TextStyle(color: theme.colorScheme.error)),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => ref.invalidate(kpiRankingsProvider),
-                child: const Text('Retry'),
+                child: const Text('Qayta urinish'),
               ),
             ],
           ),
@@ -37,7 +37,7 @@ class KpiDashboardScreen extends ConsumerWidget {
           if (rankings.isEmpty) {
             return const EmptyStateWidget(
               icon: Icons.bar_chart,
-              message: 'No KPI data available yet.',
+              message: 'Hali KPI ma\'lumotlari yo\'q.',
             );
           }
 
@@ -62,7 +62,7 @@ class KpiDashboardScreen extends ConsumerWidget {
                 children: [
                   // Bar chart
                   Text(
-                    'Team Performance',
+                    'Jamoa Samaradorligi',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -166,7 +166,7 @@ class KpiDashboardScreen extends ConsumerWidget {
 
                   // Rankings table
                   Text(
-                    'Rankings',
+                    'Reytinglar',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -189,18 +189,18 @@ class KpiDashboardScreen extends ConsumerWidget {
                             children: [
                               const SizedBox(
                                   width: 40,
-                                  child: Text('Rank',
+                                  child: Text('O\'rin',
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 12))),
                               const Expanded(
-                                  child: Text('Name',
+                                  child: Text('Ism',
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 12))),
                               SizedBox(
                                   width: 60,
-                                  child: Text('Score',
+                                  child: Text('Ball',
                                       style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 12,

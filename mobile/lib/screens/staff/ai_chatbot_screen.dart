@@ -62,7 +62,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Thanks for your feedback!'),
+            content: Text('Fikr-mulohazangiz uchun rahmat!'),
             duration: Duration(seconds: 1),
           ),
         );
@@ -112,16 +112,16 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Assistant'),
+        title: const Text('AI Yordamchi'),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
-            tooltip: 'Conversation history',
+            tooltip: 'Suhbat tarixi',
             onPressed: _showConversationHistory,
           ),
           IconButton(
             icon: const Icon(Icons.add_comment_outlined),
-            tooltip: 'New conversation',
+            tooltip: 'Yangi suhbat',
             onPressed: () {
               ref.read(aiChatProvider.notifier).clearChat();
               setState(() {
@@ -149,12 +149,12 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'AI Assistant',
+                            'AI Yordamchi',
                             style: theme.textTheme.headlineSmall,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Ask me anything about your work, tasks, or company policies.',
+                            'Ish, topshiriqlar yoki kompaniya qoidalari haqida savol bering.',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
@@ -221,7 +221,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
                       decoration: InputDecoration(
-                        hintText: 'Type your message...',
+                        hintText: 'Xabar yozing...',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
@@ -274,7 +274,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              'Thinking...',
+              'O\'ylanmoqda...',
               style: TextStyle(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -371,7 +371,7 @@ class _ConversationHistorySheet extends ConsumerWidget {
                 Icon(Icons.history, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'Conversation History',
+                  'Suhbat tarixi',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -384,7 +384,7 @@ class _ConversationHistorySheet extends ConsumerWidget {
             child: conversationsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Failed to load conversations',
+                child: Text('Suhbatlarni yuklashda xatolik',
                     style: TextStyle(color: theme.colorScheme.error)),
               ),
               data: (conversations) {
@@ -398,7 +398,7 @@ class _ConversationHistorySheet extends ConsumerWidget {
                             color: theme.colorScheme.outline),
                         const SizedBox(height: 12),
                         Text(
-                          'No conversations yet',
+                          'Hali suhbatlar yo\'q',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -422,17 +422,17 @@ class _ConversationHistorySheet extends ConsumerWidget {
                       confirmDismiss: (_) => showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text('Delete conversation?'),
+                          title: const Text('Suhbatni o\'chirish?'),
                           content: const Text(
-                              'This action cannot be undone.'),
+                              'Bu amalni ortga qaytarib bo\'lmaydi.'),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel'),
+                              child: const Text('Bekor'),
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete'),
+                              child: const Text('O\'chirish'),
                             ),
                           ],
                         ),
@@ -461,7 +461,7 @@ class _ConversationHistorySheet extends ConsumerWidget {
                           ),
                         ),
                         subtitle: Text(
-                          '${convo.messageCount} messages',
+                          '${convo.messageCount} ta xabar',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),

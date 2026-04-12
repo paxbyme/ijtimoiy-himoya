@@ -72,17 +72,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (message.contains('user-not-found') ||
         message.contains('wrong-password') ||
         message.contains('invalid-credential')) {
-      return 'Invalid phone number or password';
+      return 'Telefon raqami yoki parol noto\'g\'ri';
     }
     if (message.contains('too-many-requests')) {
-      return 'Too many attempts. Please try again later.';
+      return 'Juda ko\'p urinish. Keyinroq qayta urinib ko\'ring.';
     }
     if (message.contains('network') ||
         message.contains('connection') ||
         message.contains('profile')) {
-      return 'Network error. Please check your connection.';
+      return 'Tarmoq xatosi. Internet aloqasini tekshiring.';
     }
-    return 'Login failed. Please try again.';
+    return 'Kirish muvaffaqiyatsiz. Qayta urinib ko\'ring.';
   }
 
   @override
@@ -110,27 +110,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   // Logo & title on gradient
                   Container(
-                    width: 72,
-                    height: 72,
+                    width: 88,
+                    height: 88,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(22),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.3),
                         width: 1.5,
                       ),
                     ),
-                    child: const Icon(
-                      Icons.business_center_rounded,
-                      size: 36,
-                      color: Colors.white,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Manager',
+                    'Ijtimoiy himoya',
                     style: GoogleFonts.inter(
-                      fontSize: 32,
+                      fontSize: 26,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                       letterSpacing: -0.5,
@@ -138,7 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Sign in to your workspace',
+                    'Ishchi maydoningizga kiring',
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       fontWeight: FontWeight.w400,
@@ -167,7 +169,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Welcome back',
+                            'Xush kelibsiz',
                             style: GoogleFonts.inter(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
@@ -176,7 +178,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Enter your credentials to continue',
+                            'Davom etish uchun ma\'lumotlarni kiriting',
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               color: const Color(0xFF64748B),
@@ -188,13 +190,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             keyboardType: TextInputType.phone,
                             textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
-                              labelText: 'Phone Number',
-                              hintText: 'Enter your phone number',
+                              labelText: 'Telefon raqami',
+                              hintText: 'Telefon raqamingizni kiriting',
                               prefixIcon: Icon(Icons.phone_outlined),
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
-                                return 'Please enter your phone number';
+                                return 'Telefon raqamini kiriting';
                               }
                               return null;
                             },
@@ -206,8 +208,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) => _handleLogin(),
                             decoration: InputDecoration(
-                              labelText: 'Password',
-                              hintText: 'Enter your password',
+                              labelText: 'Parol',
+                              hintText: 'Parolingizni kiriting',
                               prefixIcon: const Icon(Icons.lock_outlined),
                               suffixIcon: IconButton(
                                 icon: Icon(
@@ -223,10 +225,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
+                                return 'Parolni kiriting';
                               }
                               if (value.length < 6) {
-                                return 'Password must be at least 6 characters';
+                                return 'Parol kamida 6 ta belgidan iborat bo\'lishi kerak';
                               }
                               return null;
                             },
@@ -243,7 +245,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Text('Sign In'),
+                                : const Text('Kirish'),
                           ),
                         ],
                       ),

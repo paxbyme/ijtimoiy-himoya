@@ -5,7 +5,6 @@ import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/stat_card.dart';
-import '../../widgets/ai_chat_sheet.dart';
 
 class StaffHomeScreen extends ConsumerWidget {
   const StaffHomeScreen({super.key});
@@ -19,7 +18,7 @@ class StaffHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: const Text('Bosh sahifa'),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -35,7 +34,7 @@ class StaffHomeScreen extends ConsumerWidget {
               // Greeting
               userProfile.when(
                 data: (user) => Text(
-                  'Hello, ${user?.displayName ?? "Staff"}',
+                  'Salom, ${user?.displayName ?? "Xodim"}',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -45,7 +44,7 @@ class StaffHomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Here\'s your overview for today',
+                'Bugungi umumiy ko\'rinishingiz',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -64,19 +63,19 @@ class StaffHomeScreen extends ConsumerWidget {
                   tasksAsync.when(
                     data: (tasks) => StatCard(
                       icon: Icons.task_alt,
-                      title: 'My Tasks',
+                      title: 'Topshiriqlarim',
                       value: '${tasks.length}',
                       color: Colors.blue,
                     ),
                     loading: () => const StatCard(
                       icon: Icons.task_alt,
-                      title: 'My Tasks',
+                      title: 'Topshiriqlarim',
                       value: '...',
                       color: Colors.blue,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.task_alt,
-                      title: 'My Tasks',
+                      title: 'Topshiriqlarim',
                       value: '-',
                       color: Colors.blue,
                     ),
@@ -87,20 +86,20 @@ class StaffHomeScreen extends ConsumerWidget {
                           tasks.where((t) => t.status == 'PENDING').length;
                       return StatCard(
                         icon: Icons.pending_actions,
-                        title: 'Pending',
+                        title: 'Kutilmoqda',
                         value: '$pending',
                         color: Colors.orange,
                       );
                     },
                     loading: () => const StatCard(
                       icon: Icons.pending_actions,
-                      title: 'Pending',
+                      title: 'Kutilmoqda',
                       value: '...',
                       color: Colors.orange,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.pending_actions,
-                      title: 'Pending',
+                      title: 'Kutilmoqda',
                       value: '-',
                       color: Colors.orange,
                     ),
@@ -111,20 +110,20 @@ class StaffHomeScreen extends ConsumerWidget {
                           tasks.where((t) => t.status == 'COMPLETED').length;
                       return StatCard(
                         icon: Icons.check_circle_outline,
-                        title: 'Completed',
+                        title: 'Bajarildi',
                         value: '$completed',
                         color: Colors.green,
                       );
                     },
                     loading: () => const StatCard(
                       icon: Icons.check_circle_outline,
-                      title: 'Completed',
+                      title: 'Bajarildi',
                       value: '...',
                       color: Colors.green,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.check_circle_outline,
-                      title: 'Completed',
+                      title: 'Bajarildi',
                       value: '-',
                       color: Colors.green,
                     ),
@@ -132,20 +131,20 @@ class StaffHomeScreen extends ConsumerWidget {
                   kpiAsync.when(
                     data: (kpi) => StatCard(
                       icon: Icons.bar_chart,
-                      title: 'My KPI',
+                      title: 'Mening KPI',
                       value:
                           kpi != null ? kpi.score.toStringAsFixed(1) : 'N/A',
                       color: Colors.purple,
                     ),
                     loading: () => const StatCard(
                       icon: Icons.bar_chart,
-                      title: 'My KPI',
+                      title: 'Mening KPI',
                       value: '...',
                       color: Colors.purple,
                     ),
                     error: (_, __) => const StatCard(
                       icon: Icons.bar_chart,
-                      title: 'My KPI',
+                      title: 'Mening KPI',
                       value: '-',
                       color: Colors.purple,
                     ),
@@ -160,7 +159,7 @@ class StaffHomeScreen extends ConsumerWidget {
 
               // Quick actions
               Text(
-                'Quick Actions',
+                'Tezkor amallar',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -169,13 +168,13 @@ class StaffHomeScreen extends ConsumerWidget {
               _buildQuickAction(
                 context,
                 icon: Icons.bar_chart,
-                title: 'View My KPIs',
+                title: 'KPI ko\'rish',
                 onTap: () => context.go('/staff/kpi'),
               ),
               _buildQuickAction(
                 context,
                 icon: Icons.person,
-                title: 'My Profile',
+                title: 'Mening profilim',
                 onTap: () => context.go('/staff/profile'),
               ),
             ],
@@ -203,113 +202,65 @@ class StaffHomeScreen extends ConsumerWidget {
   }
 }
 
-class _AiAssistantCard extends StatefulWidget {
-  @override
-  State<_AiAssistantCard> createState() => _AiAssistantCardState();
-}
-
-class _AiAssistantCardState extends State<_AiAssistantCard> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _open({String? message}) {
-    showAiChatSheet(context, initialMessage: message);
-  }
-
+class _AiAssistantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.primary.withValues(alpha: 0.75),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: () => context.go('/staff/ai-chat'),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary,
+              theme.colorScheme.primary.withValues(alpha: 0.75),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.smart_toy, color: Colors.white, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'AI Assistant',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Ask about staff, roles, departments & policies',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
+              child: const Icon(Icons.smart_toy, color: Colors.white, size: 28),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Inline input
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (value) {
-                    final text = value.trim();
-                    _controller.clear();
-                    if (text.isNotEmpty) {
-                      _open(message: text);
-                    } else {
-                      _open();
-                    }
-                  },
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Ask a question...',
-                    hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI Yordamchi',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.15),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Savol bering, tarix ko\'ring',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {
-                  final text = _controller.text.trim();
-                  _controller.clear();
-                  _open(message: text.isNotEmpty ? text : null);
-                },
-                icon: const Icon(Icons.arrow_forward, color: Colors.white),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white.withValues(alpha: 0.8),
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -14,7 +14,7 @@ class KpiScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My KPIs'),
+        title: const Text('Mening KPI'),
       ),
       body: kpiAsync.when(
         loading: () => const LoadingWidget(),
@@ -25,12 +25,12 @@ class KpiScreen extends ConsumerWidget {
               Icon(Icons.bar_chart, size: 64,
                   color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               const SizedBox(height: 16),
-              Text('Unable to load KPI data',
+              Text('KPI ma\'lumotlarini yuklab bo\'lmadi',
                   style: theme.textTheme.bodyLarge),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => ref.invalidate(myKpiProvider),
-                child: const Text('Retry'),
+                child: const Text('Qayta urinish'),
               ),
             ],
           ),
@@ -44,9 +44,9 @@ class KpiScreen extends ConsumerWidget {
                   Icon(Icons.bar_chart, size: 64,
                       color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
-                  Text('No KPI data yet', style: theme.textTheme.bodyLarge),
+                  Text('Hali KPI ma\'lumotlari yo\'q', style: theme.textTheme.bodyLarge),
                   const SizedBox(height: 8),
-                  Text('Complete tasks to see your performance score.',
+                  Text('Samaradorlik ballingizni ko\'rish uchun topshiriqlarni bajaring.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       )),
@@ -71,7 +71,7 @@ class KpiScreen extends ConsumerWidget {
                     child: Column(
                       children: [
                         Text(
-                          'Overall Score',
+                          'Umumiy ball',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -109,8 +109,8 @@ class KpiScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      title: const Text('Department Ranking'),
-                      subtitle: Text('You are ranked #${kpi.rank} in your department'),
+                      title: const Text('Bo\'lim reytingi'),
+                      subtitle: Text('Siz bo\'limingizda #${kpi.rank} o\'rindasiz'),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -125,7 +125,7 @@ class KpiScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Performance Breakdown',
+                            'Samaradorlik tahlili',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -133,21 +133,21 @@ class KpiScreen extends ConsumerWidget {
                           const SizedBox(height: 16),
                           _buildBreakdownBar(
                             context,
-                            'Timeliness',
+                            'O\'z vaqtida bajarish',
                             kpi.breakdown!.timeliness,
                             Colors.blue,
                           ),
                           const SizedBox(height: 12),
                           _buildBreakdownBar(
                             context,
-                            'Completion',
+                            'Bajarilish',
                             kpi.breakdown!.completion,
                             Colors.green,
                           ),
                           const SizedBox(height: 12),
                           _buildBreakdownBar(
                             context,
-                            'Efficiency',
+                            'Samaradorlik',
                             kpi.breakdown!.efficiency,
                             Colors.orange,
                           ),

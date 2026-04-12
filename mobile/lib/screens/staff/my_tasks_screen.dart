@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
-import '../../widgets/task_card.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/task_card.dart';
 
 class MyTasksScreen extends ConsumerStatefulWidget {
   const MyTasksScreen({super.key});
@@ -17,8 +18,13 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final _tabs = const ['All', 'Pending', 'In Progress', 'Completed'];
-  final _statusFilters = const ['', 'PENDING', 'IN_PROGRESS', 'COMPLETED'];
+  final _tabs = const [
+    'Hammasi',
+    'Yangi',
+    'Jarayonda',
+    "Muddati o'tgan",
+    'Bajarildi',
+  ];
 
   @override
   void initState() {
@@ -32,6 +38,23 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
     super.dispose();
   }
 
+  List<Task> _filterTasks(List<Task> tasks, int tabIndex) {
+    switch (tabIndex) {
+      case 0:
+        return tasks;
+      case 1:
+        return tasks.where((t) => t.status == 'NEW').toList();
+      case 2:
+        return tasks.where((t) => t.status == 'IN_PROGRESS').toList();
+      case 3:
+        return tasks.where((t) => t.isOverdue).toList();
+      case 4:
+        return tasks.where((t) => t.status == 'COMPLETED').toList();
+      default:
+        return tasks;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tasksAsync = ref.watch(myTasksProvider);
@@ -39,7 +62,7 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Tasks'),
+        title: const Text('Mening topshiriqlarim'),
         bottom: TabBar(
           controller: _tabController,
           tabs: _tabs.map((t) => Tab(text: t)).toList(),
@@ -53,27 +76,27 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Failed to load tasks',
+              Text('Topshiriqlar yuklanmadi',
                   style: TextStyle(color: theme.colorScheme.error)),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => ref.invalidate(myTasksProvider),
-                child: const Text('Retry'),
+                child: const Text('Qayta urinish'),
               ),
             ],
           ),
         ),
         data: (tasks) => TabBarView(
           controller: _tabController,
-          children: _statusFilters.map((filter) {
-            final filtered = filter.isEmpty
-                ? tasks
-                : tasks.where((t) => t.status == filter).toList();
+          children: List.generate(_tabs.length, (index) {
+            final filtered = _filterTasks(tasks, index);
 
             if (filtered.isEmpty) {
-              return const EmptyStateWidget(
+              return EmptyStateWidget(
                 icon: Icons.task_alt,
-                message: 'No tasks found',
+                message: index == 3
+                    ? "Muddati o'tgan topshiriqlar yo'q"
+                    : 'Topshiriqlar topilmadi',
               );
             }
 
@@ -85,8 +108,8 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final task = filtered[index];
+                itemBuilder: (context, i) {
+                  final task = filtered[i];
                   return TaskCard(
                     task: task,
                     onTap: () => context.push('/staff/tasks/${task.id}'),
@@ -94,7 +117,7 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
                 },
               ),
             );
-          }).toList(),
+          }),
         ),
       ),
     );

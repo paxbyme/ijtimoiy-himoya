@@ -29,11 +29,11 @@ class EmployeeListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Employees'),
+        title: const Text('Xodimlar'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
+            tooltip: 'Chiqish',
             onPressed: () async {
               await ref.read(authServiceProvider).signOut();
               if (context.mounted) context.go('/login');
@@ -51,12 +51,12 @@ class EmployeeListScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Failed to load employees',
+              Text('Xodimlarni yuklashda xatolik',
                   style: TextStyle(color: theme.colorScheme.error)),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => ref.invalidate(staffListProvider),
-                child: const Text('Retry'),
+                child: const Text('Qayta urinish'),
               ),
             ],
           ),
@@ -65,7 +65,7 @@ class EmployeeListScreen extends ConsumerWidget {
           if (staff.isEmpty) {
             return const EmptyStateWidget(
               icon: Icons.people_outline,
-              message: 'No employees yet. Tap + to add one.',
+              message: 'Hali xodimlar yo\'q. + tugmasini bosing.',
             );
           }
 
@@ -105,7 +105,7 @@ class EmployeeListScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        employee.isActive ? 'Active' : 'Inactive',
+                        employee.isActive ? 'Faol' : 'Faol emas',
                         style: TextStyle(
                           fontSize: 12,
                           color: employee.isActive ? Colors.green : Colors.red,
@@ -150,7 +150,7 @@ class EmployeeListScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Add Employee',
+                'Xodim qo\'shish',
                 style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -159,22 +159,22 @@ class EmployeeListScreen extends ConsumerWidget {
               TextFormField(
                 controller: nameController,
                 decoration: const InputDecoration(
-                  labelText: 'Full Name',
+                  labelText: 'To\'liq ism',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
                 validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Name is required' : null,
+                    v == null || v.trim().isEmpty ? 'Ism talab qilinadi' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(
-                  labelText: 'Phone Number',
+                  labelText: 'Telefon raqami',
                   prefixIcon: Icon(Icons.phone_outlined),
                 ),
                 validator: (v) => v == null || v.trim().isEmpty
-                    ? 'Phone is required'
+                    ? 'Telefon talab qilinadi'
                     : null,
               ),
               const SizedBox(height: 12),
@@ -182,12 +182,12 @@ class EmployeeListScreen extends ConsumerWidget {
                 controller: passwordController,
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: 'Password',
+                  labelText: 'Parol',
                   prefixIcon: Icon(Icons.lock_outlined),
                 ),
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Password is required';
-                  if (v.length < 8) return 'Min 8 characters';
+                  if (v == null || v.isEmpty) return 'Parol talab qilinadi';
+                  if (v.length < 8) return 'Kamida 8 ta belgi';
                   return null;
                 },
               ),
@@ -205,14 +205,14 @@ class EmployeeListScreen extends ConsumerWidget {
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Employee added')),
+                        const SnackBar(content: Text('Xodim qo\'shildi')),
                       );
                     }
                   } catch (e) {
                     if (ctx.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Failed to add employee: $e'),
+                          content: Text('Xodim qo\'shishda xatolik: $e'),
                           backgroundColor:
                               Theme.of(context).colorScheme.error,
                         ),
@@ -220,7 +220,7 @@ class EmployeeListScreen extends ConsumerWidget {
                     }
                   }
                 },
-                child: const Text('Add Employee'),
+                child: const Text('Xodim qo\'shish'),
               ),
             ],
           ),

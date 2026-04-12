@@ -30,6 +30,20 @@ class TaskNotifier extends Notifier<AsyncValue<void>> {
     }
   }
 
+  Future<bool> createBulkTasks(List<String> assignedToList, Map<String, dynamic> data) async {
+    state = const AsyncValue.loading();
+    try {
+      await ref.read(apiServiceProvider).createBulkTasks(assignedToList, data);
+      ref.invalidate(allTasksProvider);
+      ref.invalidate(myTasksProvider);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
   Future<bool> completeTask(String taskId) async {
     state = const AsyncValue.loading();
     try {
@@ -40,6 +54,28 @@ class TaskNotifier extends Notifier<AsyncValue<void>> {
       return true;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> uploadAttachment(String taskId, String filePath, String fileName) async {
+    try {
+      await ref.read(apiServiceProvider).uploadTaskAttachment(taskId, filePath, fileName);
+      ref.invalidate(allTasksProvider);
+      ref.invalidate(myTasksProvider);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> acceptTask(String taskId) async {
+    try {
+      await ref.read(apiServiceProvider).acceptTask(taskId);
+      ref.invalidate(allTasksProvider);
+      ref.invalidate(myTasksProvider);
+      return true;
+    } catch (e) {
       return false;
     }
   }
