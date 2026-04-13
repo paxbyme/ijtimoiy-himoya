@@ -102,6 +102,9 @@ public class TaskRepository {
         map.put("completedAt", task.getCompletedAt());
         map.put("createdAt", task.getCreatedAt());
         map.put("assigneeName", task.getAssigneeName());
+        map.put("attachmentUrl", task.getAttachmentUrl());
+        map.put("attachmentName", task.getAttachmentName());
+        map.put("managerAccepted", task.getManagerAccepted() != null ? task.getManagerAccepted() : false);
         return map;
     }
 
@@ -119,6 +122,9 @@ public class TaskRepository {
                 .completedAt(timestampToString(doc, "completedAt"))
                 .createdAt(timestampToString(doc, "createdAt"))
                 .assigneeName(doc.getString("assigneeName"))
+                .attachmentUrl(doc.getString("attachmentUrl"))
+                .attachmentName(doc.getString("attachmentName"))
+                .managerAccepted(doc.getBoolean("managerAccepted"))
                 .build();
     }
 

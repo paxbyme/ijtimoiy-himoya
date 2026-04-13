@@ -22,4 +22,7 @@ public class TaskDto {
     private String completedAt;
     private String createdAt;
     private String assigneeName;
+    private String attachmentUrl;
+    private String attachmentName;
+    private Boolean managerAccepted;
 }

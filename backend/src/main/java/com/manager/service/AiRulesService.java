@@ -4,6 +4,7 @@ import com.manager.dto.AiRuleDto;
 import com.manager.dto.CreateAiRuleRequest;
 import com.manager.repository.AiRuleRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.List;
@@ -13,9 +14,11 @@ import java.util.Map;
 public class AiRulesService {
 
     private final AiRuleRepository aiRuleRepository;
+    private final DocumentService documentService;
 
-    public AiRulesService(AiRuleRepository aiRuleRepository) {
+    public AiRulesService(AiRuleRepository aiRuleRepository, DocumentService documentService) {
         this.aiRuleRepository = aiRuleRepository;
+        this.documentService = documentService;
     }
 
     public AiRuleDto createRule(CreateAiRuleRequest req, String managerId, String departmentId) throws Exception {
@@ -29,6 +32,24 @@ public class AiRulesService {
                 .priority(req.getPriority() != null ? req.getPriority() : 0)
                 .build();
 
+        return aiRuleRepository.save(rule);
+    }
+
+    public AiRuleDto createRuleFromFile(MultipartFile file, String title, String category,
+                                        Integer priority, String managerId, String departmentId) throws Exception {
+        String content = documentService.extractText(file.getBytes(), file.getOriginalFilename());
+        if (content == null || content.isBlank()) {
+            throw new RuntimeException("Could not extract text from the uploaded file");
+        }
+        AiRuleDto rule = AiRuleDto.builder()
+                .departmentId(departmentId)
+                .managerId(managerId)
+                .title(title != null && !title.isBlank() ? title : file.getOriginalFilename())
+                .content(content.trim())
+                .category(category != null ? category : "GENERAL")
+                .isActive(true)
+                .priority(priority != null ? priority : 0)
+                .build();
         return aiRuleRepository.save(rule);
     }
 

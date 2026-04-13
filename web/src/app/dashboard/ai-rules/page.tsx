@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -26,12 +26,12 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Plus, Brain, Pencil, Trash2, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Brain, Pencil, Trash2, Loader2, ToggleLeft, ToggleRight, Upload, FileText } from "lucide-react";
 
 const ruleSchema = z.object({
-  title: z.string().min(2, "Title is required"),
-  content: z.string().min(1, "Content is required"),
-  category: z.string().min(1, "Category is required"),
+  title: z.string().min(2, "Sarlavha kiritilishi shart"),
+  content: z.string().min(1, "Kontent kiritilishi shart"),
+  category: z.string().min(1, "Kategoriya kiritilishi shart"),
   priority: z.number().min(1).max(10),
   active: z.boolean(),
 });
@@ -40,7 +40,12 @@ type RuleFormData = z.infer<typeof ruleSchema>;
 
 export default function AiRulesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AiRule | null>(null);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadCategory, setUploadCategory] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data: rules, isLoading } = useQuery({
@@ -59,10 +64,7 @@ export default function AiRulesPage() {
     formState: { errors },
   } = useForm<RuleFormData>({
     resolver: zodResolver(ruleSchema),
-    defaultValues: {
-      priority: 5,
-      active: true,
-    },
+    defaultValues: { priority: 5, active: true },
   });
 
   const createMutation = useMutation({
@@ -76,27 +78,44 @@ export default function AiRulesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
-      toast.success(editingRule ? "Rule updated successfully" : "Rule created successfully");
+      toast.success(editingRule ? "Qoida yangilandi" : "Qoida yaratildi");
       setDialogOpen(false);
       setEditingRule(null);
       reset();
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to save rule");
-    },
+    onError: () => toast.error("Qoida saqlashda xatolik"),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await api.delete(`/ai-rules/${id}`);
+  const uploadMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedFile) throw new Error("Fayl tanlanmagan");
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      if (uploadTitle) formData.append("title", uploadTitle);
+      if (uploadCategory) formData.append("category", uploadCategory);
+      const res = await api.post("/ai-rules/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
-      toast.success("Rule deleted successfully");
+      toast.success("Fayl o'qildi va qoida yaratildi");
+      setUploadDialogOpen(false);
+      setSelectedFile(null);
+      setUploadTitle("");
+      setUploadCategory("");
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete rule");
+    onError: () => toast.error("Fayldan qoida yaratishda xatolik"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => { await api.delete(`/ai-rules/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
+      toast.success("Qoida o'chirildi");
     },
+    onError: () => toast.error("O&apos;chirishda xatolik"),
   });
 
   const toggleMutation = useMutation({
@@ -106,11 +125,9 @@ export default function AiRulesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
-      toast.success("Rule status updated");
+      toast.success("Holat yangilandi");
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to toggle rule");
-    },
+    onError: () => toast.error("Holatni o'zgartirishda xatolik"),
   });
 
   const openEdit = (rule: AiRule) => {
@@ -125,24 +142,14 @@ export default function AiRulesPage() {
 
   const openCreate = () => {
     setEditingRule(null);
-    reset({
-      title: "",
-      content: "",
-      category: "",
-      priority: 5,
-      active: true,
-    });
+    reset({ title: "", content: "", category: "", priority: 5, active: true });
     setDialogOpen(true);
-  };
-
-  const onSubmit = (data: RuleFormData) => {
-    createMutation.mutate(data);
   };
 
   if (isLoading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <LoadingSpinner text="Loading AI rules..." />
+        <LoadingSpinner text="AI qoidalari yuklanmoqda..." />
       </div>
     );
   }
@@ -151,130 +158,158 @@ export default function AiRulesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">AI Rules</h1>
+          <h1 className="text-2xl font-bold tracking-tight">AI Qoidalari</h1>
           <p className="text-sm text-muted-foreground">
-            Configure rules that guide AI behavior for your team
+            AI yordamchisi xulq-atvorini boshqarish qoidalari
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            setEditingRule(null);
-            reset();
-          }
-        }}>
-          <DialogTrigger render={<Button className="bg-blue-600 hover:bg-blue-700" onClick={openCreate} />}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Rule
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingRule ? "Edit Rule" : "Add New Rule"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingRule
-                  ? "Update the AI rule configuration."
-                  : "Define a new rule for the AI assistant."}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  placeholder="Rule title"
-                  {...register("title")}
-                />
-                {errors.title && (
-                  <p className="text-xs text-red-500">{errors.title.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="content">Content</Label>
-                <Textarea
-                  id="content"
-                  placeholder="Describe the rule..."
-                  {...register("content")}
-                />
-                {errors.content && (
-                  <p className="text-xs text-red-500">{errors.content.message}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setUploadDialogOpen(true)}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Fayldan yuklash
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) { setEditingRule(null); reset(); }
+          }}>
+            <DialogTrigger render={<Button className="bg-blue-600 hover:bg-blue-700" onClick={openCreate} />}>
+              <Plus className="mr-2 h-4 w-4" />
+              Qoida qo&#39;shish
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{editingRule ? "Qoidani tahrirlash" : "Yangi qoida qo'shish"}</DialogTitle>
+                <DialogDescription>
+                  {editingRule ? "AI qoidasini yangilang." : "AI yordamchisi uchun yangi qoida kiriting."}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Input
-                    id="category"
-                    placeholder="e.g., Safety, Conduct"
-                    {...register("category")}
-                  />
-                  {errors.category && (
-                    <p className="text-xs text-red-500">{errors.category.message}</p>
-                  )}
+                  <Label htmlFor="title">Sarlavha</Label>
+                  <Input id="title" placeholder="Qoida sarlavhasi" {...register("title")} />
+                  {errors.title && <p className="text-xs text-red-500">{errors.title.message}</p>}
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="priority">Priority (1-10)</Label>
-                  <Input
-                    id="priority"
-                    type="number"
-                    min={1}
-                    max={10}
-                    {...register("priority", { valueAsNumber: true })}
-                  />
-                  {errors.priority && (
-                    <p className="text-xs text-red-500">{errors.priority.message}</p>
-                  )}
+                  <Label htmlFor="content">Kontent</Label>
+                  <Textarea id="content" placeholder="Qoidani tasvirlab bering..." rows={4} {...register("content")} />
+                  {errors.content && <p className="text-xs text-red-500">{errors.content.message}</p>}
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="active"
-                  className="h-4 w-4 rounded border-gray-300"
-                  {...register("active")}
-                />
-                <Label htmlFor="active">Active</Label>
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Kategoriya</Label>
+                    <Input id="category" placeholder="Masalan: Xavfsizlik" {...register("category")} />
+                    {errors.category && <p className="text-xs text-red-500">{errors.category.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Ustuvorlik (1-10)</Label>
+                    <Input id="priority" type="number" min={1} max={10} {...register("priority", { valueAsNumber: true })} />
+                    {errors.priority && <p className="text-xs text-red-500">{errors.priority.message}</p>}
+                  </div>
+                </div>
 
-              <DialogFooter>
-                <DialogClose render={<Button variant="outline" />}>
-                  Cancel
-                </DialogClose>
-                <Button
-                  type="submit"
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={createMutation.isPending}
-                >
-                  {createMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : editingRule ? (
-                    "Update Rule"
-                  ) : (
-                    "Add Rule"
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="active" className="h-4 w-4 rounded border-gray-300" {...register("active")} />
+                  <Label htmlFor="active">Faol</Label>
+                </div>
+
+                <DialogFooter>
+                  <DialogClose render={<Button variant="outline" />}>Bekor</DialogClose>
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saqlanmoqda...</> : editingRule ? "Yangilash" : "Qo'shish"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
+      {/* File upload dialog */}
+      <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
+        setUploadDialogOpen(open);
+        if (!open) { setSelectedFile(null); setUploadTitle(""); setUploadCategory(""); }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fayldan qoida yaratish</DialogTitle>
+            <DialogDescription>
+              Hujjat yuklanadi, matni o&#39;qiladi va qoida sifatida saqlanadi.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div
+              className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-6 cursor-pointer hover:border-blue-400 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {selectedFile ? (
+                <>
+                  <FileText className="h-8 w-8 text-blue-600 mb-2" />
+                  <p className="text-sm font-medium">{selectedFile.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(selectedFile.size / 1024).toFixed(1)} KB
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                  <p className="text-sm text-muted-foreground">Fayl tanlash uchun bosing</p>
+                  <p className="text-xs text-muted-foreground">PDF, DOCX, TXT, DOC</p>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.doc,.txt,.md"
+              className="hidden"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            />
+
+            <div className="space-y-2">
+              <Label>Sarlavha (ixtiyoriy)</Label>
+              <Input
+                placeholder="Fayl nomidan foydalaniladi"
+                value={uploadTitle}
+                onChange={(e) => setUploadTitle(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Kategoriya (ixtiyoriy)</Label>
+              <Input
+                placeholder="GENERAL"
+                value={uploadCategory}
+                onChange={(e) => setUploadCategory(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Bekor</DialogClose>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={!selectedFile || uploadMutation.isPending}
+              onClick={() => uploadMutation.mutate()}
+            >
+              {uploadMutation.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />O&#39;qilmoqda...</>
+              ) : (
+                <><Upload className="mr-2 h-4 w-4" />Yuklash</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {!rules || rules.length === 0 ? (
-        <EmptyState
-          icon={Brain}
-          title="No AI rules defined"
-          description="Add rules to configure how the AI assistant interacts with your team."
-        >
+        <EmptyState icon={Brain} title="AI qoidalari yo'q" description="Qoidalar qo'shing.">
           <Button className="bg-blue-600 hover:bg-blue-700" onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Rule
+            Qoida qo&#39;shish
           </Button>
         </EmptyState>
       ) : (
@@ -285,59 +320,27 @@ export default function AiRulesPage() {
                 <div className="flex items-start justify-between">
                   <CardTitle className="text-base">{rule.title}</CardTitle>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() =>
-                        toggleMutation.mutate({
-                          id: rule.id,
-                          active: !rule.active,
-                        })
-                      }
-                      title={rule.active ? "Deactivate" : "Activate"}
-                    >
-                      {rule.active ? (
-                        <ToggleRight className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <ToggleLeft className="h-4 w-4 text-gray-400" />
-                      )}
+                    <Button variant="ghost" size="icon-xs" onClick={() => toggleMutation.mutate({ id: rule.id, active: !rule.active })} title={rule.active ? "O&apos;chirish" : "Yoqish"}>
+                      {rule.active ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => openEdit(rule)}
-                    >
+                    <Button variant="ghost" size="icon-xs" onClick={() => openEdit(rule)}>
                       <Pencil className="h-3 w-3" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => {
-                        if (confirm("Are you sure you want to delete this rule?")) {
-                          deleteMutation.mutate(rule.id);
-                        }
-                      }}
-                    >
+                    <Button variant="ghost" size="icon-xs" onClick={() => { if (confirm("Qoidani o'chirishni tasdiqlaysizmi?")) deleteMutation.mutate(rule.id); }}>
                       <Trash2 className="h-3 w-3 text-red-500" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
-                  {rule.content}
-                </p>
+                <p className="text-sm text-muted-foreground line-clamp-3 mb-3">{rule.content}</p>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{rule.category}</Badge>
-                  <Badge variant="outline">Priority: {rule.priority}</Badge>
+                  <Badge variant="outline">Ustuvorlik: {rule.priority}</Badge>
                   {rule.active ? (
-                    <Badge variant="secondary" className="bg-green-100 text-green-700">
-                      Active
-                    </Badge>
+                    <Badge variant="secondary" className="bg-green-100 text-green-700">Faol</Badge>
                   ) : (
-                    <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                      Inactive
-                    </Badge>
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700">Nofaol</Badge>
                   )}
                 </div>
               </CardContent>

@@ -13,6 +13,7 @@ export interface Department {
   id: string;
   name: string;
   managerId?: string;
+  managerIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -25,11 +26,14 @@ export interface Task {
   assignedBy: string;
   assigneeName?: string;
   departmentId: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  status: 'NEW' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   deadline?: string;
   completedAt?: string;
   createdAt: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  managerAccepted?: boolean;
 }
 
 export interface AiRule {

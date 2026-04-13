@@ -87,9 +87,9 @@ export default function DashboardPage() {
   const staff = staffData || [];
   const tasks = tasksData || [];
   const averageKpi = typeof kpiData === "number" ? kpiData : 0;
-  const pendingTasks = tasks.filter((t) => t.status === "PENDING").length;
+  const pendingTasks = tasks.filter((t) => t.status === "NEW").length;
   const activeTasks = tasks.filter(
-    (t) => t.status === "PENDING" || t.status === "IN_PROGRESS"
+    (t) => t.status === "NEW" || t.status === "IN_PROGRESS"
   ).length;
   const recentTasks = [...tasks]
     .sort(

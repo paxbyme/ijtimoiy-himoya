@@ -17,8 +17,8 @@ public class UpdateTaskRequest {
     @Size(max = 2000, message = "Description must not exceed 2000 characters")
     private String description;
 
-    @Pattern(regexp = "^(PENDING|IN_PROGRESS|COMPLETED|CANCELLED)$",
-             message = "Status must be PENDING, IN_PROGRESS, COMPLETED, or CANCELLED")
+    @Pattern(regexp = "^(NEW|IN_PROGRESS|COMPLETED|CANCELLED)$",
+             message = "Status must be NEW, IN_PROGRESS, COMPLETED, or CANCELLED")
     private String status;
 
     @Pattern(regexp = "^(LOW|MEDIUM|HIGH|URGENT)$",

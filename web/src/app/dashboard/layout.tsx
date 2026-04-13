@@ -63,10 +63,10 @@ export default function DashboardLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header */}
         <header className="flex h-14 items-center justify-between border-b bg-white shadow-sm px-4 lg:px-6">
-          <div className="lg:hidden" /> {/* Spacer for mobile menu button */}
+          <div className="lg:hidden" />
           <div className="hidden lg:block">
             <h2 className="text-sm font-medium text-muted-foreground">
-              Welcome back, {userData?.name || "User"}
+              Xush kelibsiz, {userData?.name || "Foydalanuvchi"}
             </h2>
           </div>
 
@@ -78,7 +78,7 @@ export default function DashboardLayout({
                     <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                   <span className="hidden text-sm font-medium sm:inline-block">
-                    {userData?.name || "User"}
+                    {userData?.name || "Foydalanuvchi"}
                   </span>
                 </Button>
               }
@@ -86,24 +86,38 @@ export default function DashboardLayout({
             <DropdownMenuContent align="end" sideOffset={8}>
               <DropdownMenuItem>
                 <User className="mr-2 h-4 w-4" />
-                Profile
+                Profil
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />
-                Settings
+                Sozlamalar
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
-                Log out
+                Chiqish
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-4 lg:p-6">
-          {children}
+        {/* Main Content with watermark */}
+        <main className="relative flex-1 overflow-y-auto bg-slate-50 p-4 lg:p-6">
+          {/* SJMA watermark */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center"
+            style={{ top: 56 }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt=""
+              className="h-[420px] w-[420px] select-none opacity-[0.04]"
+              draggable={false}
+            />
+          </div>
+          <div className="relative z-10">{children}</div>
         </main>
       </div>
     </div>

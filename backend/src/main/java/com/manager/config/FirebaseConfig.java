@@ -18,14 +18,19 @@ public class FirebaseConfig {
     @Value("${firebase.credentials.path}")
     private String credentialsPath;
 
+    @Value("${firebase.storage.bucket:}")
+    private String storageBucket;
+
     @Bean
     public FirebaseApp firebaseApp() throws IOException {
         if (FirebaseApp.getApps().isEmpty()) {
             FileInputStream serviceAccount = new FileInputStream(credentialsPath);
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                    .build();
-            return FirebaseApp.initializeApp(options);
+            FirebaseOptions.Builder builder = FirebaseOptions.builder()
+                    .setCredentials(GoogleCredentials.fromStream(serviceAccount));
+            if (storageBucket != null && !storageBucket.isBlank()) {
+                builder.setStorageBucket(storageBucket);
+            }
+            return FirebaseApp.initializeApp(builder.build());
         }
         return FirebaseApp.getInstance();
     }

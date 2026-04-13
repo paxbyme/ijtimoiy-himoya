@@ -4,10 +4,13 @@ import com.manager.dto.*;
 import com.manager.service.TaskService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -36,16 +39,27 @@ public class TaskController {
         }
     }
 
-    /**
-     * GET /api/tasks?page=0&size=20&status=PENDING
-     * Returns PageResponse<TaskDto> with content, totalElements, totalPages, etc.
-     * NOTE: web/mobile clients must now read `.content` instead of the raw array.
-     */
+    @PostMapping("/bulk")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<ApiResponse<List<TaskDto>>> createBulkTasks(
+            @Valid @RequestBody BulkCreateTaskRequest request,
+            HttpServletRequest httpRequest) {
+        try {
+            String assignedBy = (String) httpRequest.getAttribute("uid");
+            String departmentId = (String) httpRequest.getAttribute("departmentId");
+            List<TaskDto> tasks = taskService.createBulkTasks(request, assignedBy, departmentId);
+            return ResponseEntity.ok(ApiResponse.ok("Tasks created", tasks));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Failed to create tasks: " + e.getMessage()));
+        }
+    }
+
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<TaskDto>>> listTasks(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Boolean overdue,
             HttpServletRequest request) {
         try {
             String role = (String) request.getAttribute("role");
@@ -59,7 +73,15 @@ public class TaskController {
                 tasks = taskService.getTasksByStaff(uid);
             }
 
-            if (status != null && !status.isEmpty()) {
+            if (Boolean.TRUE.equals(overdue)) {
+                String now = Instant.now().toString();
+                tasks = tasks.stream()
+                        .filter(t -> t.getDeadline() != null
+                                && t.getDeadline().compareTo(now) < 0
+                                && !"COMPLETED".equalsIgnoreCase(t.getStatus())
+                                && !"CANCELLED".equalsIgnoreCase(t.getStatus()))
+                        .collect(Collectors.toList());
+            } else if (status != null && !status.isEmpty()) {
                 tasks = tasks.stream()
                         .filter(t -> status.equalsIgnoreCase(t.getStatus()))
                         .collect(Collectors.toList());
@@ -107,6 +129,29 @@ public class TaskController {
             return ResponseEntity.ok(ApiResponse.ok("Task completed", task));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error("Failed to complete task: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/{id}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<TaskDto>> uploadAttachment(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            TaskDto task = taskService.uploadAttachment(id, file);
+            return ResponseEntity.ok(ApiResponse.ok("Attachment uploaded", task));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Failed to upload attachment: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/accept")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<ApiResponse<TaskDto>> acceptTask(@PathVariable String id) {
+        try {
+            TaskDto task = taskService.acceptTask(id);
+            return ResponseEntity.ok(ApiResponse.ok("Task accepted", task));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Failed to accept task: " + e.getMessage()));
         }
     }
 

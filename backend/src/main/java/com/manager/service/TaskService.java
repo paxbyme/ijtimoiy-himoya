@@ -1,5 +1,6 @@
 package com.manager.service;
 
+import com.manager.dto.BulkCreateTaskRequest;
 import com.manager.dto.CreateTaskRequest;
 import com.manager.dto.TaskDto;
 import com.manager.dto.UpdateTaskRequest;
@@ -9,8 +10,10 @@ import com.manager.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,15 +26,17 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final KpiService kpiService;
+    private final StorageService storageService;
 
-    public TaskService(TaskRepository taskRepository, UserRepository userRepository, KpiService kpiService) {
+    public TaskService(TaskRepository taskRepository, UserRepository userRepository,
+                       KpiService kpiService, StorageService storageService) {
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
         this.kpiService = kpiService;
+        this.storageService = storageService;
     }
 
     public TaskDto createTask(CreateTaskRequest req, String assignedBy, String departmentId) throws Exception {
-        // Look up assignee name
         String assigneeName = "";
         UserDto assignee = userRepository.findById(req.getAssignedTo());
         if (assignee != null) {
@@ -44,7 +49,7 @@ public class TaskService {
                 .assignedTo(req.getAssignedTo())
                 .assignedBy(assignedBy)
                 .departmentId(departmentId)
-                .status("PENDING")
+                .status("NEW")
                 .priority(req.getPriority() != null ? req.getPriority() : "MEDIUM")
                 .deadline(req.getDeadline())
                 .createdAt(Instant.now().toString())
@@ -52,6 +57,31 @@ public class TaskService {
                 .build();
 
         return taskRepository.save(task);
+    }
+
+    public List<TaskDto> createBulkTasks(BulkCreateTaskRequest req, String assignedBy, String departmentId) throws Exception {
+        List<TaskDto> created = new ArrayList<>();
+        for (String assignedTo : req.getAssignedToList()) {
+            String assigneeName = "";
+            UserDto assignee = userRepository.findById(assignedTo);
+            if (assignee != null) {
+                assigneeName = assignee.getName();
+            }
+            TaskDto task = TaskDto.builder()
+                    .title(req.getTitle())
+                    .description(req.getDescription())
+                    .assignedTo(assignedTo)
+                    .assignedBy(assignedBy)
+                    .departmentId(departmentId)
+                    .status("NEW")
+                    .priority(req.getPriority() != null ? req.getPriority() : "MEDIUM")
+                    .deadline(req.getDeadline())
+                    .createdAt(Instant.now().toString())
+                    .assigneeName(assigneeName)
+                    .build();
+            created.add(taskRepository.save(task));
+        }
+        return created;
     }
 
     public List<TaskDto> getTasksByDepartment(String departmentId) throws Exception {
@@ -91,7 +121,6 @@ public class TaskService {
         updates.put("completedAt", Instant.now().toString());
         taskRepository.update(id, updates);
 
-        // Trigger KPI recalculation (best-effort – failure does not fail the task)
         try {
             kpiService.calculateKpi(staffId, task.getDepartmentId());
         } catch (Exception e) {
@@ -99,6 +128,31 @@ public class TaskService {
         }
 
         return taskRepository.findById(id);
+    }
+
+    public TaskDto uploadAttachment(String taskId, MultipartFile file) throws Exception {
+        TaskDto task = taskRepository.findById(taskId);
+        if (task == null) {
+            throw new RuntimeException("Task not found");
+        }
+        String path = "task-attachments/" + taskId + "/" + file.getOriginalFilename();
+        String url = storageService.uploadFile(file.getBytes(), path, file.getContentType());
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("attachmentUrl", url);
+        updates.put("attachmentName", file.getOriginalFilename());
+        taskRepository.update(taskId, updates);
+        return taskRepository.findById(taskId);
+    }
+
+    public TaskDto acceptTask(String taskId) throws Exception {
+        TaskDto task = taskRepository.findById(taskId);
+        if (task == null) {
+            throw new RuntimeException("Task not found");
+        }
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("managerAccepted", true);
+        taskRepository.update(taskId, updates);
+        return taskRepository.findById(taskId);
     }
 
     public void deleteTask(String id) throws Exception {
