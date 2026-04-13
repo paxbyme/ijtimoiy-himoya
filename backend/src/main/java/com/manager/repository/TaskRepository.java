@@ -105,10 +105,35 @@ public class TaskRepository {
         map.put("attachmentUrl", task.getAttachmentUrl());
         map.put("attachmentName", task.getAttachmentName());
         map.put("managerAccepted", task.getManagerAccepted() != null ? task.getManagerAccepted() : false);
+        map.put("attachments", task.getAttachments() != null ? task.getAttachments() : new ArrayList<>());
         return map;
     }
 
+    @SuppressWarnings("unchecked")
     private TaskDto fromDoc(DocumentSnapshot doc) {
+        // Parse attachments list (new format)
+        List<Map<String, String>> attachments = new ArrayList<>();
+        Object attList = doc.get("attachments");
+        if (attList instanceof List<?> rawList) {
+            for (Object item : rawList) {
+                if (item instanceof Map<?, ?> rawMap) {
+                    Map<String, String> att = new HashMap<>();
+                    if (rawMap.get("url") != null) att.put("url", rawMap.get("url").toString());
+                    if (rawMap.get("name") != null) att.put("name", rawMap.get("name").toString());
+                    if (att.containsKey("url")) attachments.add(att);
+                }
+            }
+        }
+        // Backward compat: single attachment fields
+        String legacyUrl = doc.getString("attachmentUrl");
+        if (attachments.isEmpty() && legacyUrl != null) {
+            Map<String, String> att = new HashMap<>();
+            att.put("url", legacyUrl);
+            String legacyName = doc.getString("attachmentName");
+            att.put("name", legacyName != null ? legacyName : "Fayl");
+            attachments.add(att);
+        }
+
         return TaskDto.builder()
                 .id(doc.getId())
                 .title(doc.getString("title"))
@@ -122,9 +147,10 @@ public class TaskRepository {
                 .completedAt(timestampToString(doc, "completedAt"))
                 .createdAt(timestampToString(doc, "createdAt"))
                 .assigneeName(doc.getString("assigneeName"))
-                .attachmentUrl(doc.getString("attachmentUrl"))
-                .attachmentName(doc.getString("attachmentName"))
+                .attachmentUrl(attachments.isEmpty() ? null : attachments.get(0).get("url"))
+                .attachmentName(attachments.isEmpty() ? null : attachments.get(0).get("name"))
                 .managerAccepted(doc.getBoolean("managerAccepted"))
+                .attachments(attachments)
                 .build();
     }
 

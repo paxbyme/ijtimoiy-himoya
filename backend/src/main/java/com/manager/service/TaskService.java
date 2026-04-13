@@ -1,5 +1,6 @@
 package com.manager.service;
 
+import com.google.cloud.firestore.FieldValue;
 import com.manager.dto.BulkCreateTaskRequest;
 import com.manager.dto.CreateTaskRequest;
 import com.manager.dto.TaskDto;
@@ -15,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -135,11 +137,19 @@ public class TaskService {
         if (task == null) {
             throw new RuntimeException("Task not found");
         }
-        String path = "task-attachments/" + taskId + "/" + file.getOriginalFilename();
+        String fileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "attachment";
+        String path = "task-attachments/" + taskId + "/" + System.currentTimeMillis() + "_" + fileName;
         String url = storageService.uploadFile(file.getBytes(), path, file.getContentType());
+
+        Map<String, String> attachment = new LinkedHashMap<>();
+        attachment.put("url", url);
+        attachment.put("name", fileName);
+
         Map<String, Object> updates = new HashMap<>();
+        updates.put("attachments", FieldValue.arrayUnion(attachment));
+        // Keep legacy single-attachment fields for backward compat with old mobile clients
         updates.put("attachmentUrl", url);
-        updates.put("attachmentName", file.getOriginalFilename());
+        updates.put("attachmentName", fileName);
         taskRepository.update(taskId, updates);
         return taskRepository.findById(taskId);
     }

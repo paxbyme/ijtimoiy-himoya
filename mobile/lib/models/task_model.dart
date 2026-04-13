@@ -1,3 +1,19 @@
+class TaskAttachment {
+  final String url;
+  final String name;
+
+  const TaskAttachment({required this.url, required this.name});
+
+  factory TaskAttachment.fromJson(Map<String, dynamic> json) {
+    return TaskAttachment(
+      url: json['url']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Fayl',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'url': url, 'name': name};
+}
+
 class Task {
   final String id;
   final String title;
@@ -11,8 +27,7 @@ class Task {
   final DateTime? completedAt;
   final DateTime? createdAt;
   final String? assigneeName;
-  final String? attachmentUrl;
-  final String? attachmentName;
+  final List<TaskAttachment> attachments;
   final bool managerAccepted;
 
   Task({
@@ -28,10 +43,13 @@ class Task {
     this.completedAt,
     this.createdAt,
     this.assigneeName,
-    this.attachmentUrl,
-    this.attachmentName,
+    this.attachments = const [],
     this.managerAccepted = false,
   });
+
+  // Backward compat getters for screens that still reference single attachment
+  String? get attachmentUrl => attachments.isEmpty ? null : attachments.first.url;
+  String? get attachmentName => attachments.isEmpty ? null : attachments.first.name;
 
   bool get isOverdue {
     if (deadline == null) return false;
@@ -40,6 +58,29 @@ class Task {
   }
 
   factory Task.fromJson(Map<String, dynamic> json) {
+    List<TaskAttachment> attachments = [];
+
+    // Parse new attachments list field
+    final attList = json['attachments'];
+    if (attList is List && attList.isNotEmpty) {
+      for (final item in attList) {
+        if (item is Map) {
+          final att = TaskAttachment.fromJson(Map<String, dynamic>.from(item));
+          if (att.url.isNotEmpty) attachments.add(att);
+        }
+      }
+    }
+
+    // Backward compat: single attachment fields
+    if (attachments.isEmpty && json['attachmentUrl'] != null) {
+      attachments = [
+        TaskAttachment(
+          url: json['attachmentUrl'].toString(),
+          name: json['attachmentName']?.toString() ?? 'Fayl',
+        ),
+      ];
+    }
+
     return Task(
       id: json['id']?.toString() ?? '',
       title: json['title'] ?? '',
@@ -53,8 +94,7 @@ class Task {
       completedAt: json['completedAt'] != null ? DateTime.tryParse(json['completedAt']) : null,
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt']) : null,
       assigneeName: json['assigneeName'],
-      attachmentUrl: json['attachmentUrl'],
-      attachmentName: json['attachmentName'],
+      attachments: attachments,
       managerAccepted: json['managerAccepted'] == true,
     );
   }
@@ -73,8 +113,7 @@ class Task {
       'completedAt': completedAt?.toIso8601String(),
       'createdAt': createdAt?.toIso8601String(),
       'assigneeName': assigneeName,
-      'attachmentUrl': attachmentUrl,
-      'attachmentName': attachmentName,
+      'attachments': attachments.map((a) => a.toJson()).toList(),
       'managerAccepted': managerAccepted,
     };
   }

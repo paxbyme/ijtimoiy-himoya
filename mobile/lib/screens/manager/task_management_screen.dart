@@ -6,6 +6,7 @@ import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 
 class TaskManagementScreen extends ConsumerStatefulWidget {
   const TaskManagementScreen({super.key});
@@ -118,7 +119,7 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
                   return _TaskManagerCard(
                     task: task,
                     onAccept: task.status == 'COMPLETED' &&
-                            task.attachmentUrl != null &&
+                            task.attachments.isNotEmpty &&
                             !task.managerAccepted
                         ? () => _acceptTask(task)
                         : null,
@@ -141,6 +142,62 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
           content: Text(success ? 'Qabul qilindi' : 'Xatolik yuz berdi'),
         ),
       );
+    }
+  }
+}
+
+bool _isImage(String? name) {
+  if (name == null) return false;
+  final ext = name.split('.').last.toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
+}
+
+Future<void> _openAttachment(BuildContext context, String url, String? name) async {
+  if (_isImage(name)) {
+    await showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Center(
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (c, child, progress) => progress == null
+                      ? child
+                      : const Center(child: CircularProgressIndicator()),
+                  errorBuilder: (c, e, s) => const Center(
+                    child: Text('Rasm yuklanmadi',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  } else {
+    final uri = Uri.parse(url);
+    bool opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+    if (!opened) {
+      try {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      } catch (_) {}
     }
   }
 }
@@ -229,36 +286,36 @@ class _TaskManagerCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (task.attachmentUrl != null) ...[
+            if (task.attachments.isNotEmpty) ...[
               const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () async {
-                  try {
-                    await launchUrl(
-                      Uri.parse(task.attachmentUrl!),
-                      mode: LaunchMode.externalApplication,
-                    );
-                  } catch (_) {}
-                },
-                child: Row(
-                  children: [
-                    Icon(Icons.attach_file,
-                        size: 14, color: theme.colorScheme.primary),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        task.attachmentName ?? 'Fayl yuklangan',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          decoration: TextDecoration.underline,
+              ...task.attachments.map((att) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: GestureDetector(
+                  onTap: () => _openAttachment(context, att.url, att.name),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isImage(att.name) ? Icons.image_outlined : Icons.attach_file,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          att.name,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            decoration: TextDecoration.underline,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                    Icon(Icons.open_in_new,
-                        size: 12, color: theme.colorScheme.primary),
-                  ],
+                      Icon(Icons.open_in_new,
+                          size: 12, color: theme.colorScheme.primary),
+                    ],
+                  ),
                 ),
-              ),
+              )),
             ],
             if (onAccept != null) ...[
               const SizedBox(height: 8),

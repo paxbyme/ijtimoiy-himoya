@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+import java.util.Map;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -25,4 +28,5 @@ public class TaskDto {
     private String attachmentUrl;
     private String attachmentName;
     private Boolean managerAccepted;
+    private List<Map<String, String>> attachments;
 }
