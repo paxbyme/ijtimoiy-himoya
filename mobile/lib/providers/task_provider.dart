@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/task_model.dart';
 import 'auth_provider.dart';
@@ -58,14 +59,23 @@ class TaskNotifier extends Notifier<AsyncValue<void>> {
     }
   }
 
-  Future<bool> uploadAttachment(String taskId, String filePath, String fileName) async {
+  Future<String?> uploadAttachment(String taskId, String filePath, String fileName) async {
     try {
       await ref.read(apiServiceProvider).uploadTaskAttachment(taskId, filePath, fileName);
       ref.invalidate(allTasksProvider);
       ref.invalidate(myTasksProvider);
-      return true;
+      return null; // null = success
     } catch (e) {
-      return false;
+      // ignore: avoid_print
+      print('[uploadAttachment] error: $e');
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map && data['message'] != null) {
+          return data['message'].toString();
+        }
+        return 'Server xatosi: ${e.response?.statusCode ?? e.type.name}';
+      }
+      return e.toString();
     }
   }
 

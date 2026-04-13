@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -31,16 +32,23 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
 
     setState(() => _isUploading = true);
     try {
-      final success = await ref
+      final error = await ref
           .read(taskNotifierProvider.notifier)
           .uploadAttachment(task.id, file.path!, file.name);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                success ? 'Fayl muvaffaqiyatli yuklandi' : 'Yuklashda xatolik'),
-          ),
-        );
+        if (error == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Fayl muvaffaqiyatli yuklandi')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Xatolik: $error'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => _isUploading = false);
@@ -192,6 +200,19 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                                       color: theme.colorScheme.primary,
                                     ),
                                   ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.open_in_new, size: 18),
+                                  color: theme.colorScheme.primary,
+                                  tooltip: 'Ochish',
+                                  onPressed: () async {
+                                    try {
+                                      await launchUrl(
+                                        Uri.parse(task.attachmentUrl!),
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    } catch (_) {}
+                                  },
                                 ),
                               ],
                             ),

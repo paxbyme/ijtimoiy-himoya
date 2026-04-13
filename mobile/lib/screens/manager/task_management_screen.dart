@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/loading_widget.dart';
@@ -230,18 +231,33 @@ class _TaskManagerCard extends StatelessWidget {
             ],
             if (task.attachmentUrl != null) ...[
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.attach_file,
-                      size: 14, color: theme.colorScheme.primary),
-                  const SizedBox(width: 4),
-                  Text(
-                    task.attachmentName ?? 'Fayl yuklangan',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
+              GestureDetector(
+                onTap: () async {
+                  try {
+                    await launchUrl(
+                      Uri.parse(task.attachmentUrl!),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  } catch (_) {}
+                },
+                child: Row(
+                  children: [
+                    Icon(Icons.attach_file,
+                        size: 14, color: theme.colorScheme.primary),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        task.attachmentName ?? 'Fayl yuklangan',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    Icon(Icons.open_in_new,
+                        size: 12, color: theme.colorScheme.primary),
+                  ],
+                ),
               ),
             ],
             if (onAccept != null) ...[

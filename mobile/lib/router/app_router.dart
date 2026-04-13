@@ -9,6 +9,7 @@ import '../screens/staff/staff_profile_screen.dart';
 import '../screens/staff/kpi_screen.dart';
 import '../screens/staff/ai_chatbot_screen.dart';
 import '../screens/staff/my_tasks_screen.dart';
+import '../screens/staff/task_detail_screen.dart';
 import '../screens/manager/manager_shell.dart';
 import '../screens/manager/manager_home_screen.dart';
 import '../screens/manager/employee_list_screen.dart';
@@ -176,6 +177,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/staff/tasks/:taskId',
+        builder: (context, state) => TaskDetailScreen(
+          taskId: state.pathParameters['taskId']!,
+        ),
+      ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/manager/tasks/create',

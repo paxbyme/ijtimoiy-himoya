@@ -36,6 +36,11 @@ class ApiService {
         handler.next(options);
       },
       onError: (error, handler) {
+        final response = error.response;
+        // ignore: avoid_print
+        print('[API ERROR] ${error.requestOptions.method} ${error.requestOptions.path}'
+            ' → ${error.type} ${response?.statusCode}'
+            ' body: ${response?.data}');
         handler.next(error);
       },
     ));
@@ -288,7 +293,6 @@ class ApiService {
     final response = await _dio.post(
       '/tasks/$taskId/attachment',
       data: formData,
-      options: Options(contentType: 'multipart/form-data'),
     );
     return Task.fromJson(response.data['data'] ?? response.data);
   }
@@ -318,7 +322,6 @@ class ApiService {
     final response = await _dio.post(
       '/ai-rules/upload',
       data: formData,
-      options: Options(contentType: 'multipart/form-data'),
     );
     return AiRule.fromJson(response.data['data'] ?? response.data);
   }
