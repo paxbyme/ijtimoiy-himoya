@@ -501,7 +501,12 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                         setDialogState(() => isUploading = false);
                         final errStr = e.toString();
                         final String msg;
-                        if (errStr.contains('413') ||
+                        if (responseBody.contains('scanned image') ||
+                            responseBody.contains('does not contain readable text')) {
+                          msg =
+                              "Hujjat skanerlangan rasm ko'rinishida — matn o'qib bo'lmadi. "
+                              "Matn sifatida saqlangan fayl yuboring yoki qoidani qo'lda kiriting.";
+                        } else if (errStr.contains('413') ||
                             errStr.contains('exceeds') ||
                             errStr.contains('upload size')) {
                           msg = "Fayl hajmi juda katta (maksimum 50 MB).";

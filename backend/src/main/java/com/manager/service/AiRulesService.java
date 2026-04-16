@@ -41,6 +41,12 @@ public class AiRulesService {
         if (content == null || content.isBlank()) {
             throw new RuntimeException("Could not extract text from the uploaded file");
         }
+        if (content.trim().length() < 20) {
+            throw new RuntimeException(
+                "The document appears to be a scanned image and does not contain readable text. " +
+                "Please upload a document with actual text content, or enter the rule manually."
+            );
+        }
         AiRuleDto rule = AiRuleDto.builder()
                 .departmentId(departmentId)
                 .managerId(managerId)
