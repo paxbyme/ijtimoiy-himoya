@@ -135,7 +135,7 @@ public class GeminiService {
 
         String url = String.format(
                 "%s/v1beta/models/%s:generateContent?key=%s",
-                geminiConfig.getBaseUrl(), geminiConfig.getModel(), geminiConfig.getApiKey()
+                geminiConfig.getBaseUrl(), geminiConfig.getOcrModel(), geminiConfig.getApiKey()
         );
 
         List<Map<String, Object>> parts = new ArrayList<>();

@@ -12,6 +12,9 @@ public class GeminiConfig {
     @Value("${gemini.model}")
     private String model;
 
+    @Value("${gemini.ocr.model:gemini-2.5-flash-lite}")
+    private String ocrModel;
+
     @Value("${gemini.embedding.model}")
     private String embeddingModel;
 
@@ -21,6 +24,7 @@ public class GeminiConfig {
 
     public String getApiKey() { return apiKey; }
     public String getModel() { return model; }
+    public String getOcrModel() { return ocrModel; }
     public String getEmbeddingModel() { return embeddingModel; }
     public String getBaseUrl() { return baseUrl; }
 }
