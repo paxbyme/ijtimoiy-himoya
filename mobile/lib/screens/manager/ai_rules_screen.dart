@@ -502,9 +502,10 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                         final errStr = e.toString();
                         final String msg;
                         if (responseBody.contains('scanned image') ||
-                            responseBody.contains('does not contain readable text')) {
+                            responseBody.contains('selectable text') ||
+                            responseBody.contains('Could not extract readable')) {
                           msg =
-                              "Hujjat skanerlangan rasm ko'rinishida — matn o'qib bo'lmadi. "
+                              "Hujjatdan matn o'qib bo'lmadi (skanerlangan rasm yoki OCR ham ishlamadi). "
                               "Matn sifatida saqlangan fayl yuboring yoki qoidani qo'lda kiriting.";
                         } else if (errStr.contains('413') ||
                             errStr.contains('exceeds') ||

@@ -43,8 +43,8 @@ public class AiRulesService {
         }
         if (content.trim().length() < 20) {
             throw new RuntimeException(
-                "The document appears to be a scanned image and does not contain readable text. " +
-                "Please upload a document with actual text content, or enter the rule manually."
+                "Could not extract readable text from the document (scanned image or unsupported format). " +
+                "Please upload a document with selectable text, or enter the rule manually."
             );
         }
         AiRuleDto rule = AiRuleDto.builder()

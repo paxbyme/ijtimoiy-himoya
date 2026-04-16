@@ -14,6 +14,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,6 +123,59 @@ public class GeminiService {
             String result = fullResponse.toString();
             return result.isEmpty() ? "I'm sorry, I couldn't generate a response." : result;
         }
+    }
+
+    /**
+     * OCR: sends images to Gemini Vision and returns extracted text.
+     * Processes up to 10 images per call to stay within inline-data limits.
+     * For documents with more images, call this method in batches and combine.
+     */
+    public String ocrImages(List<byte[]> images) throws IOException {
+        if (images.isEmpty()) return "";
+
+        String url = String.format(
+                "%s/v1beta/models/%s:generateContent?key=%s",
+                geminiConfig.getBaseUrl(), geminiConfig.getModel(), geminiConfig.getApiKey()
+        );
+
+        List<Map<String, Object>> parts = new ArrayList<>();
+        int limit = Math.min(images.size(), 10);
+        for (int i = 0; i < limit; i++) {
+            byte[] imgBytes = images.get(i);
+            Map<String, Object> inlineData = new HashMap<>();
+            inlineData.put("mimeType", detectMimeType(imgBytes));
+            inlineData.put("data", Base64.getEncoder().encodeToString(imgBytes));
+            parts.add(Map.of("inlineData", inlineData));
+        }
+        parts.add(Map.of("text",
+                "Extract all text from these document images. " +
+                "Return only the extracted text, preserving paragraph structure and line breaks. " +
+                "Do not translate, summarize, or add any explanations."));
+
+        Map<String, Object> content = Map.of("role", "user", "parts", parts);
+        Map<String, Object> requestBody = Map.of("contents", List.of(content));
+
+        String json = objectMapper.writeValueAsString(requestBody);
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder().url(url).post(body).build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                log.error("Gemini OCR error: status={} body={}", response.code(), errorBody);
+                throw new IOException("Gemini OCR error: " + response.code() + " - " + errorBody);
+            }
+            String result = extractTextFromResponse(response.body().string());
+            log.info("Gemini OCR extracted {} chars from {} images", result.length(), limit);
+            return result;
+        }
+    }
+
+    private String detectMimeType(byte[] bytes) {
+        if (bytes.length >= 2 && bytes[0] == (byte) 0xFF && bytes[1] == (byte) 0xD8) return "image/jpeg";
+        if (bytes.length >= 4 && bytes[0] == (byte) 0x89 && bytes[1] == 'P'
+                && bytes[2] == 'N' && bytes[3] == 'G') return "image/png";
+        return "image/jpeg";
     }
 
     public float[] embed(String text) throws IOException {

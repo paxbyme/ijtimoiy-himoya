@@ -4,19 +4,25 @@ import com.manager.dto.DocumentDto;
 import com.manager.repository.DocumentRepository;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.poifs.filesystem.OfficeXmlFileException;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFPictureData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.text.BreakIterator;
@@ -31,16 +37,22 @@ public class DocumentService {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
+    private static final int OCR_MIN_TEXT_LENGTH = 20;
+    private static final int OCR_MAX_IMAGES_PER_CALL = 10;
+
     private final DocumentRepository documentRepository;
     private final EmbeddingService embeddingService;
     private final DocumentProcessorService documentProcessorService;
+    private final GeminiService geminiService;
 
     public DocumentService(DocumentRepository documentRepository,
                            EmbeddingService embeddingService,
-                           DocumentProcessorService documentProcessorService) {
+                           DocumentProcessorService documentProcessorService,
+                           GeminiService geminiService) {
         this.documentRepository = documentRepository;
         this.embeddingService = embeddingService;
         this.documentProcessorService = documentProcessorService;
+        this.geminiService = geminiService;
     }
 
     /**
@@ -162,16 +174,67 @@ public class DocumentService {
     private String extractPdfText(byte[] bytes) throws IOException {
         try (PDDocument document = Loader.loadPDF(bytes)) {
             PDFTextStripper stripper = new PDFTextStripper();
-            return stripper.getText(document);
+            String text = stripper.getText(document);
+            if (text != null && text.trim().length() >= OCR_MIN_TEXT_LENGTH) {
+                return text;
+            }
+            log.info("PDF text extraction yielded {} chars — trying OCR via Gemini",
+                    text == null ? 0 : text.trim().length());
+            List<byte[]> images = renderPdfPages(document, OCR_MAX_IMAGES_PER_CALL);
+            return ocrFallback(images, text);
         }
     }
 
     private String extractDocxText(byte[] bytes) throws IOException {
+        String text;
+        List<byte[]> images = new ArrayList<>();
         try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
              XWPFDocument document = new XWPFDocument(bis);
              XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
-            return extractor.getText();
+            text = extractor.getText();
+            if (text == null || text.trim().length() < OCR_MIN_TEXT_LENGTH) {
+                log.info("DOCX text extraction yielded {} chars — extracting images for OCR",
+                        text == null ? 0 : text.trim().length());
+                List<XWPFPictureData> pics = document.getAllPictures();
+                int limit = Math.min(pics.size(), OCR_MAX_IMAGES_PER_CALL);
+                for (int i = 0; i < limit; i++) {
+                    images.add(pics.get(i).getData());
+                }
+            }
         }
+        return images.isEmpty() ? (text != null ? text : "") : ocrFallback(images, text);
+    }
+
+    private String ocrFallback(List<byte[]> images, String originalText) {
+        if (images.isEmpty()) return originalText != null ? originalText : "";
+        try {
+            String ocrText = geminiService.ocrImages(images);
+            if (ocrText != null && !ocrText.isBlank()
+                    && !ocrText.startsWith("I'm sorry")) {
+                return ocrText;
+            }
+        } catch (Exception e) {
+            log.warn("OCR via Gemini failed: {}", e.getMessage());
+        }
+        return originalText != null ? originalText : "";
+    }
+
+    private List<byte[]> renderPdfPages(PDDocument document, int maxPages) {
+        List<byte[]> images = new ArrayList<>();
+        try {
+            PDFRenderer renderer = new PDFRenderer(document);
+            int pages = Math.min(document.getNumberOfPages(), maxPages);
+            for (int i = 0; i < pages; i++) {
+                BufferedImage img = renderer.renderImageWithDPI(i, 150, ImageType.RGB);
+                try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                    ImageIO.write(img, "JPEG", baos);
+                    images.add(baos.toByteArray());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("PDF page rendering failed: {}", e.getMessage());
+        }
+        return images;
     }
 
     private String extractDocText(byte[] bytes) throws IOException {
