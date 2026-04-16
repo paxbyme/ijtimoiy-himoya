@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,6 +8,7 @@ import '../../providers/ai_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 
 class AiRulesScreen extends ConsumerStatefulWidget {
   const AiRulesScreen({super.key});
@@ -35,7 +38,7 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
         onPressed: () => _showRuleDialog(context),
         child: const Icon(Icons.add),
       ),
-      body: rulesAsync.when(
+      body: AppBackground(child: rulesAsync.when(
         loading: () => const LoadingWidget(),
         error: (error, _) => Center(
           child: Column(
@@ -105,10 +108,17 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                       ),
                     );
                   },
-                  onDismissed: (_) {
-                    ref
+                  onDismissed: (_) async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final success = await ref
                         .read(aiRulesNotifierProvider.notifier)
                         .deleteRule(rule.id);
+                    if (!success) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                            content: Text("O'chirishda xatolik yuz berdi")),
+                      );
+                    }
                   },
                   child: Card(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -180,6 +190,13 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                         ],
                       ),
                       isThreeLine: true,
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete_outline,
+                            color: theme.colorScheme.error),
+                        tooltip: "O'chirish",
+                        onPressed: () =>
+                            _confirmDelete(context, rule.id, rule.title),
+                      ),
                       onTap: () => _showRuleDialog(context, rule: rule),
                     ),
                   ),
@@ -188,8 +205,44 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
             ),
           );
         },
+      )),
+    );
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, String id, String title) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Qoidani o'chirish"),
+        content: Text('"$title" qoidasini o\'chirasizmi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Bekor'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text("O'chirish"),
+          ),
+        ],
       ),
     );
+
+    if (confirmed == true) {
+      final success =
+          await ref.read(aiRulesNotifierProvider.notifier).deleteRule(id);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+              success ? "Qoida o'chirildi" : "O'chirishda xatolik yuz berdi"),
+        ),
+      );
+    }
   }
 
   void _showRuleDialog(BuildContext context, {AiRule? rule}) {
@@ -402,6 +455,23 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                   ? null
                   : () async {
                       final messenger = ScaffoldMessenger.of(context);
+
+                      // Fayl hajmini tekshirish (50MB limit)
+                      const maxBytes = 50 * 1024 * 1024;
+                      final fileSize = File(selectedFilePath!).lengthSync();
+                      if (fileSize > maxBytes) {
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Fayl hajmi ${(fileSize / 1024 / 1024).toStringAsFixed(1)} MB — '
+                              "ruxsat etilgan maksimum 50 MB.",
+                            ),
+                            duration: const Duration(seconds: 5),
+                          ),
+                        );
+                        return;
+                      }
+
                       setDialogState(() => isUploading = true);
                       try {
                         final apiService = ref.read(apiServiceProvider);
@@ -424,17 +494,40 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                         );
                       } catch (e) {
                         // ignore: avoid_dynamic_calls
-                        final responseBody = (e as dynamic).response?.data?.toString() ?? '';
-                        debugPrint('AI rule upload error: $e | body: $responseBody');
+                        final responseBody =
+                            (e as dynamic).response?.data?.toString() ?? '';
+                        debugPrint(
+                            'AI rule upload error: $e | body: $responseBody');
                         setDialogState(() => isUploading = false);
-                        final msg = e.toString().contains('500')
-                            ? 'Server xatosi. Fayl formati qo\'llab-quvvatlanmaydi.'
-                            : e.toString().contains('401') || e.toString().contains('403')
-                                ? 'Ruxsat yo\'q. Qayta kiring.'
-                                : e.toString().contains('SocketException') ||
-                                        e.toString().contains('Connection')
-                                    ? 'Tarmoq xatosi. Internet aloqasini tekshiring.'
-                                    : 'Xatolik: ${e.toString().length > 80 ? e.toString().substring(0, 80) : e.toString()}';
+                        final errStr = e.toString();
+                        final String msg;
+                        if (errStr.contains('413') ||
+                            errStr.contains('exceeds') ||
+                            errStr.contains('upload size')) {
+                          msg = "Fayl hajmi juda katta (maksimum 50 MB).";
+                        } else if (errStr.contains('Connection reset') ||
+                            errStr.contains('reset by peer') ||
+                            errStr.contains('Broken pipe') ||
+                            errStr.contains('errno = 32')) {
+                          msg =
+                              "Server ulanishni uzdi. Fayl hajmi juda katta bo'lishi mumkin.";
+                        } else if (errStr.contains('401') ||
+                            errStr.contains('403')) {
+                          msg = "Ruxsat yo'q. Qayta kiring.";
+                        } else if (errStr.contains('500')) {
+                          msg =
+                              "Server xatosi. Fayl formati qo'llab-quvvatlanmaydi.";
+                        } else if (errStr.contains('TimeoutException') ||
+                            errStr.contains('timeout')) {
+                          msg =
+                              "Vaqt tugadi. Internet aloqasini tekshiring yoki kichikroq fayl yuklang.";
+                        } else if (errStr.contains('SocketException') &&
+                            !errStr.contains('reset')) {
+                          msg = "Tarmoq xatosi. Internet aloqasini tekshiring.";
+                        } else {
+                          msg =
+                              'Xatolik: ${errStr.length > 100 ? errStr.substring(0, 100) : errStr}';
+                        }
                         messenger.showSnackBar(
                           SnackBar(
                             content: Text(msg),

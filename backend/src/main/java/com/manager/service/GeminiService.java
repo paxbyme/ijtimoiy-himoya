@@ -6,6 +6,8 @@ import com.manager.config.GeminiConfig;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -37,6 +39,8 @@ public class GeminiService {
         this.objectMapper = new ObjectMapper();
     }
 
+    @Retryable(retryFor = IOException.class, maxAttempts = 3,
+               backoff = @Backoff(delay = 2000, multiplier = 2, maxDelay = 10000))
     public String chat(String systemInstruction, List<Map<String, Object>> history, String userMessage) throws IOException {
         String url = String.format(
                 "%s/v1beta/models/%s:generateContent?key=%s",
@@ -69,6 +73,8 @@ public class GeminiService {
      * Stream chat response from Gemini. Calls onToken for each text chunk.
      * Returns the full assembled response.
      */
+    @Retryable(retryFor = IOException.class, maxAttempts = 3,
+               backoff = @Backoff(delay = 2000, multiplier = 2, maxDelay = 10000))
     public String chatStream(String systemInstruction, List<Map<String, Object>> history,
                              String userMessage, Consumer<String> onToken) throws IOException {
         String url = String.format(
@@ -163,6 +169,8 @@ public class GeminiService {
     /**
      * Batch embed multiple texts in a single API call.
      */
+    @Retryable(retryFor = IOException.class, maxAttempts = 3,
+               backoff = @Backoff(delay = 2000, multiplier = 2, maxDelay = 10000))
     public List<float[]> batchEmbed(List<String> texts) throws IOException {
         String url = String.format(
                 "%s/v1beta/models/%s:batchEmbedContents?key=%s",
@@ -210,6 +218,10 @@ public class GeminiService {
                         results.add(vec);
                     }
                 }
+            }
+            if (results.size() != texts.size()) {
+                throw new IOException("Gemini batch embedding returned " + results.size()
+                        + " embeddings for " + texts.size() + " texts");
             }
             return results;
         }

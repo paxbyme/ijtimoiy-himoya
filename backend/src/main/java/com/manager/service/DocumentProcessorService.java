@@ -49,7 +49,7 @@ public class DocumentProcessorService {
     }
 
     @Retryable(
-            retryFor  = { IOException.class, RuntimeException.class },
+            retryFor  = { IOException.class, RuntimeException.class, Exception.class },
             maxAttempts = 3,
             backoff   = @Backoff(delay = 2000, multiplier = 2.0, maxDelay = 10000)
     )

@@ -91,6 +91,11 @@ class ApiService {
     return Task.fromJson(response.data['data'] ?? response.data);
   }
 
+  Future<Task> updateTaskStatus(String taskId, String status) async {
+    final response = await _dio.put('/tasks/$taskId', data: {'status': status});
+    return Task.fromJson(response.data['data'] ?? response.data);
+  }
+
   // ---- KPI ----
 
   Future<KpiScore?> getMyKpi() async {
@@ -322,6 +327,10 @@ class ApiService {
     final response = await _dio.post(
       '/ai-rules/upload',
       data: formData,
+      options: Options(
+        sendTimeout: const Duration(seconds: 120),
+        receiveTimeout: const Duration(seconds: 120),
+      ),
     );
     return AiRule.fromJson(response.data['data'] ?? response.data);
   }
