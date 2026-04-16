@@ -4,4 +4,4 @@ if [ -n "$FIREBASE_CREDENTIALS_JSON" ]; then
   echo "$FIREBASE_CREDENTIALS_JSON" > /tmp/firebase-service-account.json
   export FIREBASE_CREDENTIALS_PATH=/tmp/firebase-service-account.json
 fi
-exec java -jar app.jar
+exec java -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -jar app.jar

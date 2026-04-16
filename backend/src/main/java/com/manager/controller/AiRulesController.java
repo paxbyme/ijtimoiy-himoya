@@ -55,6 +55,9 @@ public class AiRulesController {
             String departmentId = (String) httpRequest.getAttribute("departmentId");
             AiRuleDto rule = aiRulesService.createRuleFromFile(file, title, category, priority, managerId, departmentId);
             return ResponseEntity.ok(ApiResponse.ok("Rule created from file", rule));
+        } catch (OutOfMemoryError e) {
+            log.error("Out of memory processing rule file: {}", file.getOriginalFilename(), e);
+            return ResponseEntity.status(413).body(ApiResponse.error("File is too large or complex to process — try a smaller file"));
         } catch (Exception e) {
             log.error("Failed to create rule from file: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(ApiResponse.error("Failed to create rule from file: " + e.getMessage()));
