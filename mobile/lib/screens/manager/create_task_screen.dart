@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
+import '../../widgets/app_background.dart';
 
 final _staffForTaskProvider = FutureProvider<List<User>>((ref) async {
   return ref.read(apiServiceProvider).getStaffList();
@@ -112,7 +113,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
           leading: BackButton(onPressed: () => context.pop()),
           title: const Text('Topshiriq yaratish'),
         ),
-        body: SingleChildScrollView(
+        body: AppBackground(child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
@@ -273,7 +274,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
               ],
             ),
           ),
-        ),
+        )),
       ),
     );
   }

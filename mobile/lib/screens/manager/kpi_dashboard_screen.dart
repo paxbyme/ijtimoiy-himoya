@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../providers/kpi_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 
 class KpiDashboardScreen extends ConsumerWidget {
   const KpiDashboardScreen({super.key});
@@ -17,7 +18,7 @@ class KpiDashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('KPI Paneli'),
       ),
-      body: rankingsAsync.when(
+      body: AppBackground(child: rankingsAsync.when(
         loading: () => const LoadingWidget(),
         error: (error, _) => Center(
           child: Column(
@@ -258,7 +259,7 @@ class KpiDashboardScreen extends ConsumerWidget {
             ),
           );
         },
-      ),
+      )),
     );
   }
 

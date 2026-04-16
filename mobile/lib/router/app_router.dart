@@ -9,6 +9,7 @@ import '../screens/staff/staff_profile_screen.dart';
 import '../screens/staff/kpi_screen.dart';
 import '../screens/staff/ai_chatbot_screen.dart';
 import '../screens/staff/my_tasks_screen.dart';
+import '../screens/staff/staff_chat_screen.dart';
 import '../screens/staff/task_detail_screen.dart';
 import '../screens/manager/manager_shell.dart';
 import '../screens/manager/manager_home_screen.dart';
@@ -89,6 +90,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/staff/kpi',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: KpiScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/staff/chat',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: StaffChatScreen(),
             ),
           ),
           GoRoute(

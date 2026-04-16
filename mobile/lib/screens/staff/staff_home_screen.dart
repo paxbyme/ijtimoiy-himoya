@@ -5,6 +5,7 @@ import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/stat_card.dart';
+import '../../widgets/app_background.dart';
 
 class StaffHomeScreen extends ConsumerWidget {
   const StaffHomeScreen({super.key});
@@ -20,7 +21,7 @@ class StaffHomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Bosh sahifa'),
       ),
-      body: RefreshIndicator(
+      body: AppBackground(child: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(myTasksProvider);
           ref.invalidate(myKpiProvider);
@@ -83,7 +84,7 @@ class StaffHomeScreen extends ConsumerWidget {
                   tasksAsync.when(
                     data: (tasks) {
                       final pending =
-                          tasks.where((t) => t.status == 'PENDING').length;
+                          tasks.where((t) => t.status == 'IN_PROGRESS').length;
                       return StatCard(
                         icon: Icons.pending_actions,
                         title: 'Kutilmoqda',
@@ -167,20 +168,25 @@ class StaffHomeScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               _buildQuickAction(
                 context,
-                icon: Icons.bar_chart,
-                title: 'KPI ko\'rish',
-                onTap: () => context.go('/staff/kpi'),
+                icon: Icons.task_alt,
+                title: 'Topshiriqlar',
+                subtitle: 'Mening topshiriqlarimni ko\'rish',
+                color: Colors.blue,
+                onTap: () => context.go('/staff/tasks'),
               ),
+              const SizedBox(height: 8),
               _buildQuickAction(
                 context,
-                icon: Icons.person,
-                title: 'Mening profilim',
-                onTap: () => context.go('/staff/profile'),
+                icon: Icons.chat,
+                title: 'Xabarlar',
+                subtitle: 'Menejer bilan muloqot',
+                color: Colors.teal,
+                onTap: () => context.go('/staff/chat'),
               ),
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 
@@ -188,13 +194,29 @@ class StaffHomeScreen extends ConsumerWidget {
     BuildContext context, {
     required IconData icon,
     required String title,
+    required String subtitle,
+    required Color color,
     required VoidCallback onTap,
   }) {
     final theme = Theme.of(context);
     return Card(
       child: ListTile(
-        leading: Icon(icon, color: theme.colorScheme.primary),
-        title: Text(title),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 12,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
@@ -227,10 +249,10 @@ class _AiAssistantCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.smart_toy, color: Colors.white, size: 28),
+              child: Image.asset('assets/images/logo.png', width: 28, height: 28),
             ),
             const SizedBox(width: 16),
             Expanded(

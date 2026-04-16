@@ -39,6 +39,12 @@ class FirestoreService {
             .toList());
   }
 
+  Future<void> resetUnreadCount(String conversationId, String userId) async {
+    await _firestore.collection('conversations').doc(conversationId).update({
+      'unreadCount.$userId': 0,
+    });
+  }
+
   Future<void> markMessageRead(String messageId) async {
     await _firestore.collection('messages').doc(messageId).update({
       'readAt': FieldValue.serverTimestamp(),

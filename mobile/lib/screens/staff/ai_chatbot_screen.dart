@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/ai_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/chat_bubble.dart';
+import '../../widgets/app_background.dart';
 
 class AiChatbotScreen extends ConsumerStatefulWidget {
   const AiChatbotScreen({super.key});
@@ -131,7 +132,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: AppBackground(child: Column(
         children: [
           Expanded(
             child: messages.isEmpty
@@ -141,11 +142,13 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.smart_toy_outlined,
-                            size: 64,
-                            color: theme.colorScheme.primary
-                                .withValues(alpha: 0.5),
+                          Opacity(
+                            opacity: 0.5,
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              width: 80,
+                              height: 80,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -247,7 +250,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 
@@ -449,8 +452,10 @@ class _ConversationHistorySheet extends ConsumerWidget {
                         leading: CircleAvatar(
                           backgroundColor:
                               theme.colorScheme.primaryContainer,
-                          child: Icon(Icons.smart_toy,
-                              color: theme.colorScheme.primary, size: 20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Image.asset('assets/images/logo.png'),
+                          ),
                         ),
                         title: Text(
                           convo.title,

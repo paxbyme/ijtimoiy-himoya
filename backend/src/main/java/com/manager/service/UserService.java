@@ -1,6 +1,7 @@
 package com.manager.service;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.UserRecord;
 import com.manager.dto.CreateUserRequest;
 import com.manager.dto.UpdateUserRequest;
@@ -32,15 +33,32 @@ public class UserService {
             }
         }
 
-        // Create Firebase Auth user with email = phone@manager.local
         String email = req.getPhone() + "@manager.local";
-        UserRecord.CreateRequest createRequest = new UserRecord.CreateRequest()
-                .setEmail(email)
-                .setPassword(req.getPassword())
-                .setDisplayName(req.getDisplayName());
+        String uid;
 
-        UserRecord userRecord = FirebaseAuth.getInstance().createUser(createRequest);
-        String uid = userRecord.getUid();
+        try {
+            // Try to create a new Firebase Auth user
+            UserRecord.CreateRequest createRequest = new UserRecord.CreateRequest()
+                    .setEmail(email)
+                    .setPassword(req.getPassword())
+                    .setDisplayName(req.getDisplayName());
+            UserRecord userRecord = FirebaseAuth.getInstance().createUser(createRequest);
+            uid = userRecord.getUid();
+        } catch (FirebaseAuthException e) {
+            if (!"EMAIL_EXISTS".equals(e.getAuthErrorCode().name())) {
+                throw e;
+            }
+            // User already exists in Firebase Auth (previously soft-deleted) — reuse their UID
+            UserRecord existing = FirebaseAuth.getInstance().getUserByEmail(email);
+            uid = existing.getUid();
+            // Update password and display name in case they changed
+            FirebaseAuth.getInstance().updateUser(
+                    new UserRecord.UpdateRequest(uid)
+                            .setPassword(req.getPassword())
+                            .setDisplayName(req.getDisplayName())
+                            .setDisabled(false)
+            );
+        }
 
         // Set custom claims — role is clamped to STAFF regardless of request value
         Map<String, Object> claims = new HashMap<>();
@@ -48,7 +66,7 @@ public class UserService {
         claims.put("departmentId", resolvedDepartmentId);
         FirebaseAuth.getInstance().setCustomUserClaims(uid, claims);
 
-        // Save to Firestore
+        // Save (or overwrite) Firestore document
         UserDto user = UserDto.builder()
                 .id(uid)
                 .phone(req.getPhone())

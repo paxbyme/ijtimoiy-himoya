@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/stat_card.dart';
+import '../../widgets/app_background.dart';
 
 class DevHomeScreen extends ConsumerWidget {
   const DevHomeScreen({super.key});
@@ -29,7 +30,7 @@ class DevHomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: AppBackground(child: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(adminManagersProvider);
           ref.invalidate(adminDepartmentsProvider);
@@ -184,7 +185,7 @@ class DevHomeScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 

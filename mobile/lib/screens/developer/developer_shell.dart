@@ -30,7 +30,25 @@ class DeveloperShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: Opacity(
+                  opacity: 0.22,
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 320,
+                    height: 320,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex(context),
         onDestinationSelected: (index) => _onTap(context, index),

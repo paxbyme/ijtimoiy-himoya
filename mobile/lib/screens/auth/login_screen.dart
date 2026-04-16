@@ -30,39 +30,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     setState(() => _isLoading = true);
 
+    String? errorMessage;
     try {
       final authService = ref.read(authServiceProvider);
-      await authService.signIn(
-        _phoneController.text.trim(),
-        _passwordController.text,
-      );
+      await authService
+          .signIn(
+            _phoneController.text.trim(),
+            _passwordController.text,
+          )
+          .timeout(const Duration(seconds: 10));
 
       ref.invalidate(userProfileProvider);
-      final profile = await ref.read(userProfileProvider.future);
+      final profile = await ref
+          .read(userProfileProvider.future)
+          .timeout(const Duration(seconds: 8));
 
-      if (mounted) {
-        if (profile == null) {
-          throw Exception('Failed to load user profile. Check your connection.');
-        } else if (profile.role == 'DEVELOPER') {
-          context.go('/developer/home');
-        } else if (profile.isManager) {
-          context.go('/manager/home');
-        } else {
-          context.go('/staff/ai-chat');
-        }
+      if (!mounted) return;
+
+      if (profile == null) {
+        errorMessage = 'Tarmoq xatosi. Internet aloqasini tekshiring.';
+      } else if (profile.role == 'DEVELOPER') {
+        context.go('/developer/home');
+      } else if (profile.isManager) {
+        context.go('/manager/home');
+      } else {
+        context.go('/staff/home');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_getErrorMessage(e)),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      errorMessage = _getErrorMessage(e);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        if (errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
       }
     }
   }
@@ -77,9 +83,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (message.contains('too-many-requests')) {
       return 'Juda ko\'p urinish. Keyinroq qayta urinib ko\'ring.';
     }
-    if (message.contains('network') ||
-        message.contains('connection') ||
-        message.contains('profile')) {
+    if (message.contains('timeout') || message.contains('timed out')) {
+      return 'Ulanish vaqti tugadi. Internet aloqasini tekshiring.';
+    }
+    if (message.contains('profile_null') ||
+        message.contains('network') ||
+        message.contains('connection')) {
       return 'Tarmoq xatosi. Internet aloqasini tekshiring.';
     }
     return 'Kirish muvaffaqiyatsiz. Qayta urinib ko\'ring.';
@@ -88,7 +97,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: Opacity(
+                  opacity: 0.22,
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 340,
+                    height: 340,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -255,7 +280,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
-        ),
+          ),
+          ),
+        ],
       ),
     );
   }

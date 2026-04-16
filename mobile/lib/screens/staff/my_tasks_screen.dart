@@ -6,6 +6,7 @@ import '../../providers/task_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/task_card.dart';
+import '../../widgets/app_background.dart';
 
 class MyTasksScreen extends ConsumerStatefulWidget {
   const MyTasksScreen({super.key});
@@ -20,7 +21,6 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
 
   final _tabs = const [
     'Hammasi',
-    'Yangi',
     'Jarayonda',
     "Muddati o'tgan",
     'Bajarildi',
@@ -43,12 +43,10 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
       case 0:
         return tasks;
       case 1:
-        return tasks.where((t) => t.status == 'NEW').toList();
-      case 2:
         return tasks.where((t) => t.status == 'IN_PROGRESS').toList();
-      case 3:
+      case 2:
         return tasks.where((t) => t.isOverdue).toList();
-      case 4:
+      case 3:
         return tasks.where((t) => t.status == 'COMPLETED').toList();
       default:
         return tasks;
@@ -70,7 +68,7 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
           tabAlignment: TabAlignment.start,
         ),
       ),
-      body: tasksAsync.when(
+      body: AppBackground(child: tasksAsync.when(
         loading: () => const LoadingWidget(),
         error: (error, _) => Center(
           child: Column(
@@ -94,7 +92,7 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
             if (filtered.isEmpty) {
               return EmptyStateWidget(
                 icon: Icons.task_alt,
-                message: index == 3
+                message: index == 2
                     ? "Muddati o'tgan topshiriqlar yo'q"
                     : 'Topshiriqlar topilmadi',
               );
@@ -119,7 +117,7 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
             );
           }),
         ),
-      ),
+      )),
     );
   }
 }

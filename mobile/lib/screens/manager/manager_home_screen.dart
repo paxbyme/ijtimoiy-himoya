@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
 import '../../widgets/stat_card.dart';
+import '../../widgets/app_background.dart';
 
 class ManagerHomeScreen extends ConsumerWidget {
   const ManagerHomeScreen({super.key});
@@ -31,7 +32,7 @@ class ManagerHomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: AppBackground(child: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(allTasksProvider);
           ref.invalidate(kpiRankingsProvider);
@@ -197,7 +198,7 @@ class ManagerHomeScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 

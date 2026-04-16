@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/app_background.dart';
 
 class StaffProfileScreen extends ConsumerWidget {
   const StaffProfileScreen({super.key});
@@ -13,7 +14,7 @@ class StaffProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profil')),
-      body: userProfile.when(
+      body: AppBackground(child: userProfile.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
         data: (user) {
@@ -107,7 +108,7 @@ class StaffProfileScreen extends ConsumerWidget {
             ],
           );
         },
-      ),
+      )),
     );
   }
 

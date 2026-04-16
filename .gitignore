@@ -26,6 +26,14 @@ mobile/ios/Flutter/Flutter.podspec
 
 # Scripts
 scripts/node_modules/
+scripts/npx
+
+# E2E
+e2e/node_modules/
+e2e/.env
+e2e/test-results/
+e2e/playwright-report/
+e2e/.playwright/
 
 # Firebase
 .firebase/
@@ -34,6 +42,16 @@ backend/*-firebase-adminsdk-*.json
 google-services.json
 mobile/android/app/google-services.json
 mobile/ios/Runner/GoogleService-Info.plist
+
+# Firestore — debug logs va emulator ma'lumotlari
+firestore-debug.log
+firebase-debug.log
+database-debug.log
+ui-debug.log
+.firestore/
+firestore-export-*/
+.firestore-emulator/
+.runtimeconfig.json
 
 # Environment
 .env
@@ -58,3 +76,8 @@ mobile/lib/firebase_options.dart
 *.swo
 .DS_Store
 Thumbs.db
+
+# Python (Claude Code tooling scripts)
+**/__pycache__/
+**/*.pyc
+**/*.pyo

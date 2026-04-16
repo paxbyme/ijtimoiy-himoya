@@ -23,6 +23,7 @@ class TaskDetailScreen extends ConsumerStatefulWidget {
 class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   bool _isUploading = false;
   bool _isCompleting = false;
+  bool _isUpdatingStatus = false;
   final _imagePicker = ImagePicker();
 
   void _showUploadBottomSheet(Task task) {
@@ -384,7 +385,28 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        if (task.status != 'COMPLETED')
+                        if (task.status != 'COMPLETED') ...[
+                          if (task.status != 'IN_PROGRESS')
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: (_isUpdatingStatus || _isCompleting)
+                                    ? null
+                                    : () => _updateStatus(task, 'IN_PROGRESS'),
+                                icon: _isUpdatingStatus
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.play_arrow),
+                                label: Text(_isUpdatingStatus
+                                    ? 'Saqlanmoqda...'
+                                    : 'Ish boshlandı'),
+                              ),
+                            ),
+                          const SizedBox(height: 8),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
@@ -404,6 +426,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                                   : 'Bajarildi deb belgilash'),
                             ),
                           ),
+                        ],
                       ],
                     ),
                   );
@@ -477,6 +500,20 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         } catch (_) {}
       }
     }
+  }
+
+  Future<void> _updateStatus(Task task, String status) async {
+    setState(() => _isUpdatingStatus = true);
+    final success =
+        await ref.read(taskNotifierProvider.notifier).updateStatus(task.id, status);
+    if (!mounted) return;
+    setState(() => _isUpdatingStatus = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            success ? 'Holat yangilandi!' : 'Holatni yangilashda xatolik'),
+      ),
+    );
   }
 
   void _confirmComplete(BuildContext context, WidgetRef ref, Task task) {

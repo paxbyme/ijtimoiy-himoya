@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/kpi_gauge.dart';
 import '../../widgets/loading_widget.dart';
+import '../../widgets/app_background.dart';
 
 class EmployeeDetailScreen extends ConsumerWidget {
   final String employeeId;
@@ -29,7 +30,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
         leading: BackButton(onPressed: () => context.pop()),
         title: const Text('Xodim tafsilotlari'),
       ),
-      body: staffAsync.when(
+      body: AppBackground(child: staffAsync.when(
         loading: () => const LoadingWidget(),
         error: (error, _) => Center(child: Text('Xatolik: $error')),
         data: (data) {
@@ -183,7 +184,7 @@ class EmployeeDetailScreen extends ConsumerWidget {
             ),
           );
         },
-      ),
+      )),
       ),
     );
   }

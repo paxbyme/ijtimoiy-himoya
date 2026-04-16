@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 
 String _extractError(Object e) {
   if (e is DioException) {
@@ -57,7 +58,7 @@ class DevManagersScreen extends ConsumerWidget {
         ),
         child: const Icon(Icons.person_add),
       ),
-      body: managersAsync.when(
+      body: AppBackground(child: managersAsync.when(
         loading: () => const LoadingWidget(),
         error: (e, _) => Center(
           child: Column(
@@ -186,7 +187,7 @@ class DevManagersScreen extends ConsumerWidget {
             ),
           );
         },
-      ),
+      )),
     );
   }
 

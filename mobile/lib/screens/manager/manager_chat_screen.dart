@@ -6,6 +6,7 @@ import '../../providers/chat_provider.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 import 'employee_list_screen.dart' show staffListProvider;
 
 class ManagerChatScreen extends ConsumerStatefulWidget {
@@ -47,6 +48,11 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
     return '${ids[0]}_${ids[1]}';
   }
 
+  void _resetUnread(String myId) {
+    final conversationId = _getConversationId(myId);
+    ref.read(firestoreServiceProvider).resetUnreadCount(conversationId, myId);
+  }
+
   void _sendMessage(String senderId) {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
@@ -82,7 +88,7 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
         leading: BackButton(onPressed: () => context.pop()),
         title: Text(staffName),
       ),
-      body: userProfile.when(
+      body: AppBackground(child: userProfile.when(
         loading: () => const LoadingWidget(),
         error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
         data: (user) {
@@ -101,8 +107,10 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
                   error: (_, __) =>
                       const Center(child: Text('Xabarlarni yuklashda xatolik')),
                   data: (messages) {
-                    WidgetsBinding.instance
-                        .addPostFrameCallback((_) => _scrollToBottom());
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _scrollToBottom();
+                      _resetUnread(user.id);
+                    });
 
                     if (messages.isEmpty) {
                       return const EmptyStateWidget(
@@ -177,7 +185,7 @@ class _ManagerChatScreenState extends ConsumerState<ManagerChatScreen> {
             ],
           );
         },
-      ),
+      )),
       ),
     );
   }

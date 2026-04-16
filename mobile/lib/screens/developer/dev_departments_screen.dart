@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 
 class DevDepartmentsScreen extends ConsumerWidget {
   const DevDepartmentsScreen({super.key});
@@ -40,7 +41,7 @@ class DevDepartmentsScreen extends ConsumerWidget {
             _showDeptSheet(context, ref, activeManagers, null),
         child: const Icon(Icons.add_business),
       ),
-      body: deptsAsync.when(
+      body: AppBackground(child: deptsAsync.when(
         loading: () => const LoadingWidget(),
         error: (e, _) => Center(
           child: Column(
@@ -121,7 +122,7 @@ class DevDepartmentsScreen extends ConsumerWidget {
             ),
           );
         },
-      ),
+      )),
     );
   }
 

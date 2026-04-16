@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/kpi_provider.dart';
 import '../../widgets/kpi_gauge.dart';
 import '../../widgets/loading_widget.dart';
+import '../../widgets/app_background.dart';
 
 class KpiScreen extends ConsumerWidget {
   const KpiScreen({super.key});
@@ -16,7 +17,7 @@ class KpiScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Mening KPI'),
       ),
-      body: kpiAsync.when(
+      body: AppBackground(child: kpiAsync.when(
         loading: () => const LoadingWidget(),
         error: (error, _) => Center(
           child: Column(
@@ -161,7 +162,7 @@ class KpiScreen extends ConsumerWidget {
           ),
         );
         },
-      ),
+      )),
     );
   }
 

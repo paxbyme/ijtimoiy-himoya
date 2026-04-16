@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 import 'employee_list_screen.dart' show staffListProvider;
 
 class ManagerChatListScreen extends ConsumerWidget {
@@ -20,7 +21,7 @@ class ManagerChatListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Xabarlar'),
       ),
-      body: userProfile.when(
+      body: AppBackground(child: userProfile.when(
         loading: () => const LoadingWidget(),
         error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
         data: (user) {
@@ -126,7 +127,7 @@ class ManagerChatListScreen extends ConsumerWidget {
             },
           );
         },
-      ),
+      )),
     );
   }
 

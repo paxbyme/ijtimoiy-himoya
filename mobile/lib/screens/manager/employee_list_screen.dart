@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 
 final staffListProvider = StreamProvider<List<User>>((ref) {
   final userAsync = ref.watch(userProfileProvider);
@@ -45,7 +46,7 @@ class EmployeeListScreen extends ConsumerWidget {
         onPressed: () => _showAddEmployeeSheet(context, ref),
         child: const Icon(Icons.person_add),
       ),
-      body: staffAsync.when(
+      body: AppBackground(child: staffAsync.when(
         loading: () => const LoadingWidget(),
         error: (error, _) => Center(
           child: Column(
@@ -120,7 +121,7 @@ class EmployeeListScreen extends ConsumerWidget {
             ),
           );
         },
-      ),
+      )),
     );
   }
 

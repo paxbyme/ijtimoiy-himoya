@@ -5,6 +5,7 @@ import '../../providers/chat_provider.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
+import '../../widgets/app_background.dart';
 
 class StaffChatScreen extends ConsumerStatefulWidget {
   const StaffChatScreen({super.key});
@@ -38,6 +39,25 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
     }
   }
 
+  String _getConversationId(String myId, String managerId) {
+    final ids = [myId, managerId]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+
+  void _resetUnread(String myId, String managerId) {
+    final conversationId = _getConversationId(myId, managerId);
+    ref.read(firestoreServiceProvider).resetUnreadCount(conversationId, myId);
+  }
+
+  void _sendMessage(String managerId) {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    _messageController.clear();
+    ref.read(apiServiceProvider).sendChatMessage(managerId, text);
+    _scrollToBottom();
+  }
+
   @override
   Widget build(BuildContext context) {
     final userProfile = ref.watch(userProfileProvider);
@@ -45,134 +65,130 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat'),
+        title: const Text('Menejerim'),
       ),
-      body: userProfile.when(
-        loading: () => const LoadingWidget(),
-        error: (_, __) => const Center(child: Text('Error loading profile')),
-        data: (user) {
-          if (user == null) {
-            return const Center(child: Text('Not logged in'));
-          }
+      body: AppBackground(
+        child: userProfile.when(
+          loading: () => const LoadingWidget(),
+          error: (_, __) =>
+              const Center(child: Text('Profilni yuklashda xatolik')),
+          data: (user) {
+            if (user == null) {
+              return const Center(child: Text('Tizimga kirilmagan'));
+            }
 
-          final managerId = user.managerId;
-          if (managerId == null) {
-            return const EmptyStateWidget(
-              icon: Icons.chat_outlined,
-              message: 'No manager assigned. Chat is not available.',
-            );
-          }
-
-          // We need a conversation ID. For simplicity, derive from sorted IDs.
-          final ids = [user.id, managerId]..sort();
-          final conversationId = '${ids[0]}_${ids[1]}';
-
-          final messagesAsync = ref.watch(messagesProvider(conversationId));
-
-          return Column(
-            children: [
-              Expanded(
-                child: messagesAsync.when(
-                  loading: () => const LoadingWidget(),
-                  error: (_, __) =>
-                      const Center(child: Text('Error loading messages')),
-                  data: (messages) {
-                    WidgetsBinding.instance
-                        .addPostFrameCallback((_) => _scrollToBottom());
-
-                    if (messages.isEmpty) {
-                      return const EmptyStateWidget(
-                        icon: Icons.chat_bubble_outline,
-                        message: 'No messages yet. Start the conversation!',
-                      );
-                    }
-
-                    return ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = messages[index];
-                        return ChatBubble(
-                          message: msg.content,
-                          isMe: msg.senderId == user.id,
-                          timestamp: msg.createdAt,
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  bottom: false,
-                  child: Row(
+            final managerId = user.managerId;
+            if (managerId == null || managerId.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _sendMessage(
-                            user.id,
-                            managerId,
-                            '${ids[0]}_${ids[1]}',
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Type a message...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                          ),
-                          maxLines: null,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filled(
-                        onPressed: () => _sendMessage(
-                          user.id,
-                          managerId,
-                          '${ids[0]}_${ids[1]}',
-                        ),
-                        icon: const Icon(Icons.send),
+                      Icon(Icons.person_off_outlined, size: 48),
+                      SizedBox(height: 12),
+                      Text(
+                        'Menejer tayinlanmagan.\nIltimos, administrator bilan bog\'laning.',
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+              );
+            }
+
+            final conversationId = _getConversationId(user.id, managerId);
+            final messagesAsync = ref.watch(messagesProvider(conversationId));
+
+            return Column(
+              children: [
+                Expanded(
+                  child: messagesAsync.when(
+                    loading: () => const LoadingWidget(),
+                    error: (_, __) => const Center(
+                        child: Text('Xabarlarni yuklashda xatolik')),
+                    data: (messages) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _scrollToBottom();
+                        _resetUnread(user.id, managerId);
+                      });
+
+                      if (messages.isEmpty) {
+                        return const EmptyStateWidget(
+                          icon: Icons.chat_bubble_outline,
+                          message:
+                              'Hali xabarlar yo\'q. Menejeringizga xabar yuboring!',
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = messages[index];
+                          return ChatBubble(
+                            message: msg.content,
+                            isMe: msg.senderId == user.id,
+                            timestamp: msg.createdAt,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendMessage(managerId),
+                            decoration: InputDecoration(
+                              hintText: 'Xabar yozing...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide.none,
+                              ),
+                              filled: true,
+                              fillColor:
+                                  theme.colorScheme.surfaceContainerHighest,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                            ),
+                            maxLines: null,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: () => _sendMessage(managerId),
+                          icon: const Icon(Icons.send),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
-  }
-
-  void _sendMessage(
-      String senderId, String receiverId, String conversationId) {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    _messageController.clear();
-    ref.read(apiServiceProvider).sendChatMessage(receiverId, text);
-    _scrollToBottom();
   }
 }

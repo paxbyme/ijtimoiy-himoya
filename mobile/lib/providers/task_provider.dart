@@ -59,6 +59,20 @@ class TaskNotifier extends Notifier<AsyncValue<void>> {
     }
   }
 
+  Future<bool> updateStatus(String taskId, String status) async {
+    state = const AsyncValue.loading();
+    try {
+      await ref.read(apiServiceProvider).updateTaskStatus(taskId, status);
+      ref.invalidate(allTasksProvider);
+      ref.invalidate(myTasksProvider);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
   Future<String?> uploadAttachment(String taskId, String filePath, String fileName) async {
     try {
       await ref.read(apiServiceProvider).uploadTaskAttachment(taskId, filePath, fileName);

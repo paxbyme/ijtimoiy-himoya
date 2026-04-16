@@ -42,7 +42,7 @@ class StaffShell extends StatelessWidget {
             child: IgnorePointer(
               child: Center(
                 child: Opacity(
-                  opacity: 0.04,
+                  opacity: 0.22,
                   child: Image.asset(
                     'assets/images/logo.png',
                     width: 320,
