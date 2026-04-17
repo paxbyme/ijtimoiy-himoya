@@ -148,9 +148,10 @@ public class GeminiService {
             parts.add(Map.of("inlineData", inlineData));
         }
         parts.add(Map.of("text",
-                "Extract all text from these document images. " +
-                "Return only the extracted text, preserving paragraph structure and line breaks. " +
-                "Do not translate, summarize, or add any explanations."));
+                "You are performing OCR on a scanned official document. " +
+                "Extract ALL visible text exactly as it appears, including text in any language (Uzbek, Russian, etc.). " +
+                "Preserve all numbers, dates, names, document numbers, section headings, and paragraph structure. " +
+                "Return only the extracted text — no explanations, commentary, or translations."));
 
         Map<String, Object> content = Map.of("role", "user", "parts", parts);
         Map<String, Object> requestBody = Map.of("contents", List.of(content));

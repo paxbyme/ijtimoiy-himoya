@@ -186,23 +186,58 @@ public class DocumentService {
     }
 
     private String extractDocxText(byte[] bytes) throws IOException {
-        String text;
-        List<byte[]> images = new ArrayList<>();
+        String extractedText;
+        List<byte[]> pageImages = new ArrayList<>();
+
         try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
              XWPFDocument document = new XWPFDocument(bis);
              XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
-            text = extractor.getText();
-            if (text == null || text.trim().length() < OCR_MIN_TEXT_LENGTH) {
-                log.info("DOCX text extraction yielded {} chars — extracting images for OCR",
-                        text == null ? 0 : text.trim().length());
-                List<XWPFPictureData> pics = document.getAllPictures();
-                int limit = Math.min(pics.size(), OCR_MAX_IMAGES_PER_CALL);
-                for (int i = 0; i < limit; i++) {
-                    images.add(pics.get(i).getData());
+            extractedText = extractor.getText();
+
+            // Always look for large embedded images (> 30 KB) that are JPEG or PNG —
+            // these are almost certainly scanned page images, not decorative logos.
+            for (XWPFPictureData pic : document.getAllPictures()) {
+                byte[] picData = pic.getData();
+                if (picData.length > 30_000 && isSupportedImageFormat(picData)) {
+                    pageImages.add(picData);
+                    if (pageImages.size() >= OCR_MAX_IMAGES_PER_CALL) break;
+                }
+            }
+
+            // If no large supported images were found but extracted text is too short,
+            // try any supported-format image (small logos may still contain text).
+            if (pageImages.isEmpty()
+                    && (extractedText == null || extractedText.trim().length() < OCR_MIN_TEXT_LENGTH)) {
+                log.info("DOCX text extraction yielded {} chars — trying all supported images for OCR",
+                        extractedText == null ? 0 : extractedText.trim().length());
+                for (XWPFPictureData pic : document.getAllPictures()) {
+                    byte[] picData = pic.getData();
+                    if (isSupportedImageFormat(picData)) {
+                        pageImages.add(picData);
+                        if (pageImages.size() >= OCR_MAX_IMAGES_PER_CALL) break;
+                    }
                 }
             }
         }
-        return images.isEmpty() ? (text != null ? text : "") : ocrFallback(images, text);
+
+        if (!pageImages.isEmpty()) {
+            log.info("DOCX: sending {} image(s) to OCR (extracted text: {} chars)",
+                    pageImages.size(), extractedText == null ? 0 : extractedText.trim().length());
+            return ocrFallback(pageImages, extractedText);
+        }
+        return extractedText != null ? extractedText : "";
+    }
+
+    /** Returns true only for image formats that Gemini Vision can decode (JPEG, PNG, GIF). */
+    private boolean isSupportedImageFormat(byte[] bytes) {
+        if (bytes.length < 4) return false;
+        // JPEG: FF D8
+        if (bytes[0] == (byte) 0xFF && bytes[1] == (byte) 0xD8) return true;
+        // PNG: 89 50 4E 47
+        if (bytes[0] == (byte) 0x89 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') return true;
+        // GIF: 47 49 46
+        if (bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F') return true;
+        return false;
     }
 
     private String ocrFallback(List<byte[]> images, String originalText) {
@@ -211,7 +246,11 @@ public class DocumentService {
             String ocrText = geminiService.ocrImages(images);
             if (ocrText != null && !ocrText.isBlank()
                     && !ocrText.startsWith("I'm sorry")) {
-                return ocrText;
+                // Prefer OCR result if it provides substantially more content
+                int origLen = originalText != null ? originalText.trim().length() : 0;
+                if (ocrText.trim().length() > origLen) {
+                    return ocrText;
+                }
             }
         } catch (Exception e) {
             log.warn("OCR via Gemini failed: {}", e.getMessage());
