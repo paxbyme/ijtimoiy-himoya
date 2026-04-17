@@ -297,7 +297,7 @@ public class DocumentService {
             PDFRenderer renderer = new PDFRenderer(document);
             int pages = Math.min(document.getNumberOfPages(), maxPages);
             for (int i = 0; i < pages; i++) {
-                BufferedImage img = renderer.renderImageWithDPI(i, 150, ImageType.RGB);
+                BufferedImage img = renderer.renderImageWithDPI(i, 200, ImageType.RGB);
                 try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
                     ImageIO.write(img, "JPEG", baos);
                     images.add(baos.toByteArray());
