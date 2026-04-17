@@ -11,8 +11,10 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -168,6 +170,111 @@ public class GeminiService {
             }
             String result = extractTextFromResponse(response.body().string());
             log.info("Gemini OCR extracted {} chars from {} images", result.length(), limit);
+            return result;
+        }
+    }
+
+    /**
+     * Uploads a file to the Gemini Files API using multipart/related upload.
+     * Returns the file URI (e.g. "https://generativelanguage.googleapis.com/v1beta/files/abc123").
+     * Uploaded files are automatically deleted by Google after 48 hours.
+     */
+    public String uploadToFilesApi(byte[] bytes, String mimeType) throws IOException {
+        String url = String.format("%s/upload/v1beta/files?key=%s",
+                geminiConfig.getBaseUrl(), geminiConfig.getApiKey());
+
+        String boundary = "bound_" + System.currentTimeMillis();
+        String CRLF = "\r\n";
+        String metadataJson = "{\"file\":{\"display_name\":\"document\"}}";
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        baos.write(("--" + boundary + CRLF).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Type: application/json; charset=UTF-8" + CRLF + CRLF).getBytes(StandardCharsets.UTF_8));
+        baos.write((metadataJson + CRLF).getBytes(StandardCharsets.UTF_8));
+        baos.write(("--" + boundary + CRLF).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Type: " + mimeType + CRLF + CRLF).getBytes(StandardCharsets.UTF_8));
+        baos.write(bytes);
+        baos.write((CRLF + "--" + boundary + "--" + CRLF).getBytes(StandardCharsets.UTF_8));
+
+        RequestBody body = RequestBody.create(baos.toByteArray(),
+                MediaType.parse("multipart/related; boundary=" + boundary));
+        Request request = new Request.Builder()
+                .url(url)
+                .header("X-Goog-Upload-Protocol", "multipart")
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "";
+                throw new IOException("Files API upload failed: " + response.code() + " - " + err);
+            }
+            JsonNode root = objectMapper.readTree(response.body().string());
+            String fileUri = root.path("file").path("uri").asText(null);
+            if (fileUri == null || fileUri.isEmpty()) {
+                throw new IOException("Files API did not return a file URI");
+            }
+            log.debug("Uploaded to Files API: uri={} size={}B mimeType={}", fileUri, bytes.length, mimeType);
+            return fileUri;
+        }
+    }
+
+    /**
+     * OCR a single document (PDF or image) via Files API — one upload + one inference call.
+     * Preferred over inline-data for large or multi-page documents.
+     */
+    public String ocrDocument(byte[] bytes, String mimeType) throws IOException {
+        String fileUri = uploadToFilesApi(bytes, mimeType);
+        return ocrFileUris(List.of(fileUri), List.of(mimeType));
+    }
+
+    /**
+     * OCR multiple images via Files API — upload each image then one single inference call.
+     * Eliminates the need for batching: all pages are processed together.
+     */
+    public String ocrImagesViaFilesApi(List<byte[]> images) throws IOException {
+        if (images.isEmpty()) return "";
+        List<String> uris = new ArrayList<>(images.size());
+        List<String> mimeTypes = new ArrayList<>(images.size());
+        for (byte[] img : images) {
+            String mime = detectMimeType(img);
+            uris.add(uploadToFilesApi(img, mime));
+            mimeTypes.add(mime);
+        }
+        return ocrFileUris(uris, mimeTypes);
+    }
+
+    private String ocrFileUris(List<String> fileUris, List<String> mimeTypes) throws IOException {
+        String url = String.format("%s/v1beta/models/%s:generateContent?key=%s",
+                geminiConfig.getBaseUrl(), geminiConfig.getOcrModel(), geminiConfig.getApiKey());
+
+        List<Map<String, Object>> parts = new ArrayList<>();
+        for (int i = 0; i < fileUris.size(); i++) {
+            parts.add(Map.of("file_data", Map.of(
+                    "mime_type", mimeTypes.get(i),
+                    "file_uri", fileUris.get(i))));
+        }
+        parts.add(Map.of("text",
+                "You are performing OCR on a scanned official document. " +
+                "Extract ALL visible text exactly as it appears, including text in any language (Uzbek, Russian, etc.). " +
+                "Preserve all numbers, dates, names, document numbers, section headings, and paragraph structure. " +
+                "Return only the extracted text — no explanations, commentary, or translations."));
+
+        Map<String, Object> content = Map.of("role", "user", "parts", parts);
+        Map<String, Object> requestBody = Map.of("contents", List.of(content));
+
+        String json = objectMapper.writeValueAsString(requestBody);
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder().url(url).post(body).build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "";
+                log.error("Gemini OCR (Files API) error: status={} body={}", response.code(), err);
+                throw new IOException("Gemini OCR error: " + response.code() + " - " + err);
+            }
+            String result = extractTextFromResponse(response.body().string());
+            log.info("Files API OCR extracted {} chars from {} file(s)", result.length(), fileUris.size());
             return result;
         }
     }

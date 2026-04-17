@@ -179,10 +179,21 @@ public class DocumentService {
             if (text != null && text.trim().length() >= OCR_MIN_TEXT_LENGTH) {
                 return text;
             }
-            log.info("PDF text extraction yielded {} chars — trying OCR via Gemini",
+            log.info("PDF text extraction yielded {} chars — uploading PDF to Files API for OCR",
                     text == null ? 0 : text.trim().length());
-            List<byte[]> images = renderPdfPages(document, OCR_MAX_IMAGES_PER_CALL);
-            return ocrFallback(images, text);
+            try {
+                // Upload raw PDF — Gemini reads all pages natively in one call
+                String ocrText = geminiService.ocrDocument(bytes, "application/pdf");
+                if (ocrText != null && !ocrText.isBlank() && !ocrText.startsWith("I'm sorry")) {
+                    int origLen = text != null ? text.trim().length() : 0;
+                    if (ocrText.trim().length() > origLen) return ocrText;
+                }
+            } catch (Exception e) {
+                log.warn("Files API PDF OCR failed, falling back to page rendering: {}", e.getMessage());
+                List<byte[]> images = renderPdfPages(document, OCR_MAX_IMAGES_PER_CALL);
+                return ocrFallback(images, text);
+            }
+            return text != null ? text : "";
         }
     }
 
@@ -244,31 +255,39 @@ public class DocumentService {
     private String ocrFallback(List<byte[]> images, String originalText) {
         if (images.isEmpty()) return originalText != null ? originalText : "";
 
-        // Process images in batches to handle documents with more than OCR_MAX_IMAGES_PER_CALL pages.
-        StringBuilder combined = new StringBuilder();
-        for (int i = 0; i < images.size(); i += OCR_MAX_IMAGES_PER_CALL) {
-            List<byte[]> batch = images.subList(i, Math.min(i + OCR_MAX_IMAGES_PER_CALL, images.size()));
-            try {
-                String batchText = geminiService.ocrImages(batch);
-                if (batchText != null && !batchText.isBlank() && !batchText.startsWith("I'm sorry")) {
-                    if (combined.length() > 0) combined.append("\n\n");
-                    combined.append(batchText.trim());
+        // Try Files API first: upload all images, one single inference call (no batching needed).
+        try {
+            String ocrText = geminiService.ocrImagesViaFilesApi(images);
+            if (ocrText != null && !ocrText.isBlank() && !ocrText.startsWith("I'm sorry")) {
+                int origLen = originalText != null ? originalText.trim().length() : 0;
+                if (ocrText.trim().length() > origLen) {
+                    log.info("Files API OCR: {} chars from {} image(s)", ocrText.trim().length(), images.size());
+                    return ocrText;
                 }
-            } catch (Exception e) {
-                log.warn("OCR batch [{}-{}] failed: {}", i, i + batch.size() - 1, e.getMessage());
+            }
+        } catch (Exception e) {
+            log.warn("Files API OCR failed, falling back to inline batch OCR: {}", e.getMessage());
+            // Fall back to batched inline-data OCR
+            StringBuilder combined = new StringBuilder();
+            for (int i = 0; i < images.size(); i += OCR_MAX_IMAGES_PER_CALL) {
+                List<byte[]> batch = images.subList(i, Math.min(i + OCR_MAX_IMAGES_PER_CALL, images.size()));
+                try {
+                    String batchText = geminiService.ocrImages(batch);
+                    if (batchText != null && !batchText.isBlank() && !batchText.startsWith("I'm sorry")) {
+                        if (combined.length() > 0) combined.append("\n\n");
+                        combined.append(batchText.trim());
+                    }
+                } catch (Exception batchEx) {
+                    log.warn("Inline OCR batch [{}-{}] failed: {}", i, i + batch.size() - 1, batchEx.getMessage());
+                }
+            }
+            String batchResult = combined.toString();
+            if (!batchResult.isBlank()) {
+                int origLen = originalText != null ? originalText.trim().length() : 0;
+                if (batchResult.length() > origLen) return batchResult;
             }
         }
 
-        String ocrText = combined.toString();
-        if (!ocrText.isBlank()) {
-            int origLen = originalText != null ? originalText.trim().length() : 0;
-            if (ocrText.length() > origLen) {
-                log.info("OCR extracted {} chars from {} image(s) in {} batch(es)",
-                        ocrText.length(), images.size(),
-                        (int) Math.ceil((double) images.size() / OCR_MAX_IMAGES_PER_CALL));
-                return ocrText;
-            }
-        }
         return originalText != null ? originalText : "";
     }
 
