@@ -38,7 +38,8 @@ public class DocumentService {
     private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private static final int OCR_MIN_TEXT_LENGTH = 20;
-    private static final int OCR_MAX_IMAGES_PER_CALL = 10;
+    private static final int OCR_MAX_IMAGES_PER_CALL = 10;  // Gemini per-request image limit
+    private static final int OCR_MAX_TOTAL_IMAGES = 50;     // max pages to OCR per document
 
     private final DocumentRepository documentRepository;
     private final EmbeddingService embeddingService;
@@ -194,13 +195,13 @@ public class DocumentService {
              XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
             extractedText = extractor.getText();
 
-            // Always look for large embedded images (> 30 KB) that are JPEG or PNG —
-            // these are almost certainly scanned page images, not decorative logos.
+            // Collect all large embedded images (> 30 KB, JPEG/PNG) — likely scanned pages.
+            // Use OCR_MAX_TOTAL_IMAGES as ceiling to avoid processing enormous documents.
             for (XWPFPictureData pic : document.getAllPictures()) {
                 byte[] picData = pic.getData();
                 if (picData.length > 30_000 && isSupportedImageFormat(picData)) {
                     pageImages.add(picData);
-                    if (pageImages.size() >= OCR_MAX_IMAGES_PER_CALL) break;
+                    if (pageImages.size() >= OCR_MAX_TOTAL_IMAGES) break;
                 }
             }
 
@@ -214,7 +215,7 @@ public class DocumentService {
                     byte[] picData = pic.getData();
                     if (isSupportedImageFormat(picData)) {
                         pageImages.add(picData);
-                        if (pageImages.size() >= OCR_MAX_IMAGES_PER_CALL) break;
+                        if (pageImages.size() >= OCR_MAX_TOTAL_IMAGES) break;
                     }
                 }
             }
@@ -242,18 +243,31 @@ public class DocumentService {
 
     private String ocrFallback(List<byte[]> images, String originalText) {
         if (images.isEmpty()) return originalText != null ? originalText : "";
-        try {
-            String ocrText = geminiService.ocrImages(images);
-            if (ocrText != null && !ocrText.isBlank()
-                    && !ocrText.startsWith("I'm sorry")) {
-                // Prefer OCR result if it provides substantially more content
-                int origLen = originalText != null ? originalText.trim().length() : 0;
-                if (ocrText.trim().length() > origLen) {
-                    return ocrText;
+
+        // Process images in batches to handle documents with more than OCR_MAX_IMAGES_PER_CALL pages.
+        StringBuilder combined = new StringBuilder();
+        for (int i = 0; i < images.size(); i += OCR_MAX_IMAGES_PER_CALL) {
+            List<byte[]> batch = images.subList(i, Math.min(i + OCR_MAX_IMAGES_PER_CALL, images.size()));
+            try {
+                String batchText = geminiService.ocrImages(batch);
+                if (batchText != null && !batchText.isBlank() && !batchText.startsWith("I'm sorry")) {
+                    if (combined.length() > 0) combined.append("\n\n");
+                    combined.append(batchText.trim());
                 }
+            } catch (Exception e) {
+                log.warn("OCR batch [{}-{}] failed: {}", i, i + batch.size() - 1, e.getMessage());
             }
-        } catch (Exception e) {
-            log.warn("OCR via Gemini failed: {}", e.getMessage());
+        }
+
+        String ocrText = combined.toString();
+        if (!ocrText.isBlank()) {
+            int origLen = originalText != null ? originalText.trim().length() : 0;
+            if (ocrText.length() > origLen) {
+                log.info("OCR extracted {} chars from {} image(s) in {} batch(es)",
+                        ocrText.length(), images.size(),
+                        (int) Math.ceil((double) images.size() / OCR_MAX_IMAGES_PER_CALL));
+                return ocrText;
+            }
         }
         return originalText != null ? originalText : "";
     }

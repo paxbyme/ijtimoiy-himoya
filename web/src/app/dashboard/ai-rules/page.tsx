@@ -76,9 +76,17 @@ export default function AiRulesPage() {
       const res = await api.post("/ai-rules", data);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (responseData) => {
+      const saved: AiRule = responseData.data || responseData;
+      const editingId = editingRule?.id;
+      queryClient.setQueryData<AiRule[]>(["ai-rules"], (old) => {
+        if (editingId) {
+          return old?.map((r) => (r.id === editingId ? saved : r)) ?? [saved];
+        }
+        return [...(old ?? []), saved];
+      });
       queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
-      toast.success(editingRule ? "Qoida yangilandi" : "Qoida yaratildi");
+      toast.success(editingId ? "Qoida yangilandi" : "Qoida yaratildi");
       setDialogOpen(false);
       setEditingRule(null);
       reset();
@@ -98,7 +106,9 @@ export default function AiRulesPage() {
       });
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (responseData) => {
+      const saved: AiRule = responseData.data || responseData;
+      queryClient.setQueryData<AiRule[]>(["ai-rules"], (old) => [...(old ?? []), saved]);
       queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
       toast.success("Fayl o'qildi va qoida yaratildi");
       setUploadDialogOpen(false);
@@ -111,11 +121,18 @@ export default function AiRulesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => { await api.delete(`/ai-rules/${id}`); },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
-      toast.success("Qoida o'chirildi");
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["ai-rules"] });
+      const previous = queryClient.getQueryData<AiRule[]>(["ai-rules"]);
+      queryClient.setQueryData<AiRule[]>(["ai-rules"], (old) => old?.filter((r) => r.id !== id) ?? []);
+      return { previous };
     },
-    onError: () => toast.error("O&apos;chirishda xatolik"),
+    onSuccess: () => toast.success("Qoida o'chirildi"),
+    onError: (_err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(["ai-rules"], context.previous);
+      toast.error("O'chirishda xatolik");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["ai-rules"] }),
   });
 
   const toggleMutation = useMutation({
@@ -123,11 +140,20 @@ export default function AiRulesPage() {
       const res = await api.put(`/ai-rules/${id}`, { isActive: active });
       return res.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
-      toast.success("Holat yangilandi");
+    onMutate: async ({ id, active }) => {
+      await queryClient.cancelQueries({ queryKey: ["ai-rules"] });
+      const previous = queryClient.getQueryData<AiRule[]>(["ai-rules"]);
+      queryClient.setQueryData<AiRule[]>(["ai-rules"], (old) =>
+        old?.map((r) => (r.id === id ? { ...r, active } : r)) ?? []
+      );
+      return { previous };
     },
-    onError: () => toast.error("Holatni o'zgartirishda xatolik"),
+    onSuccess: () => toast.success("Holat yangilandi"),
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(["ai-rules"], context.previous);
+      toast.error("Holatni o'zgartirishda xatolik");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["ai-rules"] }),
   });
 
   const openEdit = (rule: AiRule) => {
