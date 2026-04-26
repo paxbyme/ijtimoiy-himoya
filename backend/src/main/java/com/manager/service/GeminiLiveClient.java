@@ -72,17 +72,25 @@ public class GeminiLiveClient {
         this.webSocket = httpClient.newWebSocket(request, new Listener());
     }
 
+    private volatile boolean firstAudioLogged = false;
+
     /** Send raw 16-bit PCM 16kHz mono audio frame from the user's microphone. */
     public void sendAudio(byte[] pcm16kHzMono) {
         if (closed || webSocket == null) return;
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
+            // Current canonical Live API format: realtimeInput.audio (single chunk per message)
             Map<String, Object> realtimeInput = Map.of(
                     "realtimeInput", Map.of(
-                            "mediaChunks", List.of(Map.of(
+                            "audio", Map.of(
                                     "mimeType", "audio/pcm;rate=16000",
-                                    "data", b64))));
-            webSocket.send(objectMapper.writeValueAsString(realtimeInput));
+                                    "data", b64)));
+            String json = objectMapper.writeValueAsString(realtimeInput);
+            if (!firstAudioLogged) {
+                firstAudioLogged = true;
+                log.info("Gemini Live: first audio chunk sent ({} bytes pcm)", pcm16kHzMono.length);
+            }
+            webSocket.send(json);
         } catch (Exception e) {
             onError.accept(e);
         }
@@ -148,7 +156,7 @@ public class GeminiLiveClient {
 
                 JsonNode setupComplete = root.path("setupComplete");
                 if (!setupComplete.isMissingNode()) {
-                    log.debug("Gemini Live setup complete");
+                    log.info("Gemini Live setup complete");
                     return;
                 }
 
@@ -203,13 +211,17 @@ public class GeminiLiveClient {
 
         @Override
         public void onClosing(WebSocket ws, int code, String reason) {
+            log.warn("Gemini Live WS closing: code={} reason={}", code, reason);
             ws.close(1000, null);
         }
 
         @Override
         public void onClosed(WebSocket ws, int code, String reason) {
-            log.info("Gemini Live WS closed: {} {}", code, reason);
+            log.warn("Gemini Live WS closed: code={} reason={}", code, reason);
             closed = true;
+            if (code != 1000 && reason != null && !reason.isEmpty()) {
+                onError.accept(new IOException("Gemini closed: " + code + " " + reason));
+            }
             onClose.run();
         }
     }

@@ -80,17 +80,23 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
       await _setupPlayback();
 
       final uri = Uri.parse('${ApiConfig.wsBaseUrl}/ai/live');
+      debugPrint('[Live] connecting to $uri');
       _channel = WebSocketChannel.connect(uri);
       _channel!.stream.listen(
         _onWsMessage,
-        onError: (e) => _setError('Ulanish xatosi: $e'),
+        onError: (e) {
+          debugPrint('[Live] WS error: $e');
+          _setError('Ulanish xatosi: $e');
+        },
         onDone: () {
+          debugPrint('[Live] WS done — closeCode=${_channel?.closeCode} reason=${_channel?.closeReason}');
           if (mounted && _status != _LiveStatus.idle) {
-            _setError('Aloqa uzildi');
+            _setError('Aloqa uzildi (code=${_channel?.closeCode})');
           }
         },
       );
 
+      debugPrint('[Live] sending token');
       _channel!.sink.add(jsonEncode({'token': token}));
     } catch (e) {
       _setError('Boshlashda xatolik: $e');
@@ -120,21 +126,23 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
 
   Future<void> _onWsMessage(dynamic msg) async {
     if (msg is String) {
+      debugPrint('[Live] <-- text: $msg');
       try {
         final json = jsonDecode(msg) as Map<String, dynamic>;
         final event = json['event'];
         if (event == 'ready') {
           await _startMic();
-          setState(() => _status = _LiveStatus.listening);
+          if (mounted) setState(() => _status = _LiveStatus.listening);
         } else if (event == 'turnComplete') {
-          // AI finished its turn — go back to listening
           if (mounted) setState(() => _status = _LiveStatus.listening);
         } else if (event == 'error') {
           _setError('Server xatosi: ${json['message'] ?? 'unknown'}');
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[Live] failed to parse text: $e');
+      }
     } else if (msg is List<int>) {
-      // Inbound PCM 24kHz audio — append to playback queue
+      debugPrint('[Live] <-- binary ${msg.length}B');
       final bytes = Uint8List.fromList(msg);
       final samples = bytes.buffer.asInt16List(
         bytes.offsetInBytes,
@@ -159,13 +167,22 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
         noiseSuppress: true,
       ),
     );
+    int chunkCount = 0;
     _micSub = stream.listen(
       (chunk) {
+        chunkCount++;
+        if (chunkCount % 25 == 1) {
+          debugPrint('[Live] --> mic chunk #$chunkCount (${chunk.length}B)');
+        }
         _channel?.sink.add(chunk);
         _detectSpeech(chunk);
       },
-      onError: (e) => _setError('Mikrofon xatosi: $e'),
+      onError: (e) {
+        debugPrint('[Live] mic error: $e');
+        _setError('Mikrofon xatosi: $e');
+      },
     );
+    debugPrint('[Live] mic streaming started');
   }
 
   /// Lightweight RMS-based VAD: when audio drops below threshold for ~700ms,
@@ -184,11 +201,15 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     final loud = rms > 1500000; // ~~ -25 dBFS
 
     if (loud) {
-      if (!_userSpeaking) _userSpeaking = true;
+      if (!_userSpeaking) {
+        debugPrint('[Live] VAD: user started speaking (rms=${rms.toStringAsFixed(0)})');
+        _userSpeaking = true;
+      }
       _silenceTimer?.cancel();
       _silenceTimer = null;
     } else if (_userSpeaking) {
       _silenceTimer ??= Timer(const Duration(milliseconds: 700), () {
+        debugPrint('[Live] VAD: silence detected, sending endTurn');
         _userSpeaking = false;
         _channel?.sink.add(jsonEncode({'event': 'endTurn'}));
       });
@@ -196,6 +217,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   }
 
   void _setError(String msg) {
+    debugPrint('[Live] ERROR: $msg');
     if (!mounted) return;
     setState(() {
       _status = _LiveStatus.error;
