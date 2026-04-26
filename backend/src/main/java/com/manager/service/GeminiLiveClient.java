@@ -27,8 +27,8 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    // Stable Live API model. Native-audio variants exist but require special access.
-    private static final String LIVE_MODEL = "models/gemini-2.0-flash-live-001";
+    // Live API model available in v1beta. The newer "-live-001" needs v1alpha.
+    private static final String LIVE_MODEL = "models/gemini-2.0-flash-exp";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
