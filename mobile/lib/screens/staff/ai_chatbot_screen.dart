@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../../providers/ai_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/chat_bubble.dart';
@@ -17,11 +19,112 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
   final _scrollController = ScrollController();
   final Set<int> _feedbackGiven = {};
 
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _isRecording = false;
+  bool _isTranscribing = false;
+  DateTime? _recordingStart;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    // Rebuild to swap mic ↔ send button
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.dispose();
+    _recorder.dispose();
     super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    if (_isRecording || _isTranscribing) return;
+
+    try {
+      if (!await _recorder.hasPermission()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Mikrofon ruxsati berilmagan')),
+          );
+        }
+        return;
+      }
+
+      final dir = await getTemporaryDirectory();
+      final path =
+          '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 64000,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+        path: path,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _recordingStart = DateTime.now();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Yozib olishda xatolik: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopAndTranscribe({bool cancel = false}) async {
+    if (!_isRecording) return;
+
+    final path = await _recorder.stop();
+    final start = _recordingStart;
+    setState(() {
+      _isRecording = false;
+      _recordingStart = null;
+    });
+
+    if (cancel || path == null) {
+      return;
+    }
+
+    // Skip very short recordings (likely accidental taps)
+    if (start != null && DateTime.now().difference(start).inMilliseconds < 500) {
+      return;
+    }
+
+    setState(() => _isTranscribing = true);
+    try {
+      final transcript =
+          await ref.read(apiServiceProvider).transcribeAudio(path);
+      final trimmed = transcript.trim();
+      if (trimmed.isNotEmpty) {
+        ref.read(aiChatProvider.notifier).sendMessage(trimmed);
+        _scrollToBottom();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ovoz tushunilmadi, qayta urinib ko\'ring')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Transkripsiyada xatolik: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isTranscribing = false);
+    }
   }
 
   void _scrollToBottom() {
@@ -216,41 +319,108 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
             ),
             child: SafeArea(
               bottom: false,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendMessage(),
-                      decoration: InputDecoration(
-                        hintText: 'Xabar yozing...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
+              child: _isRecording
+                  ? _buildRecordingBar(theme)
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendMessage(),
+                            enabled: !_isTranscribing,
+                            decoration: InputDecoration(
+                              hintText: _isTranscribing
+                                  ? 'Ovoz matnga o\'girilmoqda...'
+                                  : 'Xabar yozing...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide.none,
+                              ),
+                              filled: true,
+                              fillColor:
+                                  theme.colorScheme.surfaceContainerHighest,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                            ),
+                            maxLines: null,
+                          ),
                         ),
-                        filled: true,
-                        fillColor:
-                            theme.colorScheme.surfaceContainerHighest,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                      ),
-                      maxLines: null,
+                        const SizedBox(width: 8),
+                        _buildMicOrSendButton(theme),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: _sendMessage,
-                    icon: const Icon(Icons.send),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
       )),
+    );
+  }
+
+  Widget _buildMicOrSendButton(ThemeData theme) {
+    final hasText = _messageController.text.trim().isNotEmpty;
+
+    if (_isTranscribing) {
+      return const SizedBox(
+        width: 48,
+        height: 48,
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (hasText) {
+      return IconButton.filled(
+        onPressed: _sendMessage,
+        icon: const Icon(Icons.send),
+      );
+    }
+
+    return IconButton.filled(
+      onPressed: _startRecording,
+      icon: const Icon(Icons.mic),
+    );
+  }
+
+  Widget _buildRecordingBar(ThemeData theme) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.error,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Yozib olinmoqda...',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Bekor qilish',
+          onPressed: () => _stopAndTranscribe(cancel: true),
+          icon: Icon(Icons.close, color: theme.colorScheme.error),
+        ),
+        const SizedBox(width: 4),
+        IconButton.filled(
+          tooltip: 'Yuborish',
+          onPressed: () => _stopAndTranscribe(),
+          icon: const Icon(Icons.send),
+        ),
+      ],
     );
   }
 

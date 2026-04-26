@@ -279,6 +279,51 @@ public class GeminiService {
         }
     }
 
+    /**
+     * Transcribe audio (voice message) via Gemini Files API.
+     * Optimized for Uzbek-language input but handles mixed Uzbek/Russian as well.
+     * Returns the transcript text only — no commentary.
+     */
+    @Retryable(retryFor = IOException.class, maxAttempts = 2,
+               backoff = @Backoff(delay = 1500, multiplier = 2, maxDelay = 6000))
+    public String transcribeAudio(byte[] bytes, String mimeType) throws IOException {
+        String fileUri = uploadToFilesApi(bytes, mimeType);
+
+        String url = String.format("%s/v1beta/models/%s:generateContent?key=%s",
+                geminiConfig.getBaseUrl(), geminiConfig.getModel(), geminiConfig.getApiKey());
+
+        List<Map<String, Object>> parts = new ArrayList<>();
+        parts.add(Map.of("file_data", Map.of(
+                "mime_type", mimeType,
+                "file_uri", fileUri)));
+        parts.add(Map.of("text",
+                "Transcribe this voice message verbatim. " +
+                "The speaker is most likely speaking Uzbek (may include Russian or English words). " +
+                "Return ONLY the transcript text, no translations, no commentary, no quotes, no labels. " +
+                "Preserve punctuation naturally. If the audio is silent or unintelligible, return an empty string."));
+
+        Map<String, Object> content = Map.of("role", "user", "parts", parts);
+        Map<String, Object> requestBody = Map.of("contents", List.of(content));
+
+        String json = objectMapper.writeValueAsString(requestBody);
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder().url(url).post(body).build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "";
+                log.error("Gemini transcribe error: status={} body={}", response.code(), err);
+                throw new IOException("Gemini transcribe error: " + response.code() + " - " + err);
+            }
+            String result = extractTextFromResponse(response.body().string());
+            if ("I'm sorry, I couldn't generate a response.".equals(result)) {
+                return "";
+            }
+            log.info("Audio transcription: {} chars from {}B {}", result.length(), bytes.length, mimeType);
+            return result.trim();
+        }
+    }
+
     private String detectMimeType(byte[] bytes) {
         if (bytes.length >= 2 && bytes[0] == (byte) 0xFF && bytes[1] == (byte) 0xD8) return "image/jpeg";
         if (bytes.length >= 4 && bytes[0] == (byte) 0x89 && bytes[1] == 'P'

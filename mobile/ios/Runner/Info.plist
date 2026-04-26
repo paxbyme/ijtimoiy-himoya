@@ -45,6 +45,8 @@
 	<string>Topshiriq uchun rasm olish</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Topshiriq uchun rasm yuklash</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AI yordamchiga ovozli xabar yuborish uchun mikrofon kerak</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

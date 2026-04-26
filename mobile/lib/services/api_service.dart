@@ -166,6 +166,28 @@ class ApiService {
     }
   }
 
+  // ---- AI Voice Transcription ----
+
+  Future<String> transcribeAudio(String filePath, {String mimeType = 'audio/m4a'}) async {
+    final formData = FormData.fromMap({
+      'audio': await MultipartFile.fromFile(
+        filePath,
+        filename: filePath.split('/').last,
+        contentType: DioMediaType.parse(mimeType),
+      ),
+    }, ListFormat.multiCompatible);
+    final response = await _dio.post(
+      '/ai/transcribe',
+      data: formData,
+      options: Options(
+        sendTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
+      ),
+    );
+    final data = response.data['data'] ?? response.data;
+    return (data['transcript'] ?? '').toString();
+  }
+
   // ---- AI Conversations ----
 
   Future<List<AiConversation>> getAiConversations() async {

@@ -8,10 +8,13 @@ import com.manager.service.AiRulesService;
 import com.manager.service.GeminiService;
 import com.manager.service.RagService;
 import com.manager.service.RateLimiterService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -23,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/api/ai")
 public class AiController {
+
+    private static final Logger log = LoggerFactory.getLogger(AiController.class);
 
     private static final String GOLDEN_RULES = """
             You are an AI assistant for employees in this organization.
@@ -173,6 +178,66 @@ public class AiController {
         });
 
         return emitter;
+    }
+
+    // ---- Voice transcription ----
+
+    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Map<String, String>>> transcribe(
+            @RequestParam("audio") MultipartFile audio,
+            HttpServletRequest httpRequest) {
+        try {
+            String uid = (String) httpRequest.getAttribute("uid");
+
+            if (isRateLimited(uid)) {
+                return ResponseEntity.status(429)
+                        .body(ApiResponse.error("Rate limit exceeded. Please wait before sending more messages."));
+            }
+
+            if (audio == null || audio.isEmpty()) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Audio file is empty"));
+            }
+
+            // Cap at ~10MB to keep transcription latency reasonable
+            if (audio.getSize() > 10 * 1024 * 1024) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("Audio file too large (max 10MB)"));
+            }
+
+            String rawMime = audio.getContentType();
+            String mimeType = normalizeAudioMime(rawMime, audio.getOriginalFilename());
+
+            log.info("Transcribe request: uid={} size={}B rawMime={} normalized={} filename={}",
+                    uid, audio.getSize(), rawMime, mimeType, audio.getOriginalFilename());
+
+            String transcript = geminiService.transcribeAudio(audio.getBytes(), mimeType);
+            return ResponseEntity.ok(ApiResponse.ok(Map.of("transcript", transcript)));
+
+        } catch (Exception e) {
+            log.error("Transcription failed", e);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Transcription failed: " + e.getMessage()));
+        }
+    }
+
+    private static String normalizeAudioMime(String raw, String filename) {
+        // Gemini Files API accepts: audio/wav, audio/mp3, audio/mpeg, audio/aiff,
+        // audio/aac, audio/ogg, audio/flac, audio/mp4
+        String name = filename != null ? filename.toLowerCase() : "";
+        if (name.endsWith(".m4a") || name.endsWith(".mp4") || name.endsWith(".aac")) {
+            return "audio/mp4";
+        }
+        if (name.endsWith(".ogg") || name.endsWith(".opus")) return "audio/ogg";
+        if (name.endsWith(".wav")) return "audio/wav";
+        if (name.endsWith(".mp3")) return "audio/mp3";
+        if (name.endsWith(".flac")) return "audio/flac";
+
+        if (raw == null) return "audio/mp4";
+        // Map non-standard m4a label to mp4 container mime
+        if ("audio/m4a".equalsIgnoreCase(raw) || "audio/x-m4a".equalsIgnoreCase(raw)) {
+            return "audio/mp4";
+        }
+        if (raw.startsWith("audio/")) return raw;
+        return "audio/mp4";
     }
 
     // ---- Conversation management ----
