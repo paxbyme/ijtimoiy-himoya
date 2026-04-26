@@ -32,11 +32,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
 
   final Queue<int> _playbackQueue = Queue<int>();
   bool _pcmSoundReady = false;
-  Timer? _silenceTimer;
 
   _LiveStatus _status = _LiveStatus.idle;
   String _errorMessage = '';
-  bool _userSpeaking = false;
 
   late final AnimationController _pulse;
 
@@ -171,9 +169,8 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     _micSub = stream.listen(
       (chunk) {
         // record's Uint8List can be a view with non-zero/odd offsetInBytes; copy
-        // to a fresh aligned buffer before sending or interpreting as Int16.
+        // to a fresh aligned buffer before sending.
         final aligned = Uint8List.fromList(chunk);
-        // Trim to even length so PCM 16-bit framing is intact.
         final pcm = aligned.length.isEven
             ? aligned
             : Uint8List.sublistView(aligned, 0, aligned.length - 1);
@@ -182,7 +179,6 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
           debugPrint('[Live] --> mic chunk #$chunkCount (${pcm.length}B)');
         }
         _channel?.sink.add(pcm);
-        _detectSpeech(pcm);
       },
       onError: (e) {
         debugPrint('[Live] mic error: $e');
@@ -192,36 +188,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     debugPrint('[Live] mic streaming started');
   }
 
-  /// Lightweight RMS-based VAD: when audio drops below threshold for ~700ms,
-  /// signal end-of-turn so Gemini responds.
-  void _detectSpeech(Uint8List chunk) {
-    final samples = chunk.buffer.asInt16List(
-      chunk.offsetInBytes,
-      chunk.lengthInBytes ~/ 2,
-    );
-    if (samples.isEmpty) return;
-    int sumSq = 0;
-    for (final s in samples) {
-      sumSq += s * s;
-    }
-    final rms = (sumSq / samples.length).clamp(0, double.infinity);
-    final loud = rms > 1500000; // ~~ -25 dBFS
-
-    if (loud) {
-      if (!_userSpeaking) {
-        debugPrint('[Live] VAD: user started speaking (rms=${rms.toStringAsFixed(0)})');
-        _userSpeaking = true;
-      }
-      _silenceTimer?.cancel();
-      _silenceTimer = null;
-    } else if (_userSpeaking) {
-      _silenceTimer ??= Timer(const Duration(milliseconds: 700), () {
-        debugPrint('[Live] VAD: silence detected, sending endTurn');
-        _userSpeaking = false;
-        _channel?.sink.add(jsonEncode({'event': 'endTurn'}));
-      });
-    }
-  }
+  // Native audio Gemini Live models do server-side VAD automatically — no
+  // client-side endTurn signaling required. The model decides when the user
+  // has stopped speaking and starts responding on its own.
 
   void _setError(String msg) {
     debugPrint('[Live] ERROR: $msg');
@@ -234,10 +203,6 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   }
 
   Future<void> _disconnect() async {
-    _silenceTimer?.cancel();
-    _silenceTimer = null;
-    _userSpeaking = false;
-
     await _micSub?.cancel();
     _micSub = null;
     if (await _recorder.isRecording()) {
