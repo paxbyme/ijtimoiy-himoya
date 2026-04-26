@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
+import '../screens/auth/splash_screen.dart';
 import '../screens/staff/staff_shell.dart';
 import '../screens/staff/staff_home_screen.dart';
 import '../screens/staff/staff_profile_screen.dart';
@@ -37,27 +38,44 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/login',
+    initialLocation: '/',
     redirect: (context, state) {
-      final isLoggedIn = authState.value != null;
+      final isSplashRoute = state.matchedLocation == '/';
       final isLoginRoute = state.matchedLocation == '/login';
 
-      if (!isLoggedIn && !isLoginRoute) {
-        return '/login';
+      // Auth state still resolving (Firebase restoring persisted session)
+      if (authState.isLoading) {
+        return isSplashRoute ? null : '/';
       }
 
-      if (isLoggedIn && isLoginRoute) {
-        final profile = userProfile.value;
-        if (profile != null) {
-          if (profile.role == 'DEVELOPER') return '/developer/home';
-          return profile.isManager ? '/manager/home' : '/staff/home';
-        }
-        return null;
+      final isLoggedIn = authState.value != null;
+
+      if (!isLoggedIn) {
+        return isLoginRoute ? null : '/login';
+      }
+
+      // Logged in — wait for profile to load before routing to dashboard
+      if (userProfile.isLoading) {
+        return isSplashRoute ? null : '/';
+      }
+
+      final profile = userProfile.value;
+      if (profile == null) {
+        return isLoginRoute ? null : '/login';
+      }
+
+      if (isSplashRoute || isLoginRoute) {
+        if (profile.role == 'DEVELOPER') return '/developer/home';
+        return profile.isManager ? '/manager/home' : '/staff/home';
       }
 
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
