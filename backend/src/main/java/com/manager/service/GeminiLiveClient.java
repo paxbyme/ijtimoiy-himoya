@@ -79,12 +79,12 @@ public class GeminiLiveClient {
         if (closed || webSocket == null) return;
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
-            // Current canonical Live API format: realtimeInput.audio (single chunk per message)
+            // gemini-2.0-flash-exp on v1beta uses mediaChunks (array form).
             Map<String, Object> realtimeInput = Map.of(
                     "realtimeInput", Map.of(
-                            "audio", Map.of(
+                            "mediaChunks", List.of(Map.of(
                                     "mimeType", "audio/pcm;rate=16000",
-                                    "data", b64)));
+                                    "data", b64))));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
                 firstAudioLogged = true;
@@ -121,15 +121,14 @@ public class GeminiLiveClient {
         @Override
         public void onOpen(WebSocket ws, Response response) {
             try {
+                // Minimal setup for gemini-2.0-flash-exp on v1beta. The older Live
+                // model on v1beta does not accept speechConfig — voice defaults to
+                // the model's standard voice.
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
                                 "generationConfig", Map.of(
-                                        "responseModalities", List.of("AUDIO"),
-                                        "speechConfig", Map.of(
-                                                "voiceConfig", Map.of(
-                                                        "prebuiltVoiceConfig", Map.of(
-                                                                "voiceName", VOICE_NAME)))),
+                                        "responseModalities", List.of("AUDIO")),
                                 "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction)))));
                 String json = objectMapper.writeValueAsString(setup);
