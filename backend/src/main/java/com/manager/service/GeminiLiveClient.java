@@ -9,7 +9,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Base64;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +44,11 @@ public class GeminiLiveClient {
 
     private WebSocket webSocket;
     private volatile boolean closed;
+    private volatile boolean setupComplete;
+    // Buffer audio chunks until Gemini confirms setup; otherwise the model rejects
+    // the stream with "Invalid argument" before it has registered the session.
+    private final Deque<byte[]> pendingAudio = new ArrayDeque<>();
+    private static final int MAX_PENDING_CHUNKS = 80; // ~1.6s at 20ms frames
 
     public GeminiLiveClient(GeminiConfig config,
                             String systemInstruction,
@@ -78,9 +85,21 @@ public class GeminiLiveClient {
     /** Send raw 16-bit PCM 16kHz mono audio frame from the user's microphone. */
     public void sendAudio(byte[] pcm16kHzMono) {
         if (closed || webSocket == null) return;
+        if (!setupComplete) {
+            synchronized (pendingAudio) {
+                if (pendingAudio.size() >= MAX_PENDING_CHUNKS) {
+                    pendingAudio.pollFirst(); // drop oldest if buffer overflows
+                }
+                pendingAudio.addLast(pcm16kHzMono);
+            }
+            return;
+        }
+        sendAudioFrame(pcm16kHzMono);
+    }
+
+    private void sendAudioFrame(byte[] pcm16kHzMono) {
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
-            // 2.5 native audio models use realtimeInput.audio (single chunk per frame).
             Map<String, Object> realtimeInput = Map.of(
                     "realtimeInput", Map.of(
                             "audio", Map.of(
@@ -94,6 +113,18 @@ public class GeminiLiveClient {
             webSocket.send(json);
         } catch (Exception e) {
             onError.accept(e);
+        }
+    }
+
+    private void drainPendingAudio() {
+        Deque<byte[]> snapshot;
+        synchronized (pendingAudio) {
+            snapshot = new ArrayDeque<>(pendingAudio);
+            pendingAudio.clear();
+        }
+        if (!snapshot.isEmpty()) {
+            log.info("Gemini Live: draining {} buffered audio chunks", snapshot.size());
+            for (byte[] chunk : snapshot) sendAudioFrame(chunk);
         }
     }
 
@@ -154,9 +185,11 @@ public class GeminiLiveClient {
             try {
                 JsonNode root = objectMapper.readTree(json);
 
-                JsonNode setupComplete = root.path("setupComplete");
-                if (!setupComplete.isMissingNode()) {
+                JsonNode setupCompleteNode = root.path("setupComplete");
+                if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete");
+                    setupComplete = true;
+                    drainPendingAudio();
                     return;
                 }
 
