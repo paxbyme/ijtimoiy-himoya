@@ -79,11 +79,10 @@ public class GeminiLiveClient {
         if (closed || webSocket == null) return;
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
-            // gemini-2.0-flash-exp on v1beta uses mediaChunks (array form).
             Map<String, Object> realtimeInput = Map.of(
-                    "realtimeInput", Map.of(
-                            "mediaChunks", List.of(Map.of(
-                                    "mimeType", "audio/pcm;rate=16000",
+                    "realtime_input", Map.of(
+                            "media_chunks", List.of(Map.of(
+                                    "mime_type", "audio/pcm;rate=16000",
                                     "data", b64))));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
@@ -100,9 +99,9 @@ public class GeminiLiveClient {
     public void endTurn() {
         if (closed || webSocket == null) return;
         try {
-            // Empty audioStreamEnd signals end of user's audio turn
+            // gemini-2.0-flash-exp uses media_chunks; turn_complete on client_content.
             Map<String, Object> msg = Map.of(
-                    "realtimeInput", Map.of("audioStreamEnd", true));
+                    "client_content", Map.of("turn_complete", true));
             webSocket.send(objectMapper.writeValueAsString(msg));
         } catch (Exception e) {
             onError.accept(e);
@@ -121,15 +120,13 @@ public class GeminiLiveClient {
         @Override
         public void onOpen(WebSocket ws, Response response) {
             try {
-                // Minimal setup for gemini-2.0-flash-exp on v1beta. The older Live
-                // model on v1beta does not accept speechConfig — voice defaults to
-                // the model's standard voice.
+                // gemini-2.0-flash-exp on v1beta uses snake_case proto JSON.
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
-                                "generationConfig", Map.of(
-                                        "responseModalities", List.of("AUDIO")),
-                                "systemInstruction", Map.of(
+                                "generation_config", Map.of(
+                                        "response_modalities", List.of("AUDIO")),
+                                "system_instruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction)))));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
