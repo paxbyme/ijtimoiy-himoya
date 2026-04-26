@@ -4,14 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.manager.dto.*;
 import com.manager.repository.AiConversationRepository;
 import com.manager.repository.AiFeedbackRepository;
-import com.manager.config.GeminiConfig;
 import com.manager.service.AiRulesService;
 import com.manager.service.GeminiService;
 import com.manager.service.RagService;
 import com.manager.service.RateLimiterService;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,7 +46,6 @@ public class AiController {
     private static final int MAX_REQUESTS_PER_MINUTE = 20;
 
     private final GeminiService geminiService;
-    private final GeminiConfig geminiConfig;
     private final AiRulesService aiRulesService;
     private final RagService ragService;
     private final AiConversationRepository aiConversationRepository;
@@ -58,13 +53,11 @@ public class AiController {
     private final RateLimiterService rateLimiterService;
     private final ObjectMapper objectMapper;
 
-    public AiController(GeminiService geminiService, GeminiConfig geminiConfig,
-                        AiRulesService aiRulesService,
+    public AiController(GeminiService geminiService, AiRulesService aiRulesService,
                         RagService ragService, AiConversationRepository aiConversationRepository,
                         AiFeedbackRepository aiFeedbackRepository,
                         RateLimiterService rateLimiterService) {
         this.geminiService = geminiService;
-        this.geminiConfig = geminiConfig;
         this.aiRulesService = aiRulesService;
         this.ragService = ragService;
         this.aiConversationRepository = aiConversationRepository;
@@ -185,48 +178,6 @@ public class AiController {
         });
 
         return emitter;
-    }
-
-    // ---- Debug: list available models (temporary) ----
-
-    @GetMapping("/_debug/models")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> listModels(
-            @RequestParam(value = "version", defaultValue = "v1beta") String version) {
-        try {
-            String url = String.format("https://generativelanguage.googleapis.com/%s/models?key=%s&pageSize=200",
-                    version, geminiConfig.getApiKey());
-            OkHttpClient client = new OkHttpClient();
-            Request req = new Request.Builder().url(url).get().build();
-            try (Response resp = client.newCall(req).execute()) {
-                String body = resp.body() != null ? resp.body().string() : "";
-                if (!resp.isSuccessful()) {
-                    return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                            "version", version, "status", resp.code(), "body", body)));
-                }
-                Map<?,?> parsed = objectMapper.readValue(body, Map.class);
-                Object models = parsed.get("models");
-                List<Map<String, Object>> bidi = new ArrayList<>();
-                if (models instanceof List<?> list) {
-                    for (Object m : list) {
-                        if (m instanceof Map<?,?> mm) {
-                            Object methods = mm.get("supportedGenerationMethods");
-                            if (methods instanceof List<?> ml && ml.contains("bidiGenerateContent")) {
-                                bidi.add(Map.of(
-                                        "name", String.valueOf(mm.get("name")),
-                                        "version", String.valueOf(mm.get("version")),
-                                        "displayName", String.valueOf(mm.get("displayName"))));
-                            }
-                        }
-                    }
-                }
-                return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                        "version", version,
-                        "totalModels", models instanceof List<?> l ? l.size() : 0,
-                        "bidiModels", bidi)));
-            }
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Debug failed: " + e.getMessage()));
-        }
     }
 
     // ---- Voice transcription ----
