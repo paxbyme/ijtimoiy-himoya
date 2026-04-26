@@ -27,6 +27,8 @@ dependencies:
   record: ^6.0.0
   permission_handler: ^11.3.1
   path_provider: ^2.1.5
+  web_socket_channel: ^3.0.1
+  flutter_pcm_sound: ^3.3.3
 
 dev_dependencies:
   flutter_test:

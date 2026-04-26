@@ -9,6 +9,7 @@ import '../screens/staff/staff_home_screen.dart';
 import '../screens/staff/staff_profile_screen.dart';
 import '../screens/staff/kpi_screen.dart';
 import '../screens/staff/ai_chatbot_screen.dart';
+import '../screens/staff/live_voice_screen.dart';
 import '../screens/staff/my_tasks_screen.dart';
 import '../screens/staff/staff_chat_screen.dart';
 import '../screens/staff/task_detail_screen.dart';
@@ -208,6 +209,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => TaskDetailScreen(
           taskId: state.pathParameters['taskId']!,
         ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/staff/ai-chat/live',
+        builder: (context, state) => const LiveVoiceScreen(),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,

@@ -59,6 +59,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/api/auth/");
+        // /api/ai/live is a WebSocket endpoint that authenticates via the first message
+        return path.startsWith("/api/auth/") || path.equals("/api/ai/live");
     }
 }
