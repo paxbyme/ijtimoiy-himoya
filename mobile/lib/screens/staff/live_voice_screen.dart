@@ -170,12 +170,19 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     int chunkCount = 0;
     _micSub = stream.listen(
       (chunk) {
+        // record's Uint8List can be a view with non-zero/odd offsetInBytes; copy
+        // to a fresh aligned buffer before sending or interpreting as Int16.
+        final aligned = Uint8List.fromList(chunk);
+        // Trim to even length so PCM 16-bit framing is intact.
+        final pcm = aligned.length.isEven
+            ? aligned
+            : Uint8List.sublistView(aligned, 0, aligned.length - 1);
         chunkCount++;
         if (chunkCount % 25 == 1) {
-          debugPrint('[Live] --> mic chunk #$chunkCount (${chunk.length}B)');
+          debugPrint('[Live] --> mic chunk #$chunkCount (${pcm.length}B)');
         }
-        _channel?.sink.add(chunk);
-        _detectSpeech(chunk);
+        _channel?.sink.add(pcm);
+        _detectSpeech(pcm);
       },
       onError: (e) {
         debugPrint('[Live] mic error: $e');
