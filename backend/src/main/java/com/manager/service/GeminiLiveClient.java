@@ -27,8 +27,8 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    // Native-audio Live model — can speak Uzbek with natural prosody.
-    private static final String LIVE_MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog";
+    // Stable Live API model. Native-audio variants exist but require special access.
+    private static final String LIVE_MODEL = "models/gemini-2.0-flash-live-001";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
@@ -78,9 +78,9 @@ public class GeminiLiveClient {
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
             Map<String, Object> realtimeInput = Map.of(
-                    "realtime_input", Map.of(
-                            "media_chunks", List.of(Map.of(
-                                    "mime_type", "audio/pcm;rate=16000",
+                    "realtimeInput", Map.of(
+                            "mediaChunks", List.of(Map.of(
+                                    "mimeType", "audio/pcm;rate=16000",
                                     "data", b64))));
             webSocket.send(objectMapper.writeValueAsString(realtimeInput));
         } catch (Exception e) {
@@ -92,7 +92,9 @@ public class GeminiLiveClient {
     public void endTurn() {
         if (closed || webSocket == null) return;
         try {
-            Map<String, Object> msg = Map.of("realtime_input", Map.of("turn_complete", true));
+            // Empty audioStreamEnd signals end of user's audio turn
+            Map<String, Object> msg = Map.of(
+                    "realtimeInput", Map.of("audioStreamEnd", true));
             webSocket.send(objectMapper.writeValueAsString(msg));
         } catch (Exception e) {
             onError.accept(e);
@@ -114,16 +116,17 @@ public class GeminiLiveClient {
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
-                                "generation_config", Map.of(
-                                        "response_modalities", List.of("AUDIO"),
-                                        "speech_config", Map.of(
-                                                "voice_config", Map.of(
-                                                        "prebuilt_voice_config", Map.of(
-                                                                "voice_name", VOICE_NAME)))),
-                                "system_instruction", Map.of(
+                                "generationConfig", Map.of(
+                                        "responseModalities", List.of("AUDIO"),
+                                        "speechConfig", Map.of(
+                                                "voiceConfig", Map.of(
+                                                        "prebuiltVoiceConfig", Map.of(
+                                                                "voiceName", VOICE_NAME)))),
+                                "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction)))));
-                ws.send(objectMapper.writeValueAsString(setup));
-                log.info("Gemini Live session opened");
+                String json = objectMapper.writeValueAsString(setup);
+                log.info("Gemini Live setup: {}", json);
+                ws.send(json);
             } catch (Exception e) {
                 onError.accept(e);
             }
