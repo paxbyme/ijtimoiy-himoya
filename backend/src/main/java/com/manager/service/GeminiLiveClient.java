@@ -27,8 +27,8 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    // Live API model available in v1beta. The newer "-live-001" needs v1alpha.
-    private static final String LIVE_MODEL = "models/gemini-2.0-flash-exp";
+    // Live API bidi models live on v1alpha; v1beta returns "not found".
+    private static final String LIVE_MODEL = "models/gemini-2.0-flash-live-001";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
@@ -66,7 +66,8 @@ public class GeminiLiveClient {
     }
 
     private void connect(GeminiConfig config) {
-        String url = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
+        // Live (bidi) models are exposed via the v1alpha service path.
+        String url = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key="
                 + config.getApiKey();
         Request request = new Request.Builder().url(url).build();
         this.webSocket = httpClient.newWebSocket(request, new Listener());
@@ -80,9 +81,9 @@ public class GeminiLiveClient {
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
             Map<String, Object> realtimeInput = Map.of(
-                    "realtime_input", Map.of(
-                            "media_chunks", List.of(Map.of(
-                                    "mime_type", "audio/pcm;rate=16000",
+                    "realtimeInput", Map.of(
+                            "mediaChunks", List.of(Map.of(
+                                    "mimeType", "audio/pcm;rate=16000",
                                     "data", b64))));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
@@ -99,9 +100,8 @@ public class GeminiLiveClient {
     public void endTurn() {
         if (closed || webSocket == null) return;
         try {
-            // gemini-2.0-flash-exp uses media_chunks; turn_complete on client_content.
             Map<String, Object> msg = Map.of(
-                    "client_content", Map.of("turn_complete", true));
+                    "clientContent", Map.of("turnComplete", true));
             webSocket.send(objectMapper.writeValueAsString(msg));
         } catch (Exception e) {
             onError.accept(e);
@@ -120,13 +120,13 @@ public class GeminiLiveClient {
         @Override
         public void onOpen(WebSocket ws, Response response) {
             try {
-                // gemini-2.0-flash-exp on v1beta uses snake_case proto JSON.
+                // v1alpha Live API uses camelCase proto JSON.
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
-                                "generation_config", Map.of(
-                                        "response_modalities", List.of("AUDIO")),
-                                "system_instruction", Map.of(
+                                "generationConfig", Map.of(
+                                        "responseModalities", List.of("AUDIO")),
+                                "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction)))));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
