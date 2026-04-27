@@ -101,9 +101,9 @@ public class GeminiLiveClient {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
             Map<String, Object> realtimeInput = Map.of(
                     "realtimeInput", Map.of(
-                            "audio", Map.of(
+                            "mediaChunks", List.of(Map.of(
                                     "mimeType", "audio/pcm;rate=16000",
-                                    "data", b64)));
+                                    "data", b64))));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
                 firstAudioLogged = true;
