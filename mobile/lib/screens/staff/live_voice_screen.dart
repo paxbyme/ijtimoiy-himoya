@@ -166,19 +166,27 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
       ),
     );
     int chunkCount = 0;
+    final BytesBuilder pending = BytesBuilder(copy: false);
+    // ~200ms at 16kHz, 16-bit mono = 6400 bytes — matches the Live API's preferred frame size.
+    const int sendThreshold = 6400;
+
     _micSub = stream.listen(
       (chunk) {
-        // record's Uint8List can be a view with non-zero/odd offsetInBytes; copy
-        // to a fresh aligned buffer before sending.
+        // record's Uint8List can be a view with non-zero/odd offsetInBytes;
+        // copy to a fresh aligned buffer before working with it.
         final aligned = Uint8List.fromList(chunk);
         final pcm = aligned.length.isEven
             ? aligned
             : Uint8List.sublistView(aligned, 0, aligned.length - 1);
-        chunkCount++;
-        if (chunkCount % 25 == 1) {
-          debugPrint('[Live] --> mic chunk #$chunkCount (${pcm.length}B)');
+        pending.add(pcm);
+        if (pending.length >= sendThreshold) {
+          final out = pending.takeBytes();
+          chunkCount++;
+          if (chunkCount % 5 == 1) {
+            debugPrint('[Live] --> mic chunk #$chunkCount (${out.length}B)');
+          }
+          _channel?.sink.add(out);
         }
-        _channel?.sink.add(pcm);
       },
       onError: (e) {
         debugPrint('[Live] mic error: $e');
