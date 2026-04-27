@@ -175,13 +175,18 @@ public class GeminiLiveClient {
         @Override
         public void onOpen(WebSocket ws, Response response) {
             try {
-                // Diagnostic: ask for TEXT responses + audio transcription of the
-                // user's input so we can see in logs whether Gemini hears the user.
+                // Audio output + input transcription so QA logs show what
+                // Gemini heard ("Gemini heard user: ..."). Manual VAD: client
+                // sends activity_start/activity_end via endTurn().
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
                                 "generationConfig", Map.of(
-                                        "responseModalities", List.of("TEXT")),
+                                        "responseModalities", List.of("AUDIO"),
+                                        "speechConfig", Map.of(
+                                                "voiceConfig", Map.of(
+                                                        "prebuiltVoiceConfig", Map.of(
+                                                                "voiceName", VOICE_NAME)))),
                                 "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction))),
                                 "realtimeInputConfig", Map.of(
