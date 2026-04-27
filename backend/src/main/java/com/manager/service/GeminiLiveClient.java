@@ -175,21 +175,18 @@ public class GeminiLiveClient {
         @Override
         public void onOpen(WebSocket ws, Response response) {
             try {
+                // Diagnostic: ask for TEXT responses + audio transcription of the
+                // user's input so we can see in logs whether Gemini hears the user.
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
                                 "generationConfig", Map.of(
-                                        "responseModalities", List.of("AUDIO"),
-                                        "speechConfig", Map.of(
-                                                "voiceConfig", Map.of(
-                                                        "prebuiltVoiceConfig", Map.of(
-                                                                "voiceName", VOICE_NAME)))),
+                                        "responseModalities", List.of("TEXT")),
                                 "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction))),
-                                // Disable Gemini's auto-VAD; we'll mark activity boundaries
-                                // ourselves so a real microphone stream doesn't get rejected.
                                 "realtimeInputConfig", Map.of(
-                                        "automaticActivityDetection", Map.of("disabled", true))));
+                                        "automaticActivityDetection", Map.of("disabled", true)),
+                                "inputAudioTranscription", Map.of()));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
                 ws.send(json);
@@ -230,9 +227,20 @@ public class GeminiLiveClient {
                 if (!serverContent.isMissingNode()) {
                     if (!firstResponseLogged) {
                         firstResponseLogged = true;
-                        String preview = json.length() > 800 ? json.substring(0, 800) + "..." : json;
+                        String preview = json.length() > 1200 ? json.substring(0, 1200) + "..." : json;
                         log.info("Gemini Live first serverContent: {}", preview);
                     }
+                    // Diagnostic: surface what Gemini transcribed from the user's audio
+                    JsonNode inputTr = serverContent.path("inputTranscription");
+                    if (inputTr.isMissingNode()) inputTr = serverContent.path("input_transcription");
+                    if (!inputTr.isMissingNode()) {
+                        String t = inputTr.path("text").asText("");
+                        if (!t.isEmpty()) {
+                            log.info("Gemini heard user: {}", t);
+                            onText.accept("[user] " + t);
+                        }
+                    }
+
                     extractParts(serverContent.path("modelTurn").path("parts"));
                     extractParts(serverContent.path("model_turn").path("parts"));
                     extractParts(serverContent.path("parts"));
