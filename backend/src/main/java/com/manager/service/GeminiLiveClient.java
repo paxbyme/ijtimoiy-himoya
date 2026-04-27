@@ -208,10 +208,6 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete");
                     setupComplete = true;
-                    try {
-                        webSocket.send(objectMapper.writeValueAsString(
-                                Map.of("realtimeInput", Map.of("activityStart", Map.of()))));
-                    } catch (Exception ignored) {}
                     drainPendingAudio();
                     return;
                 }
