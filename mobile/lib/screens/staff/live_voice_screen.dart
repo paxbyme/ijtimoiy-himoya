@@ -32,6 +32,8 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
 
   final Queue<int> _playbackQueue = Queue<int>();
   bool _pcmSoundReady = false;
+  Timer? _silenceTimer;
+  bool _userSpeaking = false;
 
   _LiveStatus _status = _LiveStatus.idle;
   String _errorMessage = '';
@@ -167,17 +169,15 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     );
     int chunkCount = 0;
     final BytesBuilder pending = BytesBuilder(copy: false);
-    // ~200ms at 16kHz, 16-bit mono = 6400 bytes — matches the Live API's preferred frame size.
     const int sendThreshold = 6400;
 
     _micSub = stream.listen(
       (chunk) {
-        // record's Uint8List can be a view with non-zero/odd offsetInBytes;
-        // copy to a fresh aligned buffer before working with it.
         final aligned = Uint8List.fromList(chunk);
         final pcm = aligned.length.isEven
             ? aligned
             : Uint8List.sublistView(aligned, 0, aligned.length - 1);
+        _detectSpeech(pcm);
         pending.add(pcm);
         if (pending.length >= sendThreshold) {
           final out = pending.takeBytes();
@@ -196,6 +196,36 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     debugPrint('[Live] mic streaming started');
   }
 
+  /// VAD: when audio drops below threshold for ~800ms, signal end-of-turn so
+  /// Gemini responds. Sending activity_end on the backend re-opens the next
+  /// activity window automatically, so subsequent speech is captured.
+  void _detectSpeech(Uint8List pcm) {
+    if (pcm.length < 2) return;
+    final samples = pcm.buffer.asInt16List(pcm.offsetInBytes, pcm.length ~/ 2);
+    int sumSq = 0;
+    for (final s in samples) {
+      sumSq += s * s;
+    }
+    final rms = sumSq / samples.length;
+    final loud = rms > 1500000;
+
+    if (loud) {
+      if (!_userSpeaking) {
+        debugPrint('[Live] VAD: user started speaking');
+        _userSpeaking = true;
+      }
+      _silenceTimer?.cancel();
+      _silenceTimer = null;
+    } else if (_userSpeaking) {
+      _silenceTimer ??= Timer(const Duration(milliseconds: 800), () {
+        debugPrint('[Live] VAD: silence — sending endTurn');
+        _userSpeaking = false;
+        _silenceTimer = null;
+        _channel?.sink.add(jsonEncode({'event': 'endTurn'}));
+      });
+    }
+  }
+
   // Native audio Gemini Live models do server-side VAD automatically — no
   // client-side endTurn signaling required. The model decides when the user
   // has stopped speaking and starts responding on its own.
@@ -211,6 +241,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   }
 
   Future<void> _disconnect() async {
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+    _userSpeaking = false;
     await _micSub?.cancel();
     _micSub = null;
     if (await _recorder.isRecording()) {
