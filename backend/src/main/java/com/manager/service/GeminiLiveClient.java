@@ -29,9 +29,7 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    // Stable Live bidi model. Native-audio "latest" silently dropped the
-    // responseModalities=AUDIO setting and only returned inputTranscription.
-    private static final String LIVE_MODEL = "models/gemini-2.0-flash-live-001";
+    private static final String LIVE_MODEL = "models/gemini-live-2.5-flash-preview";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
