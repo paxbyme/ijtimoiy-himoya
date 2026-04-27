@@ -100,10 +100,6 @@ public class GeminiLiveClient {
     private void sendAudioFrame(byte[] pcm16kHzMono) {
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
-            // Google's google-genai Python SDK uses snake_case here for the
-            // BidiGenerateContentRealtimeInput message. The Live server is
-            // strict about this (camelCase setup is accepted, but realtime
-            // audio frames are rejected with 1007 Invalid argument).
             Map<String, Object> realtimeInput = Map.of(
                     "realtime_input", Map.of(
                             "audio", Map.of(
@@ -112,7 +108,26 @@ public class GeminiLiveClient {
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
                 firstAudioLogged = true;
-                log.info("Gemini Live: first audio chunk sent ({} bytes pcm)", pcm16kHzMono.length);
+                int previewLen = Math.min(pcm16kHzMono.length, 64);
+                StringBuilder hex = new StringBuilder(previewLen * 3);
+                for (int i = 0; i < previewLen; i++) {
+                    hex.append(String.format("%02x ", pcm16kHzMono[i] & 0xff));
+                }
+                int sampleCount = pcm16kHzMono.length / 2;
+                int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
+                long sum = 0;
+                for (int i = 0; i + 1 < pcm16kHzMono.length; i += 2) {
+                    int lo = pcm16kHzMono[i] & 0xff;
+                    int hi = pcm16kHzMono[i + 1];
+                    int s = (hi << 8) | lo; // little-endian
+                    if (s > 32767) s -= 65536;
+                    if (s < min) min = s;
+                    if (s > max) max = s;
+                    sum += Math.abs(s);
+                }
+                long avg = sampleCount > 0 ? sum / sampleCount : 0;
+                log.info("Gemini Live: first audio chunk sent ({} bytes, {} samples, min={} max={} avgAbs={}) hex0..63={}",
+                        pcm16kHzMono.length, sampleCount, min, max, avg, hex.toString().trim());
             }
             webSocket.send(json);
         } catch (Exception e) {
