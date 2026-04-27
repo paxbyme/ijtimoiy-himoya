@@ -208,6 +208,8 @@ public class GeminiLiveClient {
             handleMessage(bytes.utf8());
         }
 
+        private boolean firstResponseLogged = false;
+
         private void handleMessage(String json) {
             try {
                 JsonNode root = objectMapper.readTree(json);
@@ -216,7 +218,6 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete");
                     setupComplete = true;
-                    // Manual activity detection: open the activity window before any audio.
                     try {
                         webSocket.send(objectMapper.writeValueAsString(
                                 Map.of("realtime_input", Map.of("activity_start", Map.of()))));
@@ -227,27 +228,27 @@ public class GeminiLiveClient {
 
                 JsonNode serverContent = root.path("serverContent");
                 if (!serverContent.isMissingNode()) {
-                    JsonNode modelTurn = serverContent.path("modelTurn");
-                    JsonNode parts = modelTurn.path("parts");
-                    if (parts.isArray()) {
-                        for (JsonNode part : parts) {
-                            JsonNode inlineData = part.path("inlineData");
-                            if (!inlineData.isMissingNode()) {
-                                String b64 = inlineData.path("data").asText("");
-                                if (!b64.isEmpty()) {
-                                    onAudio.accept(Base64.getDecoder().decode(b64));
-                                }
-                            }
-                            JsonNode txt = part.path("text");
-                            if (!txt.isMissingNode() && txt.isTextual()) {
-                                onText.accept(txt.asText());
-                            }
-                        }
+                    if (!firstResponseLogged) {
+                        firstResponseLogged = true;
+                        String preview = json.length() > 800 ? json.substring(0, 800) + "..." : json;
+                        log.info("Gemini Live first serverContent: {}", preview);
                     }
+                    extractParts(serverContent.path("modelTurn").path("parts"));
+                    extractParts(serverContent.path("model_turn").path("parts"));
+                    extractParts(serverContent.path("parts"));
 
-                    if (serverContent.path("turnComplete").asBoolean(false)) {
+                    if (serverContent.path("turnComplete").asBoolean(false)
+                            || serverContent.path("turn_complete").asBoolean(false)) {
                         onTurnComplete.run();
                     }
+                    return;
+                }
+
+                // Some response shapes put audio at top-level
+                JsonNode topAudio = root.path("audio");
+                if (!topAudio.isMissingNode()) {
+                    String b64 = topAudio.path("data").asText("");
+                    if (!b64.isEmpty()) onAudio.accept(Base64.getDecoder().decode(b64));
                     return;
                 }
 
@@ -255,9 +256,32 @@ public class GeminiLiveClient {
                 if (!error.isMissingNode()) {
                     log.warn("Gemini Live server error: {}", error.toString());
                     onError.accept(new IOException("Gemini error: " + error.toString()));
+                    return;
                 }
+
+                String preview = json.length() > 400 ? json.substring(0, 400) + "..." : json;
+                log.info("Gemini Live unhandled message: {}", preview);
             } catch (Exception e) {
                 onError.accept(e);
+            }
+        }
+
+        private void extractParts(JsonNode parts) {
+            if (!parts.isArray()) return;
+            for (JsonNode part : parts) {
+                for (String key : new String[]{"inlineData", "inline_data"}) {
+                    JsonNode inline = part.path(key);
+                    if (!inline.isMissingNode()) {
+                        String b64 = inline.path("data").asText("");
+                        if (!b64.isEmpty()) {
+                            onAudio.accept(Base64.getDecoder().decode(b64));
+                        }
+                    }
+                }
+                JsonNode txt = part.path("text");
+                if (!txt.isMissingNode() && txt.isTextual()) {
+                    onText.accept(txt.asText());
+                }
             }
         }
 
