@@ -100,10 +100,10 @@ public class GeminiLiveClient {
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
             Map<String, Object> realtimeInput = Map.of(
-                    "realtime_input", Map.of(
-                            "media_chunks", List.of(Map.of(
-                                    "mime_type", "audio/pcm;rate=16000",
-                                    "data", b64))));
+                    "realtimeInput", Map.of(
+                            "audio", Map.of(
+                                    "mimeType", "audio/pcm;rate=16000",
+                                    "data", b64)));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
                 firstAudioLogged = true;
@@ -210,7 +210,7 @@ public class GeminiLiveClient {
                     setupComplete = true;
                     try {
                         webSocket.send(objectMapper.writeValueAsString(
-                                Map.of("realtime_input", Map.of("activity_start", Map.of()))));
+                                Map.of("realtimeInput", Map.of("activityStart", Map.of()))));
                     } catch (Exception ignored) {}
                     drainPendingAudio();
                     return;
