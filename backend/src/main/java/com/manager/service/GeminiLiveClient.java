@@ -100,10 +100,14 @@ public class GeminiLiveClient {
     private void sendAudioFrame(byte[] pcm16kHzMono) {
         try {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
+            // Google's google-genai Python SDK uses snake_case here for the
+            // BidiGenerateContentRealtimeInput message. The Live server is
+            // strict about this (camelCase setup is accepted, but realtime
+            // audio frames are rejected with 1007 Invalid argument).
             Map<String, Object> realtimeInput = Map.of(
-                    "realtimeInput", Map.of(
+                    "realtime_input", Map.of(
                             "audio", Map.of(
-                                    "mimeType", "audio/pcm;rate=16000",
+                                    "mime_type", "audio/pcm;rate=16000",
                                     "data", b64)));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
