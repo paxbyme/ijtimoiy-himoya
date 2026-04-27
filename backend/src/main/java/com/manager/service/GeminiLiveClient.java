@@ -102,9 +102,9 @@ public class GeminiLiveClient {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
             Map<String, Object> realtimeInput = Map.of(
                     "realtime_input", Map.of(
-                            "audio", Map.of(
+                            "media_chunks", List.of(Map.of(
                                     "mime_type", "audio/pcm;rate=16000",
-                                    "data", b64)));
+                                    "data", b64))));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
                 firstAudioLogged = true;
@@ -151,9 +151,13 @@ public class GeminiLiveClient {
     public void endTurn() {
         if (closed || webSocket == null) return;
         try {
-            Map<String, Object> msg = Map.of(
-                    "realtimeInput", Map.of("audioStreamEnd", true));
-            webSocket.send(objectMapper.writeValueAsString(msg));
+            // With manual activity detection, close the activity window then
+            // immediately reopen one so the next speech segment in the same
+            // session is captured.
+            webSocket.send(objectMapper.writeValueAsString(
+                    Map.of("realtime_input", Map.of("activity_end", Map.of()))));
+            webSocket.send(objectMapper.writeValueAsString(
+                    Map.of("realtime_input", Map.of("activity_start", Map.of()))));
         } catch (Exception e) {
             onError.accept(e);
         }
@@ -181,7 +185,11 @@ public class GeminiLiveClient {
                                                         "prebuiltVoiceConfig", Map.of(
                                                                 "voiceName", VOICE_NAME)))),
                                 "systemInstruction", Map.of(
-                                        "parts", List.of(Map.of("text", systemInstruction)))));
+                                        "parts", List.of(Map.of("text", systemInstruction))),
+                                // Disable Gemini's auto-VAD; we'll mark activity boundaries
+                                // ourselves so a real microphone stream doesn't get rejected.
+                                "realtimeInputConfig", Map.of(
+                                        "automaticActivityDetection", Map.of("disabled", true))));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
                 ws.send(json);
@@ -208,6 +216,11 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete");
                     setupComplete = true;
+                    // Manual activity detection: open the activity window before any audio.
+                    try {
+                        webSocket.send(objectMapper.writeValueAsString(
+                                Map.of("realtime_input", Map.of("activity_start", Map.of()))));
+                    } catch (Exception ignored) {}
                     drainPendingAudio();
                     return;
                 }
