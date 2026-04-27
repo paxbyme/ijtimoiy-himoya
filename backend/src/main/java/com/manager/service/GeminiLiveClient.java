@@ -29,8 +29,9 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    // Native audio bidi model — speaks Uzbek with natural prosody.
-    private static final String LIVE_MODEL = "models/gemini-2.5-flash-native-audio-latest";
+    // Stable Live bidi model. Native-audio "latest" silently dropped the
+    // responseModalities=AUDIO setting and only returned inputTranscription.
+    private static final String LIVE_MODEL = "models/gemini-2.0-flash-live-001";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
@@ -147,27 +148,11 @@ public class GeminiLiveClient {
         }
     }
 
-    /** Tell the model the user has stopped speaking so it can respond. */
-    public void endTurn() {
-        if (closed || webSocket == null) return;
-        try {
-            webSocket.send(objectMapper.writeValueAsString(
-                    Map.of("realtime_input", Map.of("activity_end", Map.of()))));
-        } catch (Exception e) {
-            onError.accept(e);
-        }
-    }
+    /** No-op: server VAD owns turn boundaries. */
+    public void endTurn() { }
 
-    /** Tell the model the user has started speaking again (next turn). */
-    public void startTurn() {
-        if (closed || webSocket == null) return;
-        try {
-            webSocket.send(objectMapper.writeValueAsString(
-                    Map.of("realtime_input", Map.of("activity_start", Map.of()))));
-        } catch (Exception e) {
-            onError.accept(e);
-        }
-    }
+    /** No-op: server VAD owns turn boundaries. */
+    public void startTurn() { }
 
     public void close() {
         closed = true;
@@ -181,9 +166,10 @@ public class GeminiLiveClient {
         @Override
         public void onOpen(WebSocket ws, Response response) {
             try {
-                // Audio output + input transcription so QA logs show what
-                // Gemini heard ("Gemini heard user: ..."). Manual VAD: client
-                // sends activity_start/activity_end via endTurn().
+                // Audio output + input transcription. Server-side VAD owns
+                // turn boundaries — manual activity signals were rejected with
+                // 1007 when sent standalone and short-circuited model replies
+                // when sent back-to-back.
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
@@ -195,8 +181,6 @@ public class GeminiLiveClient {
                                                                 "voiceName", VOICE_NAME)))),
                                 "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction))),
-                                "realtimeInputConfig", Map.of(
-                                        "automaticActivityDetection", Map.of("disabled", true)),
                                 "inputAudioTranscription", Map.of()));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
@@ -226,10 +210,6 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete");
                     setupComplete = true;
-                    try {
-                        webSocket.send(objectMapper.writeValueAsString(
-                                Map.of("realtime_input", Map.of("activity_start", Map.of()))));
-                    } catch (Exception ignored) {}
                     drainPendingAudio();
                     return;
                 }
