@@ -91,10 +91,12 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
             return;
         }
 
-        // Turn-complete signal
-        if (node.has("event") && "endTurn".equals(node.get("event").asText())) {
+        if (node.has("event")) {
+            String event = node.get("event").asText();
             GeminiLiveClient client = (GeminiLiveClient) session.getAttributes().get(SESSION_KEY);
-            if (client != null) client.endTurn();
+            if (client == null) return;
+            if ("endTurn".equals(event)) client.endTurn();
+            else if ("startTurn".equals(event)) client.startTurn();
         }
     }
 

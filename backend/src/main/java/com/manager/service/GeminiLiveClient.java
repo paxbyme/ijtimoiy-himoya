@@ -151,11 +151,17 @@ public class GeminiLiveClient {
     public void endTurn() {
         if (closed || webSocket == null) return;
         try {
-            // With manual activity detection, close the activity window then
-            // immediately reopen one so the next speech segment in the same
-            // session is captured.
             webSocket.send(objectMapper.writeValueAsString(
                     Map.of("realtime_input", Map.of("activity_end", Map.of()))));
+        } catch (Exception e) {
+            onError.accept(e);
+        }
+    }
+
+    /** Tell the model the user has started speaking again (next turn). */
+    public void startTurn() {
+        if (closed || webSocket == null) return;
+        try {
             webSocket.send(objectMapper.writeValueAsString(
                     Map.of("realtime_input", Map.of("activity_start", Map.of()))));
         } catch (Exception e) {

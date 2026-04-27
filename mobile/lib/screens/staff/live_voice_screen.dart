@@ -34,6 +34,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   bool _pcmSoundReady = false;
   Timer? _silenceTimer;
   bool _userSpeaking = false;
+  bool _turnEnded = false;
 
   _LiveStatus _status = _LiveStatus.idle;
   String _errorMessage = '';
@@ -213,6 +214,11 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
       if (!_userSpeaking) {
         debugPrint('[Live] VAD: user started speaking');
         _userSpeaking = true;
+        if (_turnEnded) {
+          debugPrint('[Live] VAD: sending startTurn');
+          _channel?.sink.add(jsonEncode({'event': 'startTurn'}));
+          _turnEnded = false;
+        }
       }
       _silenceTimer?.cancel();
       _silenceTimer = null;
@@ -221,6 +227,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
         debugPrint('[Live] VAD: silence — sending endTurn');
         _userSpeaking = false;
         _silenceTimer = null;
+        _turnEnded = true;
         _channel?.sink.add(jsonEncode({'event': 'endTurn'}));
       });
     }
@@ -244,6 +251,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     _silenceTimer?.cancel();
     _silenceTimer = null;
     _userSpeaking = false;
+    _turnEnded = false;
     await _micSub?.cancel();
     _micSub = null;
     if (await _recorder.isRecording()) {
