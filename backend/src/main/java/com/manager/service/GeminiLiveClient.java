@@ -172,11 +172,7 @@ public class GeminiLiveClient {
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
                                 "generationConfig", Map.of(
-                                        "responseModalities", List.of("AUDIO"),
-                                        "speechConfig", Map.of(
-                                                "voiceConfig", Map.of(
-                                                        "prebuiltVoiceConfig", Map.of(
-                                                                "voiceName", VOICE_NAME)))),
+                                        "responseModalities", List.of("AUDIO")),
                                 "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction))),
                                 "inputAudioTranscription", Map.of()));
