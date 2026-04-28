@@ -29,7 +29,7 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    private static final String LIVE_MODEL = "models/gemini-2.5-flash-native-audio-latest";
+    private static final String LIVE_MODEL = "models/gemini-3.1-flash-live-preview";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
@@ -210,17 +210,19 @@ public class GeminiLiveClient {
                 // turn boundaries — manual activity signals were rejected with
                 // 1007 when sent standalone and short-circuited model replies
                 // when sent back-to-back.
-                // Native-audio model picks its own voice and includes its own
-                // output transcription — sending speechConfig or
-                // outputAudioTranscription with this model triggers 1007.
                 Map<String, Object> setup = Map.of(
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
                                 "generationConfig", Map.of(
-                                        "responseModalities", List.of("AUDIO")),
+                                        "responseModalities", List.of("AUDIO"),
+                                        "speechConfig", Map.of(
+                                                "voiceConfig", Map.of(
+                                                        "prebuiltVoiceConfig", Map.of(
+                                                                "voiceName", VOICE_NAME)))),
                                 "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction))),
-                                "inputAudioTranscription", Map.of()));
+                                "inputAudioTranscription", Map.of(),
+                                "outputAudioTranscription", Map.of()));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
                 ws.send(json);
