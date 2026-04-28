@@ -182,10 +182,15 @@ public class GeminiLiveClient {
                         "setup", Map.of(
                                 "model", LIVE_MODEL,
                                 "generationConfig", Map.of(
-                                        "responseModalities", List.of("AUDIO")),
+                                        "responseModalities", List.of("AUDIO"),
+                                        "speechConfig", Map.of(
+                                                "voiceConfig", Map.of(
+                                                        "prebuiltVoiceConfig", Map.of(
+                                                                "voiceName", VOICE_NAME)))),
                                 "systemInstruction", Map.of(
                                         "parts", List.of(Map.of("text", systemInstruction))),
-                                "inputAudioTranscription", Map.of()));
+                                "inputAudioTranscription", Map.of(),
+                                "outputAudioTranscription", Map.of()));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
                 ws.send(json);
