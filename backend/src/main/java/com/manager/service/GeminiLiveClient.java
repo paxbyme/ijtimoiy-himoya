@@ -80,6 +80,8 @@ public class GeminiLiveClient {
     }
 
     private volatile boolean firstAudioLogged = false;
+    private volatile int forwardedChunks = 0;
+    private volatile int bufferedDropped = 0;
 
     /** Send raw 16-bit PCM 16kHz mono audio frame from the user's microphone. */
     public void sendAudio(byte[] pcm16kHzMono) {
@@ -88,12 +90,20 @@ public class GeminiLiveClient {
             synchronized (pendingAudio) {
                 if (pendingAudio.size() >= MAX_PENDING_CHUNKS) {
                     pendingAudio.pollFirst(); // drop oldest if buffer overflows
+                    bufferedDropped++;
+                    if (bufferedDropped == 1 || bufferedDropped % 20 == 0) {
+                        log.warn("Gemini Live: setupComplete not received yet, dropped {} buffered chunks (still waiting)", bufferedDropped);
+                    }
                 }
                 pendingAudio.addLast(pcm16kHzMono);
             }
             return;
         }
         sendAudioFrame(pcm16kHzMono);
+        forwardedChunks++;
+        if (forwardedChunks == 1 || forwardedChunks % 25 == 0) {
+            log.info("Gemini Live: forwarded {} audio chunks to model", forwardedChunks);
+        }
     }
 
     private void sendAudioFrame(byte[] pcm16kHzMono) {
@@ -101,9 +111,9 @@ public class GeminiLiveClient {
             String b64 = Base64.getEncoder().encodeToString(pcm16kHzMono);
             Map<String, Object> realtimeInput = Map.of(
                     "realtimeInput", Map.of(
-                            "mediaChunks", List.of(Map.of(
+                            "audio", Map.of(
                                     "mimeType", "audio/pcm;rate=16000",
-                                    "data", b64))));
+                                    "data", b64)));
             String json = objectMapper.writeValueAsString(realtimeInput);
             if (!firstAudioLogged) {
                 firstAudioLogged = true;
@@ -202,7 +212,7 @@ public class GeminiLiveClient {
 
                 JsonNode setupCompleteNode = root.path("setupComplete");
                 if (!setupCompleteNode.isMissingNode()) {
-                    log.info("Gemini Live setup complete");
+                    log.info("Gemini Live setup complete (model={})", LIVE_MODEL);
                     setupComplete = true;
                     drainPendingAudio();
                     return;
@@ -252,11 +262,23 @@ public class GeminiLiveClient {
                     return;
                 }
 
-                String preview = json.length() > 400 ? json.substring(0, 400) + "..." : json;
-                log.info("Gemini Live unhandled message: {}", preview);
+                String preview = json.length() > 800 ? json.substring(0, 800) + "..." : json;
+                log.info("Gemini Live unhandled message (keys={}): {}",
+                        root.fieldNames().hasNext() ? iterToString(root.fieldNames()) : "[]", preview);
             } catch (Exception e) {
                 onError.accept(e);
             }
+        }
+
+        private String iterToString(java.util.Iterator<String> it) {
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            while (it.hasNext()) {
+                if (!first) sb.append(",");
+                sb.append(it.next());
+                first = false;
+            }
+            return sb.append("]").toString();
         }
 
         private void extractParts(JsonNode parts) {
