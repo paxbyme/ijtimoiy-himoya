@@ -29,7 +29,7 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    private static final String LIVE_MODEL = "models/gemini-live-2.5-flash-preview";
+    private static final String LIVE_MODEL = "models/gemini-2.0-flash-live-001";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
