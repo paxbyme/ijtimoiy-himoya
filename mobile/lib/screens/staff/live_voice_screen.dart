@@ -35,6 +35,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
 
   _LiveStatus _status = _LiveStatus.idle;
   String _errorMessage = '';
+  bool _isMuted = false;
 
   late final AnimationController _pulse;
 
@@ -171,6 +172,10 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
 
     _micSub = stream.listen(
       (chunk) {
+        if (_isMuted) {
+          pending.clear();
+          return;
+        }
         final aligned = Uint8List.fromList(chunk);
         final pcm = aligned.length.isEven
             ? aligned
@@ -220,6 +225,11 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
       await FlutterPcmSound.release();
       _pcmSoundReady = false;
     }
+    _isMuted = false;
+  }
+
+  void _toggleMute() {
+    setState(() => _isMuted = !_isMuted);
   }
 
   Future<void> _stop() async {
@@ -249,7 +259,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
                 _buildStatusLabel(theme),
                 const SizedBox(height: 48),
                 _buildMicOrb(theme),
-                const SizedBox(height: 48),
+                const SizedBox(height: 32),
+                _buildControlButtons(theme),
+                const SizedBox(height: 24),
                 _buildHelperText(theme),
                 if (_status == _LiveStatus.error) ...[
                   const SizedBox(height: 16),
@@ -289,18 +301,21 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
       _ => theme.colorScheme.primary,
     };
 
+    final canTap = _status == _LiveStatus.idle || _status == _LiveStatus.error;
+    final iconData = switch (_status) {
+      _LiveStatus.idle => Icons.mic,
+      _LiveStatus.error => Icons.mic,
+      _LiveStatus.connecting => Icons.hourglass_top,
+      _LiveStatus.listening => _isMuted ? Icons.mic_off : Icons.graphic_eq,
+      _LiveStatus.speaking => Icons.volume_up,
+    };
+
     return GestureDetector(
-      onTap: () {
-        if (_status == _LiveStatus.idle || _status == _LiveStatus.error) {
-          _start();
-        } else {
-          _stop();
-        }
-      },
+      onTap: canTap ? _start : null,
       child: AnimatedBuilder(
         animation: _pulse,
         builder: (context, _) {
-          final scale = isActive ? 1.0 + 0.06 * _pulse.value : 1.0;
+          final scale = isActive && !_isMuted ? 1.0 + 0.06 * _pulse.value : 1.0;
           return Transform.scale(
             scale: scale,
             child: Container(
@@ -308,19 +323,17 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
               height: 180,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color,
+                color: _isMuted ? theme.colorScheme.outline : color,
                 boxShadow: [
                   BoxShadow(
-                    color: color.withValues(alpha: 0.4),
-                    blurRadius: isActive ? 40 : 16,
-                    spreadRadius: isActive ? 8 : 0,
+                    color: (_isMuted ? theme.colorScheme.outline : color).withValues(alpha: 0.4),
+                    blurRadius: isActive && !_isMuted ? 40 : 16,
+                    spreadRadius: isActive && !_isMuted ? 8 : 0,
                   ),
                 ],
               ),
               child: Icon(
-                _status == _LiveStatus.idle || _status == _LiveStatus.error
-                    ? Icons.mic
-                    : Icons.stop,
+                iconData,
                 color: Colors.white,
                 size: 72,
               ),
@@ -328,6 +341,30 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
           );
         },
       ),
+    );
+  }
+
+  Widget _buildControlButtons(ThemeData theme) {
+    final inSession = _status == _LiveStatus.listening || _status == _LiveStatus.speaking;
+    if (!inSession) return const SizedBox(height: 56);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _CircleControlButton(
+          icon: _isMuted ? Icons.mic_off : Icons.mic,
+          label: _isMuted ? 'Yoqish' : 'O\'chirish',
+          color: _isMuted ? theme.colorScheme.error : theme.colorScheme.primary,
+          onTap: _toggleMute,
+        ),
+        const SizedBox(width: 32),
+        _CircleControlButton(
+          icon: Icons.call_end,
+          label: 'Tugatish',
+          color: theme.colorScheme.error,
+          onTap: _stop,
+        ),
+      ],
     );
   }
 
@@ -343,12 +380,57 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     }
     if (_status == _LiveStatus.listening || _status == _LiveStatus.speaking) {
       return Text(
-        'Tugatish uchun bosing',
+        _isMuted ? 'Mikrofon o\'chirilgan' : 'Gapiring...',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
       );
     }
     return const SizedBox.shrink();
+  }
+}
+
+class _CircleControlButton extends StatelessWidget {
+  const _CircleControlButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: color,
+          shape: const CircleBorder(),
+          elevation: 4,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 64,
+              height: 64,
+              child: Icon(icon, color: Colors.white, size: 28),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 }

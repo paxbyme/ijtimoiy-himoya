@@ -144,6 +144,28 @@ public class GeminiLiveClient {
         }
     }
 
+    /**
+     * Prompt Gemini to speak first with a short greeting before the user says
+     * anything. Sent right after setupComplete; the model treats it as a user
+     * turn so it generates a spoken reply.
+     */
+    private void sendInitialGreetingTrigger() {
+        try {
+            Map<String, Object> trigger = Map.of(
+                    "clientContent", Map.of(
+                            "turns", List.of(Map.of(
+                                    "role", "user",
+                                    "parts", List.of(Map.of(
+                                            "text", "Suhbat boshlandi. Foydalanuvchini qisqa va do'stona salomlash bilan kutib ol va qanday yordam bera olishingni so'ra. O'zbek tilida javob ber.")))),
+                            "turnComplete", true));
+            String json = objectMapper.writeValueAsString(trigger);
+            log.info("Gemini Live: sending initial greeting trigger");
+            webSocket.send(json);
+        } catch (Exception e) {
+            log.warn("Failed to send greeting trigger", e);
+        }
+    }
+
     private void drainPendingAudio() {
         Deque<byte[]> snapshot;
         synchronized (pendingAudio) {
@@ -219,6 +241,7 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete (model={})", LIVE_MODEL);
                     setupComplete = true;
+                    sendInitialGreetingTrigger();
                     drainPendingAudio();
                     return;
                 }
