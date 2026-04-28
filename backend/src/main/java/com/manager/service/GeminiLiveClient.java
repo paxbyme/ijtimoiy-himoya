@@ -29,7 +29,7 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    private static final String LIVE_MODEL = "models/gemini-2.5-flash-native-audio-latest";
+    private static final String LIVE_MODEL = "models/gemini-2.5-flash-preview-native-audio-dialog";
     private static final String VOICE_NAME = "Aoede";
 
     private final OkHttpClient httpClient;
@@ -82,17 +82,22 @@ public class GeminiLiveClient {
     private volatile boolean firstAudioLogged = false;
     private volatile int forwardedChunks = 0;
     private volatile int bufferedDropped = 0;
+    private volatile boolean greetingSent = false;
+    private volatile boolean greetingTurnDone = false;
 
     /** Send raw 16-bit PCM 16kHz mono audio frame from the user's microphone. */
     public void sendAudio(byte[] pcm16kHzMono) {
         if (closed || webSocket == null) return;
-        if (!setupComplete) {
+        // Hold audio until setup is complete AND any initial greeting turn has
+        // finished — sending realtimeInput.audio while the model is generating
+        // its greeting reply triggers 1007 invalid-argument.
+        if (!setupComplete || (greetingSent && !greetingTurnDone)) {
             synchronized (pendingAudio) {
                 if (pendingAudio.size() >= MAX_PENDING_CHUNKS) {
-                    pendingAudio.pollFirst(); // drop oldest if buffer overflows
+                    pendingAudio.pollFirst();
                     bufferedDropped++;
                     if (bufferedDropped == 1 || bufferedDropped % 20 == 0) {
-                        log.warn("Gemini Live: setupComplete not received yet, dropped {} buffered chunks (still waiting)", bufferedDropped);
+                        log.warn("Gemini Live: dropped {} buffered chunks (waiting for setup/greeting)", bufferedDropped);
                     }
                 }
                 pendingAudio.addLast(pcm16kHzMono);
@@ -141,6 +146,33 @@ public class GeminiLiveClient {
             webSocket.send(json);
         } catch (Exception e) {
             onError.accept(e);
+        }
+    }
+
+    /**
+     * Right after setupComplete, send a single user turn that asks Gemini to
+     * greet the user. We do NOT drain mic audio yet — incoming
+     * realtimeInput.audio frames during the greeting response cause 1007.
+     * Audio is drained after we observe turnComplete for the greeting.
+     */
+    private void sendInitialGreetingTrigger() {
+        try {
+            Map<String, Object> trigger = Map.of(
+                    "clientContent", Map.of(
+                            "turns", List.of(Map.of(
+                                    "role", "user",
+                                    "parts", List.of(Map.of(
+                                            "text", "Suhbat boshlandi. O'zbek tilida foydalanuvchini qisqa va do'stona salomlash bilan kutib ol va qanday yordam bera olishingni so'ra. Faqat bitta qisqa jumla ayt.")))),
+                            "turnComplete", true));
+            String json = objectMapper.writeValueAsString(trigger);
+            log.info("Gemini Live: sending initial greeting trigger");
+            webSocket.send(json);
+            greetingSent = true;
+        } catch (Exception e) {
+            log.warn("Failed to send greeting trigger; draining audio anyway", e);
+            greetingSent = false;
+            greetingTurnDone = true;
+            drainPendingAudio();
         }
     }
 
@@ -217,7 +249,7 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete (model={})", LIVE_MODEL);
                     setupComplete = true;
-                    drainPendingAudio();
+                    sendInitialGreetingTrigger();
                     return;
                 }
 
@@ -245,6 +277,11 @@ public class GeminiLiveClient {
 
                     if (serverContent.path("turnComplete").asBoolean(false)
                             || serverContent.path("turn_complete").asBoolean(false)) {
+                        if (greetingSent && !greetingTurnDone) {
+                            greetingTurnDone = true;
+                            log.info("Gemini Live: greeting turn complete, draining buffered mic audio");
+                            drainPendingAudio();
+                        }
                         onTurnComplete.run();
                     }
                     return;
