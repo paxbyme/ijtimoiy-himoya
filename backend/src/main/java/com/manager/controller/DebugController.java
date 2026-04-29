@@ -2,6 +2,7 @@ package com.manager.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.manager.config.GeminiConfig;
+import com.manager.service.GeminiLiveClient;
 import okhttp3.*;
 import okio.ByteString;
 import org.springframework.http.ResponseEntity;
@@ -221,6 +222,81 @@ public class DebugController {
     private static String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() <= max ? s : s.substring(0, max) + "...[+" + (s.length() - max) + "]";
+    }
+
+    /**
+     * Returns analysis of the most recent live session's mic audio: bytes/sec
+     * (revealing actual sample rate vs the declared 16 kHz), per-chunk min/max/
+     * avgAbs (revealing endianness/silence/clipping issues), and a hex preview
+     * of the very first chunk. Also reports the close code/reason if the
+     * session 1007'd.
+     */
+    @GetMapping("/last-mic-capture")
+    public ResponseEntity<Map<String, Object>> lastMicCapture() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        List<byte[]> chunks = GeminiLiveClient.LAST_CAPTURE.get();
+        long[] times = GeminiLiveClient.LAST_CAPTURE_TIMES.get();
+        result.put("chunkCount", chunks.size());
+        result.put("closeCode", GeminiLiveClient.LAST_CAPTURE_CLOSE_CODE);
+        result.put("closeReason", GeminiLiveClient.LAST_CAPTURE_CLOSE_REASON);
+        if (chunks.isEmpty()) {
+            result.put("note", "no capture yet — open the live screen and let it 1007");
+            return ResponseEntity.ok(result);
+        }
+        long totalBytes = 0;
+        List<Map<String, Object>> chunkInfo = new ArrayList<>();
+        for (int c = 0; c < chunks.size(); c++) {
+            byte[] pcm = chunks.get(c);
+            totalBytes += pcm.length;
+            int sampleCount = pcm.length / 2;
+            // Try BOTH endianness interpretations and report which gives more
+            // typical audio statistics. Real speech LE should have moderate
+            // avgAbs and modest dynamic range; if BE values are dramatically
+            // different, the source is BE-swapped (or vice-versa).
+            int[] leMin = {Integer.MAX_VALUE}, leMax = {Integer.MIN_VALUE};
+            int[] beMin = {Integer.MAX_VALUE}, beMax = {Integer.MIN_VALUE};
+            long leSum = 0, beSum = 0;
+            for (int i = 0; i + 1 < pcm.length; i += 2) {
+                int lo = pcm[i] & 0xff;
+                int hi = pcm[i + 1] & 0xff;
+                int le = (hi << 8) | lo; if (le > 32767) le -= 65536;
+                int be = (lo << 8) | hi; if (be > 32767) be -= 65536;
+                if (le < leMin[0]) leMin[0] = le; if (le > leMax[0]) leMax[0] = le;
+                if (be < beMin[0]) beMin[0] = be; if (be > beMax[0]) beMax[0] = be;
+                leSum += Math.abs(le);
+                beSum += Math.abs(be);
+            }
+            Map<String, Object> info = new LinkedHashMap<>();
+            info.put("idx", c);
+            info.put("bytes", pcm.length);
+            info.put("samples", sampleCount);
+            info.put("leMin", leMin[0]);
+            info.put("leMax", leMax[0]);
+            info.put("leAvgAbs", sampleCount > 0 ? leSum / sampleCount : 0);
+            info.put("beMin", beMin[0]);
+            info.put("beMax", beMax[0]);
+            info.put("beAvgAbs", sampleCount > 0 ? beSum / sampleCount : 0);
+            if (c == 0) {
+                int previewLen = Math.min(pcm.length, 32);
+                StringBuilder hex = new StringBuilder();
+                for (int i = 0; i < previewLen; i++) hex.append(String.format("%02x ", pcm[i] & 0xff));
+                info.put("hexPrefix32", hex.toString().trim());
+            }
+            chunkInfo.add(info);
+        }
+        long elapsedMs = (chunks.size() >= 2 && times.length >= chunks.size())
+                ? times[chunks.size() - 1] - times[0]
+                : 0;
+        double bytesPerSec = elapsedMs > 0 ? totalBytes * 1000.0 / elapsedMs : 0;
+        // 16 kHz mono 16-bit = 32_000 bytes/sec. Anything materially different
+        // means the mic plugin is NOT honoring the requested sample rate.
+        result.put("totalBytes", totalBytes);
+        result.put("elapsedMs", elapsedMs);
+        result.put("bytesPerSec", bytesPerSec);
+        result.put("expected16kHzMonoBytesPerSec", 32000);
+        result.put("inferredSampleRateIfMono16Bit", bytesPerSec / 2);
+        result.put("chunks", chunkInfo);
+        return ResponseEntity.ok(result);
     }
 
     private static synchronized void logEvent(List<Map<String, Object>> events, String type, Map<String, Object> payload) {

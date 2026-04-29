@@ -32,6 +32,20 @@ public class GeminiLiveClient {
     private static final String LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-09-2025";
     private static final String VOICE_NAME = "Aoede";
 
+    // Diagnostic capture: the most recent live session copies its first N audio
+    // chunks here so /api/debug/last-mic-capture can return them. Lets us inspect
+    // exactly what the mobile mic is sending when 1007 reproduces.
+    public static final java.util.concurrent.atomic.AtomicReference<List<byte[]>> LAST_CAPTURE =
+            new java.util.concurrent.atomic.AtomicReference<>(new java.util.ArrayList<>());
+    public static final java.util.concurrent.atomic.AtomicReference<long[]> LAST_CAPTURE_TIMES =
+            new java.util.concurrent.atomic.AtomicReference<>(new long[0]);
+    public static volatile String LAST_CAPTURE_CLOSE_REASON = "";
+    public static volatile int LAST_CAPTURE_CLOSE_CODE = 0;
+    private static final int CAPTURE_CHUNKS = 20;
+    private final List<byte[]> captureBuf = new java.util.ArrayList<>();
+    private final long[] captureTimes = new long[CAPTURE_CHUNKS];
+    private int captureIdx = 0;
+
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String systemInstruction;
@@ -86,6 +100,19 @@ public class GeminiLiveClient {
     /** Send raw 16-bit PCM 16kHz mono audio frame from the user's microphone. */
     public void sendAudio(byte[] pcm16kHzMono) {
         if (closed || webSocket == null) return;
+        // Diagnostic tap: copy the first N chunks unmodified, with arrival
+        // wall-clock so we can compute the actual sample rate.
+        synchronized (captureBuf) {
+            if (captureIdx < CAPTURE_CHUNKS) {
+                captureBuf.add(pcm16kHzMono.clone());
+                captureTimes[captureIdx] = System.currentTimeMillis();
+                captureIdx++;
+                if (captureIdx == CAPTURE_CHUNKS) {
+                    LAST_CAPTURE.set(new java.util.ArrayList<>(captureBuf));
+                    LAST_CAPTURE_TIMES.set(captureTimes.clone());
+                }
+            }
+        }
         // Hold audio until Gemini confirms setup; otherwise the model rejects
         // the stream with 1007 invalid-argument before the session is registered.
         if (!setupComplete) {
@@ -340,6 +367,18 @@ public class GeminiLiveClient {
             log.warn("Gemini Live WS closed: code={} reason={} (after {} chunks forwarded, setupComplete={})",
                     code, reason, forwardedChunks, setupComplete);
             closed = true;
+            LAST_CAPTURE_CLOSE_CODE = code;
+            LAST_CAPTURE_CLOSE_REASON = reason == null ? "" : reason;
+            // Even if we didn't reach CAPTURE_CHUNKS, publish what we have so we
+            // can inspect captures from sessions that 1007'd before chunk 20.
+            synchronized (captureBuf) {
+                if (!captureBuf.isEmpty()) {
+                    LAST_CAPTURE.set(new java.util.ArrayList<>(captureBuf));
+                    long[] copy = new long[captureIdx];
+                    System.arraycopy(captureTimes, 0, copy, 0, captureIdx);
+                    LAST_CAPTURE_TIMES.set(copy);
+                }
+            }
             if (code != 1000 && reason != null && !reason.isEmpty()) {
                 onError.accept(new IOException("Gemini closed: " + code + " " + reason));
             }
