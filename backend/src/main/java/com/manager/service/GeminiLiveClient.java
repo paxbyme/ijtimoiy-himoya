@@ -117,28 +117,30 @@ public class GeminiLiveClient {
                                     "mimeType", "audio/pcm;rate=16000",
                                     "data", b64)));
             String json = objectMapper.writeValueAsString(realtimeInput);
-            if (!firstAudioLogged) {
+            // Per-chunk stats so we can correlate the exact frame Gemini chokes on.
+            int sampleCount = pcm16kHzMono.length / 2;
+            int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
+            long sum = 0;
+            for (int i = 0; i + 1 < pcm16kHzMono.length; i += 2) {
+                int lo = pcm16kHzMono[i] & 0xff;
+                int hi = pcm16kHzMono[i + 1];
+                int s = (hi << 8) | lo; // little-endian assumption
+                if (s > 32767) s -= 65536;
+                if (s < min) min = s;
+                if (s > max) max = s;
+                sum += Math.abs(s);
+            }
+            long avg = sampleCount > 0 ? sum / sampleCount : 0;
+            int seq = forwardedChunks + 1;
+            if (!firstAudioLogged || seq <= 5 || seq % 10 == 0) {
                 firstAudioLogged = true;
-                int previewLen = Math.min(pcm16kHzMono.length, 64);
+                int previewLen = Math.min(pcm16kHzMono.length, 32);
                 StringBuilder hex = new StringBuilder(previewLen * 3);
                 for (int i = 0; i < previewLen; i++) {
                     hex.append(String.format("%02x ", pcm16kHzMono[i] & 0xff));
                 }
-                int sampleCount = pcm16kHzMono.length / 2;
-                int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
-                long sum = 0;
-                for (int i = 0; i + 1 < pcm16kHzMono.length; i += 2) {
-                    int lo = pcm16kHzMono[i] & 0xff;
-                    int hi = pcm16kHzMono[i + 1];
-                    int s = (hi << 8) | lo; // little-endian
-                    if (s > 32767) s -= 65536;
-                    if (s < min) min = s;
-                    if (s > max) max = s;
-                    sum += Math.abs(s);
-                }
-                long avg = sampleCount > 0 ? sum / sampleCount : 0;
-                log.info("Gemini Live: first audio chunk sent ({} bytes, {} samples, min={} max={} avgAbs={}) hex0..63={}",
-                        pcm16kHzMono.length, sampleCount, min, max, avg, hex.toString().trim());
+                log.info("Gemini Live --> audio #{} ({} bytes, {} samples, min={} max={} avgAbs={}) hex0..31={}",
+                        seq, pcm16kHzMono.length, sampleCount, min, max, avg, hex.toString().trim());
             }
             webSocket.send(json);
         } catch (Exception e) {
@@ -200,15 +202,21 @@ public class GeminiLiveClient {
 
         @Override
         public void onMessage(WebSocket ws, String text) {
+            log.info("Gemini Live <-- text frame ({} bytes): {}",
+                    text.length(),
+                    text.length() > 2000 ? text.substring(0, 2000) + "...[truncated]" : text);
             handleMessage(text);
         }
 
         @Override
         public void onMessage(WebSocket ws, ByteString bytes) {
-            handleMessage(bytes.utf8());
+            String s = bytes.utf8();
+            log.info("Gemini Live <-- binary frame ({} bytes, decoded {} chars): {}",
+                    bytes.size(),
+                    s.length(),
+                    s.length() > 2000 ? s.substring(0, 2000) + "...[truncated]" : s);
+            handleMessage(s);
         }
-
-        private boolean firstResponseLogged = false;
 
         private void handleMessage(String json) {
             try {
@@ -228,11 +236,6 @@ public class GeminiLiveClient {
 
                 JsonNode serverContent = root.path("serverContent");
                 if (!serverContent.isMissingNode()) {
-                    if (!firstResponseLogged) {
-                        firstResponseLogged = true;
-                        String preview = json.length() > 1200 ? json.substring(0, 1200) + "..." : json;
-                        log.info("Gemini Live first serverContent: {}", preview);
-                    }
                     extractParts(serverContent.path("modelTurn").path("parts"));
                     extractParts(serverContent.path("model_turn").path("parts"));
                     extractParts(serverContent.path("parts"));
@@ -312,13 +315,15 @@ public class GeminiLiveClient {
 
         @Override
         public void onClosing(WebSocket ws, int code, String reason) {
-            log.warn("Gemini Live WS closing: code={} reason={}", code, reason);
+            log.warn("Gemini Live WS closing: code={} reason={} (after {} chunks forwarded, {} buffered-dropped, setupComplete={})",
+                    code, reason, forwardedChunks, bufferedDropped, setupComplete);
             ws.close(1000, null);
         }
 
         @Override
         public void onClosed(WebSocket ws, int code, String reason) {
-            log.warn("Gemini Live WS closed: code={} reason={}", code, reason);
+            log.warn("Gemini Live WS closed: code={} reason={} (after {} chunks forwarded, setupComplete={})",
+                    code, reason, forwardedChunks, setupComplete);
             closed = true;
             if (code != 1000 && reason != null && !reason.isEmpty()) {
                 onError.accept(new IOException("Gemini closed: " + code + " " + reason));
