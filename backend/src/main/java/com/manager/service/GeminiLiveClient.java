@@ -191,7 +191,11 @@ public class GeminiLiveClient {
                                 "generationConfig", Map.of(
                                         "responseModalities", List.of("AUDIO")),
                                 "systemInstruction", Map.of(
-                                        "parts", List.of(Map.of("text", systemInstruction)))));
+                                        "parts", List.of(Map.of("text", systemInstruction))),
+                                // Diagnostic + fallback: get the model's reply as text too,
+                                // so we can confirm it is actually generating responses
+                                // even when the audio output path is silent.
+                                "outputAudioTranscription", Map.of()));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
                 ws.send(json);
@@ -239,6 +243,18 @@ public class GeminiLiveClient {
                     extractParts(serverContent.path("modelTurn").path("parts"));
                     extractParts(serverContent.path("model_turn").path("parts"));
                     extractParts(serverContent.path("parts"));
+
+                    // Surface the model's output transcription as text events so the
+                    // mobile UI can show what the AI said even if audio playback fails.
+                    JsonNode outTr = serverContent.path("outputTranscription");
+                    if (outTr.isMissingNode()) outTr = serverContent.path("output_transcription");
+                    if (!outTr.isMissingNode()) {
+                        String t = outTr.path("text").asText("");
+                        if (!t.isEmpty()) {
+                            log.info("Gemini said: {}", t);
+                            onText.accept(t);
+                        }
+                    }
 
                     if (serverContent.path("turnComplete").asBoolean(false)
                             || serverContent.path("turn_complete").asBoolean(false)) {
