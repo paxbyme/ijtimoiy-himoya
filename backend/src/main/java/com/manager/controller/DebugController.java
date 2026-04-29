@@ -115,9 +115,11 @@ public class DebugController {
 
             @Override
             public void onMessage(WebSocket ws, ByteString bytes) {
+                String s = bytes.utf8();
                 logEvent(events, "recv_binary", Map.of(
                         "len", bytes.size(),
-                        "utf8Preview", truncate(bytes.utf8(), 4000)));
+                        "utf8Preview", truncate(s, 4000)));
+                if (s.contains("setupComplete")) setupComplete.set(1);
             }
 
             @Override
