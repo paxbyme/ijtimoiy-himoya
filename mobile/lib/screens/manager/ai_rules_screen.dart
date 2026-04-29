@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -332,24 +330,25 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
   }
 
   void _showUploadDialog(BuildContext context) {
-    String? selectedFilePath;
-    String? selectedFileName;
-    final titleController = TextEditingController();
+    final List<PlatformFile> selectedFiles = [];
     final categoryController = TextEditingController();
     bool isUploading = false;
+    int currentIndex = 0;
+    int totalFiles = 0;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Fayldan qoida yaratish'),
+          title: const Text('Fayldan qoidalar yaratish'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Hujjat yuklanadi, matni o\'qiladi va qoida sifatida saqlanadi.',
+                  "Bir nechta fayl tanlang — har bir fayl alohida qoida sifatida saqlanadi.",
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
@@ -359,6 +358,7 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                       : () async {
                           final result = await FilePicker.platform.pickFiles(
                             type: FileType.custom,
+                            allowMultiple: true,
                             allowedExtensions: [
                               'pdf',
                               'docx',
@@ -367,13 +367,15 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                               'md'
                             ],
                           );
-                          if (result != null &&
-                              result.files.isNotEmpty) {
+                          if (result != null && result.files.isNotEmpty) {
                             setDialogState(() {
-                              selectedFilePath =
-                                  result.files.first.path;
-                              selectedFileName =
-                                  result.files.first.name;
+                              for (final f in result.files) {
+                                if (f.path != null &&
+                                    !selectedFiles
+                                        .any((s) => s.path == f.path)) {
+                                  selectedFiles.add(f);
+                                }
+                              }
                             });
                           }
                         },
@@ -381,44 +383,45 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: selectedFilePath != null
+                        color: selectedFiles.isNotEmpty
                             ? Colors.blue
                             : Colors.grey.shade400,
                         width: 2,
                       ),
                       borderRadius: BorderRadius.circular(12),
-                      color: selectedFilePath != null
+                      color: selectedFiles.isNotEmpty
                           ? Colors.blue.shade50
                           : Colors.grey.shade50,
                     ),
                     child: Column(
                       children: [
                         Icon(
-                          selectedFilePath != null
-                              ? Icons.description
+                          selectedFiles.isNotEmpty
+                              ? Icons.library_add
                               : Icons.upload_file,
                           size: 40,
-                          color: selectedFilePath != null
+                          color: selectedFiles.isNotEmpty
                               ? Colors.blue
                               : Colors.grey,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          selectedFileName ??
-                              'Fayl tanlash uchun bosing',
+                          selectedFiles.isEmpty
+                              ? "Fayllarni tanlash uchun bosing"
+                              : "Yana fayl qo'shish uchun bosing",
                           style: TextStyle(
-                            color: selectedFilePath != null
+                            color: selectedFiles.isNotEmpty
                                 ? Colors.blue.shade700
                                 : Colors.grey.shade600,
-                            fontWeight: selectedFilePath != null
+                            fontWeight: selectedFiles.isNotEmpty
                                 ? FontWeight.w600
                                 : FontWeight.normal,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        if (selectedFilePath == null)
+                        if (selectedFiles.isEmpty)
                           Text(
-                            'PDF, DOCX, TXT, DOC',
+                            'PDF, DOCX, TXT, DOC, MD',
                             style: TextStyle(
                                 fontSize: 11, color: Colors.grey.shade500),
                           ),
@@ -426,22 +429,82 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Sarlavha (ixtiyoriy)',
-                    hintText: 'Fayl nomidan foydalaniladi',
+                if (selectedFiles.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Tanlangan: ${selectedFiles.length} ta fayl',
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (int i = 0; i < selectedFiles.length; i++)
+                        Builder(builder: (_) {
+                          final f = selectedFiles[i];
+                          final isCurrent = isUploading && i == currentIndex;
+                          final isDone = isUploading && i < currentIndex;
+                          return ListTile(
+                            dense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 4),
+                            leading: isDone
+                                ? const Icon(Icons.check_circle,
+                                    color: Colors.green, size: 20)
+                                : isCurrent
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.description,
+                                        size: 20, color: Colors.blueGrey),
+                            title: Text(
+                              f.name,
+                              style: const TextStyle(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${(f.size / 1024).toStringAsFixed(1)} KB',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            trailing: isUploading
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.close, size: 18),
+                                    onPressed: () => setDialogState(
+                                        () => selectedFiles.removeAt(i)),
+                                  ),
+                          );
+                        }),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: categoryController,
+                  enabled: !isUploading,
                   decoration: const InputDecoration(
                     labelText: 'Kategoriya (ixtiyoriy)',
-                    hintText: 'GENERAL',
+                    hintText: 'Barcha fayllarga qo\'llaniladi — masalan GENERAL',
                   ),
                 ),
+                if (isUploading && totalFiles > 0) ...[
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(
+                    value: totalFiles == 0
+                        ? null
+                        : currentIndex / totalFiles,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Yuklanmoqda: $currentIndex / $totalFiles',
+                    style: const TextStyle(fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ],
             ),
           ),
@@ -451,96 +514,79 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
               child: const Text('Bekor'),
             ),
             FilledButton(
-              onPressed: (selectedFilePath == null || isUploading)
+              onPressed: (selectedFiles.isEmpty || isUploading)
                   ? null
                   : () async {
                       final messenger = ScaffoldMessenger.of(context);
 
-                      // Fayl hajmini tekshirish (50MB limit)
+                      // Hajm tekshiruvi — har bir fayl uchun 50MB limit
                       const maxBytes = 50 * 1024 * 1024;
-                      final fileSize = File(selectedFilePath!).lengthSync();
-                      if (fileSize > maxBytes) {
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Fayl hajmi ${(fileSize / 1024 / 1024).toStringAsFixed(1)} MB — '
-                              "ruxsat etilgan maksimum 50 MB.",
+                      for (final f in selectedFiles) {
+                        if (f.size > maxBytes) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                "${f.name}: hajmi ${(f.size / 1024 / 1024).toStringAsFixed(1)} MB — "
+                                "maksimum 50 MB.",
+                              ),
+                              duration: const Duration(seconds: 5),
                             ),
-                            duration: const Duration(seconds: 5),
-                          ),
-                        );
-                        return;
+                          );
+                          return;
+                        }
                       }
 
-                      setDialogState(() => isUploading = true);
-                      try {
-                        final apiService = ref.read(apiServiceProvider);
-                        await apiService.uploadAiRuleFromFile(
-                          selectedFilePath!,
-                          selectedFileName!,
-                          title: titleController.text.trim().isEmpty
-                              ? null
-                              : titleController.text.trim(),
-                          category: categoryController.text.trim().isEmpty
-                              ? null
-                              : categoryController.text.trim(),
-                        );
-                        ref.invalidate(aiRulesProvider);
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text("Fayl o'qildi va qoida yaratildi"),
-                          ),
-                        );
-                      } catch (e) {
-                        // ignore: avoid_dynamic_calls
-                        final responseBody =
-                            (e as dynamic).response?.data?.toString() ?? '';
-                        debugPrint(
-                            'AI rule upload error: $e | body: $responseBody');
-                        setDialogState(() => isUploading = false);
-                        final errStr = e.toString();
-                        final String msg;
-                        if (responseBody.contains('scanned image') ||
-                            responseBody.contains('selectable text') ||
-                            responseBody.contains('Could not extract readable')) {
-                          msg =
-                              "Hujjatdan matn o'qib bo'lmadi (skanerlangan rasm yoki OCR ham ishlamadi). "
-                              "Matn sifatida saqlangan fayl yuboring yoki qoidani qo'lda kiriting.";
-                        } else if (errStr.contains('413') ||
-                            errStr.contains('exceeds') ||
-                            errStr.contains('upload size')) {
-                          msg = "Fayl hajmi juda katta (maksimum 50 MB).";
-                        } else if (errStr.contains('Connection reset') ||
-                            errStr.contains('reset by peer') ||
-                            errStr.contains('Broken pipe') ||
-                            errStr.contains('errno = 32')) {
-                          msg =
-                              "Server ulanishni uzdi. Fayl hajmi juda katta bo'lishi mumkin.";
-                        } else if (errStr.contains('401') ||
-                            errStr.contains('403')) {
-                          msg = "Ruxsat yo'q. Qayta kiring.";
-                        } else if (errStr.contains('500')) {
-                          msg =
-                              "Server xatosi. Fayl formati qo'llab-quvvatlanmaydi.";
-                        } else if (errStr.contains('TimeoutException') ||
-                            errStr.contains('timeout')) {
-                          msg =
-                              "Vaqt tugadi. Internet aloqasini tekshiring yoki kichikroq fayl yuklang.";
-                        } else if (errStr.contains('SocketException') &&
-                            !errStr.contains('reset')) {
-                          msg = "Tarmoq xatosi. Internet aloqasini tekshiring.";
-                        } else {
-                          msg =
-                              'Xatolik: ${errStr.length > 100 ? errStr.substring(0, 100) : errStr}';
+                      setDialogState(() {
+                        isUploading = true;
+                        currentIndex = 0;
+                        totalFiles = selectedFiles.length;
+                      });
+
+                      final apiService = ref.read(apiServiceProvider);
+                      final category = categoryController.text.trim();
+                      int successCount = 0;
+                      final List<String> failedFiles = [];
+
+                      for (int i = 0; i < selectedFiles.length; i++) {
+                        setDialogState(() => currentIndex = i);
+                        final file = selectedFiles[i];
+                        try {
+                          await apiService.uploadAiRuleFromFile(
+                            file.path!,
+                            file.name,
+                            category: category.isEmpty ? null : category,
+                          );
+                          successCount++;
+                        } catch (e) {
+                          // ignore: avoid_dynamic_calls
+                          final responseBody =
+                              (e as dynamic).response?.data?.toString() ?? '';
+                          debugPrint(
+                              'AI rule upload error (${file.name}): $e | body: $responseBody');
+                          failedFiles.add(file.name);
                         }
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(msg),
-                            duration: const Duration(seconds: 5),
-                          ),
-                        );
                       }
+
+                      setDialogState(() => currentIndex = totalFiles);
+
+                      ref.invalidate(aiRulesProvider);
+                      if (ctx.mounted) Navigator.pop(ctx);
+
+                      final String msg;
+                      if (failedFiles.isEmpty) {
+                        msg = "$successCount ta qoida yaratildi";
+                      } else if (successCount == 0) {
+                        msg = "Barcha fayllarda xatolik yuz berdi";
+                      } else {
+                        msg =
+                            "$successCount ta qoida yaratildi, ${failedFiles.length} ta xato: ${failedFiles.join(', ')}";
+                      }
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(msg),
+                          duration: const Duration(seconds: 5),
+                        ),
+                      );
                     },
               child: isUploading
                   ? const SizedBox(
@@ -548,7 +594,9 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Yuklash'),
+                  : Text(selectedFiles.isEmpty
+                      ? "Yuklash"
+                      : "${selectedFiles.length} ta yuklash"),
             ),
           ],
         ),

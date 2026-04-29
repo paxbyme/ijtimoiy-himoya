@@ -82,22 +82,19 @@ public class GeminiLiveClient {
     private volatile boolean firstAudioLogged = false;
     private volatile int forwardedChunks = 0;
     private volatile int bufferedDropped = 0;
-    private volatile boolean greetingSent = false;
-    private volatile boolean greetingTurnDone = false;
 
     /** Send raw 16-bit PCM 16kHz mono audio frame from the user's microphone. */
     public void sendAudio(byte[] pcm16kHzMono) {
         if (closed || webSocket == null) return;
-        // Hold audio until setup is complete AND any initial greeting turn has
-        // finished — sending realtimeInput.audio while the model is generating
-        // its greeting reply triggers 1007 invalid-argument.
-        if (!setupComplete || (greetingSent && !greetingTurnDone)) {
+        // Hold audio until Gemini confirms setup; otherwise the model rejects
+        // the stream with 1007 invalid-argument before the session is registered.
+        if (!setupComplete) {
             synchronized (pendingAudio) {
                 if (pendingAudio.size() >= MAX_PENDING_CHUNKS) {
                     pendingAudio.pollFirst();
                     bufferedDropped++;
                     if (bufferedDropped == 1 || bufferedDropped % 20 == 0) {
-                        log.warn("Gemini Live: dropped {} buffered chunks (waiting for setup/greeting)", bufferedDropped);
+                        log.warn("Gemini Live: dropped {} buffered chunks (waiting for setup)", bufferedDropped);
                     }
                 }
                 pendingAudio.addLast(pcm16kHzMono);
@@ -149,33 +146,6 @@ public class GeminiLiveClient {
         }
     }
 
-    /**
-     * Right after setupComplete, send a single user turn that asks Gemini to
-     * greet the user. We do NOT drain mic audio yet — incoming
-     * realtimeInput.audio frames during the greeting response cause 1007.
-     * Audio is drained after we observe turnComplete for the greeting.
-     */
-    private void sendInitialGreetingTrigger() {
-        try {
-            Map<String, Object> trigger = Map.of(
-                    "clientContent", Map.of(
-                            "turns", List.of(Map.of(
-                                    "role", "user",
-                                    "parts", List.of(Map.of(
-                                            "text", "Suhbat boshlandi. O'zbek tilida foydalanuvchini qisqa va do'stona salomlash bilan kutib ol va qanday yordam bera olishingni so'ra. Faqat bitta qisqa jumla ayt.")))),
-                            "turnComplete", true));
-            String json = objectMapper.writeValueAsString(trigger);
-            log.info("Gemini Live: sending initial greeting trigger");
-            webSocket.send(json);
-            greetingSent = true;
-        } catch (Exception e) {
-            log.warn("Failed to send greeting trigger; draining audio anyway", e);
-            greetingSent = false;
-            greetingTurnDone = true;
-            drainPendingAudio();
-        }
-    }
-
     private void drainPendingAudio() {
         Deque<byte[]> snapshot;
         synchronized (pendingAudio) {
@@ -219,8 +189,7 @@ public class GeminiLiveClient {
                                 "generationConfig", Map.of(
                                         "responseModalities", List.of("AUDIO")),
                                 "systemInstruction", Map.of(
-                                        "parts", List.of(Map.of("text", systemInstruction))),
-                                "inputAudioTranscription", Map.of()));
+                                        "parts", List.of(Map.of("text", systemInstruction)))));
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
                 ws.send(json);
@@ -249,7 +218,11 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete (model={})", LIVE_MODEL);
                     setupComplete = true;
-                    sendInitialGreetingTrigger();
+                    // Greeting trigger removed — clientContent text turn followed by
+                    // realtimeInput.audio reproducibly triggers 1007 on native-audio
+                    // models (see commit 6ca986f). User speaks first; buffered mic
+                    // chunks drain immediately.
+                    drainPendingAudio();
                     return;
                 }
 
@@ -260,28 +233,12 @@ public class GeminiLiveClient {
                         String preview = json.length() > 1200 ? json.substring(0, 1200) + "..." : json;
                         log.info("Gemini Live first serverContent: {}", preview);
                     }
-                    // Diagnostic: surface what Gemini transcribed from the user's audio
-                    JsonNode inputTr = serverContent.path("inputTranscription");
-                    if (inputTr.isMissingNode()) inputTr = serverContent.path("input_transcription");
-                    if (!inputTr.isMissingNode()) {
-                        String t = inputTr.path("text").asText("");
-                        if (!t.isEmpty()) {
-                            log.info("Gemini heard user: {}", t);
-                            onText.accept("[user] " + t);
-                        }
-                    }
-
                     extractParts(serverContent.path("modelTurn").path("parts"));
                     extractParts(serverContent.path("model_turn").path("parts"));
                     extractParts(serverContent.path("parts"));
 
                     if (serverContent.path("turnComplete").asBoolean(false)
                             || serverContent.path("turn_complete").asBoolean(false)) {
-                        if (greetingSent && !greetingTurnDone) {
-                            greetingTurnDone = true;
-                            log.info("Gemini Live: greeting turn complete, draining buffered mic audio");
-                            drainPendingAudio();
-                        }
                         onTurnComplete.run();
                     }
                     return;

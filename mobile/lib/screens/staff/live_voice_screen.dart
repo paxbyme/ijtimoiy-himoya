@@ -250,30 +250,42 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     return Scaffold(
       appBar: AppBar(title: const Text('Jonli suhbat')),
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildStatusLabel(theme),
-                const SizedBox(height: 48),
-                _buildMicOrb(theme),
-                const SizedBox(height: 32),
-                _buildControlButtons(theme),
-                const SizedBox(height: 24),
-                _buildHelperText(theme),
-                if (_status == _LiveStatus.error) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    _errorMessage,
-                    style: TextStyle(color: theme.colorScheme.error),
-                    textAlign: TextAlign.center,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _buildStatusLabel(theme),
+                        ),
+                        Expanded(
+                          child: Center(child: _buildMicOrb(theme)),
+                        ),
+                        _buildControlButtons(theme),
+                        const SizedBox(height: 24),
+                        _buildHelperText(theme),
+                        if (_status == _LiveStatus.error) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorMessage,
+                            style: TextStyle(color: theme.colorScheme.error),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   ),
-                ],
-              ],
-            ),
-          ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
