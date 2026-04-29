@@ -191,11 +191,10 @@ public class GeminiLiveClient {
                                 "generationConfig", Map.of(
                                         "responseModalities", List.of("AUDIO")),
                                 "systemInstruction", Map.of(
-                                        "parts", List.of(Map.of("text", systemInstruction))),
-                                // Diagnostic + fallback: get the model's reply as text too,
-                                // so we can confirm it is actually generating responses
-                                // even when the audio output path is silent.
-                                "outputAudioTranscription", Map.of()));
+                                        "parts", List.of(Map.of("text", systemInstruction)))));
+                // outputAudioTranscription removed: empirically triggers 1007
+                // invalid-argument on native-audio-preview-09-2025 (re-tested
+                // bd18620). Same applies to inputAudioTranscription/speechConfig.
                 String json = objectMapper.writeValueAsString(setup);
                 log.info("Gemini Live setup: {}", json);
                 ws.send(json);
