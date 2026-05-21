@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/route_names.dart';
 import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/loading_widget.dart';
@@ -110,7 +111,7 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
                   final task = filtered[i];
                   return TaskCard(
                     task: task,
-                    onTap: () => context.push('/staff/tasks/${task.id}'),
+                    onTap: () => context.push(Routes.staffTaskDetail(task.id)),
                   );
                 },
               ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/route_names.dart';
+
 class ManagerShell extends StatelessWidget {
   final Widget child;
 
@@ -8,33 +10,33 @@ class ManagerShell extends StatelessWidget {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/manager/home')) return 0;
-    if (location.startsWith('/manager/employees')) return 1;
-    if (location.startsWith('/manager/tasks')) return 2;
-    if (location.startsWith('/manager/kpi') ||
-        location.startsWith('/manager/ai-rules')) {
+    if (location.startsWith(Routes.managerHome)) return 0;
+    if (location.startsWith(Routes.managerEmployees)) return 1;
+    if (location.startsWith(Routes.managerTasks)) return 2;
+    if (location.startsWith(Routes.managerKpi) ||
+        location.startsWith(Routes.managerAiRules)) {
       return 3;
     }
-    if (location.startsWith('/manager/chat')) return 4;
+    if (location.startsWith(Routes.managerChat)) return 4;
     return 0;
   }
 
   void _onTap(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go('/manager/home');
+        context.go(Routes.managerHome);
         break;
       case 1:
-        context.go('/manager/employees');
+        context.go(Routes.managerEmployees);
         break;
       case 2:
-        context.go('/manager/tasks');
+        context.go(Routes.managerTasks);
         break;
       case 3:
-        context.go('/manager/kpi');
+        context.go(Routes.managerKpi);
         break;
       case 4:
-        context.go('/manager/chat');
+        context.go(Routes.managerChat);
         break;
     }
   }

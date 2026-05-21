@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_background.dart';
 
@@ -89,7 +90,7 @@ class StaffProfileScreen extends ConsumerWidget {
               FilledButton.tonal(
                 onPressed: () async {
                   await ref.read(authServiceProvider).signOut();
-                  if (context.mounted) context.go('/login');
+                  if (context.mounted) context.go(Routes.login);
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: theme.colorScheme.errorContainer,

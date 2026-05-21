@@ -1,10 +1,11 @@
-class ApiConfig {
-  static const String _envApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+import '../core/constants/env_config.dart';
 
-  static String get baseUrl {
-    if (_envApiBaseUrl.isNotEmpty) return _envApiBaseUrl;
-    return 'https://manager-app-production-53c2.up.railway.app/api';
-  }
+/// Thin facade over [EnvConfig] that exposes the API + WebSocket base URLs.
+///
+/// New code should prefer reading [EnvConfig] directly. This class is kept
+/// for callsites that already import `config/api_config.dart`.
+class ApiConfig {
+  static String get baseUrl => EnvConfig.resolvedApiUrl;
 
   /// WebSocket base URL derived from baseUrl (https → wss, http → ws).
   static String get wsBaseUrl {

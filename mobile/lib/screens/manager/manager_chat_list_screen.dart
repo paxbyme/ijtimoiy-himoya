@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/loading_widget.dart';
@@ -119,7 +120,7 @@ class ManagerChatListScreen extends ConsumerWidget {
                         ],
                       ),
                       onTap: () =>
-                          context.push('/manager/chat/$otherParticipant'),
+                          context.push(Routes.managerChatWithStaff(otherParticipant)),
                     ),
                   );
                 },

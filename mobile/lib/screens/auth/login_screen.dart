@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -50,11 +51,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (profile == null) {
         errorMessage = 'Tarmoq xatosi. Internet aloqasini tekshiring.';
       } else if (profile.role == 'DEVELOPER') {
-        context.go('/developer/home');
+        context.go(Routes.developerHome);
       } else if (profile.isManager) {
-        context.go('/manager/home');
+        context.go(Routes.managerHome);
       } else {
-        context.go('/staff/home');
+        context.go(Routes.staffHome);
       }
     } catch (e) {
       errorMessage = _getErrorMessage(e);

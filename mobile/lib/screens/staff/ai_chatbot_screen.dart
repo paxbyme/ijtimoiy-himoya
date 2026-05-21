@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import '../../core/constants/route_names.dart';
 import '../../providers/ai_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/chat_bubble.dart';
@@ -222,7 +223,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           IconButton(
             icon: const Icon(Icons.phone_in_talk_outlined),
             tooltip: 'Jonli suhbat',
-            onPressed: () => context.push('/staff/ai-chat/live'),
+            onPressed: () => context.push(Routes.staffAiChatLive),
           ),
           IconButton(
             icon: const Icon(Icons.history),

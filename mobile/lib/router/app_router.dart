@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../core/constants/route_names.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/splash_screen.dart';
@@ -39,46 +40,46 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: Routes.splash,
     redirect: (context, state) {
-      final isSplashRoute = state.matchedLocation == '/';
-      final isLoginRoute = state.matchedLocation == '/login';
+      final isSplashRoute = state.matchedLocation == Routes.splash;
+      final isLoginRoute = state.matchedLocation == Routes.login;
 
       // Auth state still resolving (Firebase restoring persisted session)
       if (authState.isLoading) {
-        return isSplashRoute ? null : '/';
+        return isSplashRoute ? null : Routes.splash;
       }
 
       final isLoggedIn = authState.value != null;
 
       if (!isLoggedIn) {
-        return isLoginRoute ? null : '/login';
+        return isLoginRoute ? null : Routes.login;
       }
 
       // Logged in — wait for profile to load before routing to dashboard
       if (userProfile.isLoading) {
-        return isSplashRoute ? null : '/';
+        return isSplashRoute ? null : Routes.splash;
       }
 
       final profile = userProfile.value;
       if (profile == null) {
-        return isLoginRoute ? null : '/login';
+        return isLoginRoute ? null : Routes.login;
       }
 
       if (isSplashRoute || isLoginRoute) {
-        if (profile.role == 'DEVELOPER') return '/developer/home';
-        return profile.isManager ? '/manager/home' : '/staff/home';
+        if (profile.role == 'DEVELOPER') return Routes.developerHome;
+        return profile.isManager ? Routes.managerHome : Routes.staffHome;
       }
 
       return null;
     },
     routes: [
       GoRoute(
-        path: '/',
+        path: Routes.splash,
         builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
-        path: '/login',
+        path: Routes.login,
         builder: (context, state) => const LoginScreen(),
       ),
 
@@ -88,37 +89,37 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => StaffShell(child: child),
         routes: [
           GoRoute(
-            path: '/staff/home',
+            path: Routes.staffHome,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: StaffHomeScreen(),
             ),
           ),
           GoRoute(
-            path: '/staff/tasks',
+            path: Routes.staffTasks,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: MyTasksScreen(),
             ),
           ),
           GoRoute(
-            path: '/staff/ai-chat',
+            path: Routes.staffAiChat,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: AiChatbotScreen(),
             ),
           ),
           GoRoute(
-            path: '/staff/kpi',
+            path: Routes.staffKpi,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: KpiScreen(),
             ),
           ),
           GoRoute(
-            path: '/staff/chat',
+            path: Routes.staffChat,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: StaffChatScreen(),
             ),
           ),
           GoRoute(
-            path: '/staff/profile',
+            path: Routes.staffProfile,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: StaffProfileScreen(),
             ),
@@ -132,19 +133,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => ManagerShell(child: child),
         routes: [
           GoRoute(
-            path: '/manager/home',
+            path: Routes.managerHome,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: ManagerHomeScreen(),
             ),
           ),
           GoRoute(
-            path: '/manager/employees',
+            path: Routes.managerEmployees,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: EmployeeListScreen(),
             ),
             routes: [
               GoRoute(
-                path: ':id',
+                path: Routes.managerEmployeeDetailSubPattern,
                 builder: (context, state) => EmployeeDetailScreen(
                   employeeId: state.pathParameters['id']!,
                 ),
@@ -152,25 +153,25 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
-            path: '/manager/tasks',
+            path: Routes.managerTasks,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: TaskManagementScreen(),
             ),
           ),
           GoRoute(
-            path: '/manager/ai-rules',
+            path: Routes.managerAiRules,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: AiRulesScreen(),
             ),
           ),
           GoRoute(
-            path: '/manager/kpi',
+            path: Routes.managerKpi,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: KpiDashboardScreen(),
             ),
           ),
           GoRoute(
-            path: '/manager/chat',
+            path: Routes.managerChat,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: ManagerChatListScreen(),
             ),
@@ -183,19 +184,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => DeveloperShell(child: child),
         routes: [
           GoRoute(
-            path: '/developer/home',
+            path: Routes.developerHome,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: DevHomeScreen(),
             ),
           ),
           GoRoute(
-            path: '/developer/managers',
+            path: Routes.developerManagers,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: DevManagersScreen(),
             ),
           ),
           GoRoute(
-            path: '/developer/departments',
+            path: Routes.developerDepartments,
             pageBuilder: (context, state) => const NoTransitionPage(
               child: DevDepartmentsScreen(),
             ),
@@ -205,24 +206,24 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        path: '/staff/tasks/:taskId',
+        path: Routes.staffTaskDetailPattern,
         builder: (context, state) => TaskDetailScreen(
           taskId: state.pathParameters['taskId']!,
         ),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        path: '/staff/ai-chat/live',
+        path: Routes.staffAiChatLive,
         builder: (context, state) => const LiveVoiceScreen(),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        path: '/manager/tasks/create',
+        path: Routes.managerCreateTask,
         builder: (context, state) => const CreateTaskScreen(),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
-        path: '/manager/chat/:staffId',
+        path: Routes.managerChatWithStaffPattern,
         builder: (context, state) => ManagerChatScreen(
           staffId: state.pathParameters['staffId']!,
         ),

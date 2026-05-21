@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/constants/route_names.dart';
 import '../../models/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/loading_widget.dart';
@@ -70,7 +71,7 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/manager/tasks/create'),
+        onPressed: () => context.push(Routes.managerCreateTask),
         child: const Icon(Icons.add),
       ),
       body: AppBackground(child: tasksAsync.when(

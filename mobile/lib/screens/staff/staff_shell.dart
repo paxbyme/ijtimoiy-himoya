@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/route_names.dart';
+
 class StaffShell extends StatelessWidget {
   final Widget child;
 
@@ -8,26 +10,26 @@ class StaffShell extends StatelessWidget {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/staff/home')) return 0;
-    if (location.startsWith('/staff/tasks')) return 1;
-    if (location.startsWith('/staff/kpi')) return 2;
-    if (location.startsWith('/staff/profile')) return 3;
+    if (location.startsWith(Routes.staffHome)) return 0;
+    if (location.startsWith(Routes.staffTasks)) return 1;
+    if (location.startsWith(Routes.staffKpi)) return 2;
+    if (location.startsWith(Routes.staffProfile)) return 3;
     return 0;
   }
 
   void _onTap(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go('/staff/home');
+        context.go(Routes.staffHome);
         break;
       case 1:
-        context.go('/staff/tasks');
+        context.go(Routes.staffTasks);
         break;
       case 2:
-        context.go('/staff/kpi');
+        context.go(Routes.staffKpi);
         break;
       case 3:
-        context.go('/staff/profile');
+        context.go(Routes.staffProfile);
         break;
     }
   }

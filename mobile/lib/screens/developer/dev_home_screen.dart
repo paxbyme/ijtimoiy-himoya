@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/stat_card.dart';
@@ -25,7 +26,7 @@ class DevHomeScreen extends ConsumerWidget {
             tooltip: 'Sign out',
             onPressed: () async {
               await ref.read(authServiceProvider).signOut();
-              if (context.mounted) context.go('/login');
+              if (context.mounted) context.go(Routes.login);
             },
           ),
         ],
@@ -174,13 +175,13 @@ class DevHomeScreen extends ConsumerWidget {
                 context,
                 icon: Icons.person_add,
                 title: 'Add Manager',
-                onTap: () => context.go('/developer/managers'),
+                onTap: () => context.go(Routes.developerManagers),
               ),
               _buildQuickAction(
                 context,
                 icon: Icons.add_business,
                 title: 'Add Department',
-                onTap: () => context.go('/developer/departments'),
+                onTap: () => context.go(Routes.developerDepartments),
               ),
             ],
           ),

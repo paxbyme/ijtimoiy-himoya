@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/route_names.dart';
+
 class DeveloperShell extends StatelessWidget {
   final Widget child;
 
@@ -8,21 +10,21 @@ class DeveloperShell extends StatelessWidget {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/developer/managers')) return 1;
-    if (location.startsWith('/developer/departments')) return 2;
+    if (location.startsWith(Routes.developerManagers)) return 1;
+    if (location.startsWith(Routes.developerDepartments)) return 2;
     return 0;
   }
 
   void _onTap(BuildContext context, int index) {
     switch (index) {
       case 0:
-        context.go('/developer/home');
+        context.go(Routes.developerHome);
         break;
       case 1:
-        context.go('/developer/managers');
+        context.go(Routes.developerManagers);
         break;
       case 2:
-        context.go('/developer/departments');
+        context.go(Routes.developerDepartments);
         break;
     }
   }

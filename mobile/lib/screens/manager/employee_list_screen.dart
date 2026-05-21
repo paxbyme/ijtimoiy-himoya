@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/route_names.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/loading_widget.dart';
@@ -37,7 +38,7 @@ class EmployeeListScreen extends ConsumerWidget {
             tooltip: 'Chiqish',
             onPressed: () async {
               await ref.read(authServiceProvider).signOut();
-              if (context.mounted) context.go('/login');
+              if (context.mounted) context.go(Routes.login);
             },
           ),
         ],
@@ -114,7 +115,7 @@ class EmployeeListScreen extends ConsumerWidget {
                       ),
                     ),
                     onTap: () =>
-                        context.push('/manager/employees/${employee.id}'),
+                        context.push(Routes.managerEmployeeDetail(employee.id)),
                   ),
                 );
               },

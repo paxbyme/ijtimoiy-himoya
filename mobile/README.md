@@ -1,16 +1,59 @@
 # mobile
 
-A new Flutter project.
+Boss Manager — Flutter mobile app (staff + manager + developer).
 
-## Getting Started
+## Build environments
 
-This project is a starting point for a Flutter application.
+The app reads runtime config from `--dart-define` flags. `EnvConfig`
+(`lib/core/constants/env_config.dart`) is the single source of truth.
 
-A few resources to get you started if this is your first Flutter project:
+| Flag           | Values                     | Default | Notes                                  |
+|----------------|----------------------------|---------|----------------------------------------|
+| `ENV`          | `dev` / `staging` / `prod` | `dev`   | Drives `EnvConfig.isProduction` etc.   |
+| `API_URL`      | full URL incl. `/api`      | per-env | Overrides the per-env default.         |
+| `VERBOSE_LOGS` | `true` / `false`           | `false` | Extra logs in non-prod builds.         |
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+`API_BASE_URL` is still honored as a legacy alias for `API_URL`.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Dev (local backend or default)
+```bash
+flutter run --dart-define=ENV=dev
+# or against a custom backend:
+flutter run --dart-define=ENV=dev --dart-define=API_URL=http://10.0.2.2:8080/api
+```
+
+### Staging build
+```bash
+flutter build apk \
+  --dart-define=ENV=staging \
+  --dart-define=API_URL=https://staging.example.com/api
+```
+
+### Production build
+```bash
+flutter build apk --release \
+  --dart-define=ENV=prod \
+  --dart-define=API_URL=https://manager-app-production-53c2.up.railway.app/api
+```
+
+## Project layout
+
+```
+lib/
+├── core/       # cross-cutting primitives (constants, errors, utils)
+├── config/     # thin facades (ApiConfig, AppTheme)
+├── models/     # data classes (grouped by domain after Step 1.4)
+├── services/   # legacy network/auth services (being migrated to data/ in Step 2)
+├── providers/  # Riverpod providers
+├── router/     # GoRouter setup
+├── screens/    # UI by role (staff/, manager/, developer/, auth/)
+└── widgets/    # shared widgets
+```
+
+## Common commands
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+```

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/route_names.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -172,7 +173,7 @@ class StaffHomeScreen extends ConsumerWidget {
                 title: 'Topshiriqlar',
                 subtitle: 'Mening topshiriqlarimni ko\'rish',
                 color: Colors.blue,
-                onTap: () => context.go('/staff/tasks'),
+                onTap: () => context.go(Routes.staffTasks),
               ),
               const SizedBox(height: 8),
               _buildQuickAction(
@@ -181,7 +182,7 @@ class StaffHomeScreen extends ConsumerWidget {
                 title: 'Xabarlar',
                 subtitle: 'Menejer bilan muloqot',
                 color: Colors.teal,
-                onTap: () => context.go('/staff/chat'),
+                onTap: () => context.go(Routes.staffChat),
               ),
             ],
           ),
@@ -230,7 +231,7 @@ class _AiAssistantCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return GestureDetector(
-      onTap: () => context.go('/staff/ai-chat'),
+      onTap: () => context.go(Routes.staffAiChat),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(

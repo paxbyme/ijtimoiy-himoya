@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
@@ -27,7 +28,7 @@ class ManagerHomeScreen extends ConsumerWidget {
             tooltip: 'Chiqish',
             onPressed: () async {
               await ref.read(authServiceProvider).signOut();
-              if (context.mounted) context.go('/login');
+              if (context.mounted) context.go(Routes.login);
             },
           ),
         ],
@@ -181,19 +182,19 @@ class ManagerHomeScreen extends ConsumerWidget {
                 context,
                 icon: Icons.person_add,
                 title: 'Xodim qo\'shish',
-                onTap: () => context.go('/manager/employees'),
+                onTap: () => context.go(Routes.managerEmployees),
               ),
               _buildQuickAction(
                 context,
                 icon: Icons.add_task,
                 title: 'Topshiriq yaratish',
-                onTap: () => context.push('/manager/tasks/create'),
+                onTap: () => context.push(Routes.managerCreateTask),
               ),
               _buildQuickAction(
                 context,
                 icon: Icons.psychology,
                 title: 'AI Qoidalarini boshqarish',
-                onTap: () => context.go('/manager/ai-rules'),
+                onTap: () => context.go(Routes.managerAiRules),
               ),
             ],
           ),
