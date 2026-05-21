@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../../core/constants/route_names.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -29,6 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final l = AppL10n.of(context);
     setState(() => _isLoading = true);
 
     String? errorMessage;
@@ -51,7 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (!mounted) return;
 
         if (profile == null) {
-          errorMessage = 'Tarmoq xatosi. Internet aloqasini tekshiring.';
+          errorMessage = l.loginNetworkError;
         } else if (profile.role == 'DEVELOPER') {
           context.go(Routes.developerHome);
         } else if (profile.isManager) {
@@ -61,7 +64,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
     } catch (e) {
-      errorMessage = 'Kirish muvaffaqiyatsiz. Qayta urinib ko\'ring.';
+      errorMessage = l.loginGenericError;
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -79,6 +82,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppL10n.of(context);
     return Scaffold(
       body: Stack(
         children: [
@@ -177,7 +181,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Xush kelibsiz',
+                            l.loginWelcome,
                             style: GoogleFonts.inter(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
@@ -186,7 +190,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Davom etish uchun ma\'lumotlarni kiriting',
+                            l.loginSubtitle,
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               color: const Color(0xFF64748B),
@@ -197,14 +201,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Telefon raqami',
-                              hintText: 'Telefon raqamingizni kiriting',
-                              prefixIcon: Icon(Icons.phone_outlined),
+                            decoration: InputDecoration(
+                              labelText: l.loginPhoneLabel,
+                              hintText: l.loginPhoneHint,
+                              prefixIcon: const Icon(Icons.phone_outlined),
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
-                                return 'Telefon raqamini kiriting';
+                                return l.loginPhoneRequired;
                               }
                               return null;
                             },
@@ -216,8 +220,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) => _handleLogin(),
                             decoration: InputDecoration(
-                              labelText: 'Parol',
-                              hintText: 'Parolingizni kiriting',
+                              labelText: l.loginPasswordLabel,
+                              hintText: l.loginPasswordHint,
                               prefixIcon: const Icon(Icons.lock_outlined),
                               suffixIcon: IconButton(
                                 icon: Icon(
@@ -233,10 +237,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Parolni kiriting';
+                                return l.loginPasswordRequired;
                               }
                               if (value.length < 6) {
-                                return 'Parol kamida 6 ta belgidan iborat bo\'lishi kerak';
+                                return l.loginPasswordTooShort;
                               }
                               return null;
                             },
@@ -253,7 +257,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Text('Kirish'),
+                                : Text(l.loginSubmit),
                           ),
                         ],
                       ),

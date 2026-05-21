@@ -1,0 +1,42 @@
+{
+  "@@locale": "uz",
+
+  "appTitle": "Boss Manager",
+  "@appTitle": {
+    "description": "Application name shown in launchers and headings."
+  },
+
+  "loginWelcome": "Xush kelibsiz",
+  "@loginWelcome": {
+    "description": "Heading on the login form card."
+  },
+  "loginSubtitle": "Davom etish uchun ma'lumotlarni kiriting",
+  "loginPhoneLabel": "Telefon raqami",
+  "loginPhoneHint": "Telefon raqamingizni kiriting",
+  "loginPasswordLabel": "Parol",
+  "loginPasswordHint": "Parolingizni kiriting",
+  "loginSubmit": "Kirish",
+  "loginPhoneRequired": "Telefon raqamini kiriting",
+  "loginPasswordRequired": "Parolni kiriting",
+  "loginPasswordTooShort": "Parol kamida 6 ta belgidan iborat bo'lishi kerak",
+  "loginNetworkError": "Tarmoq xatosi. Internet aloqasini tekshiring.",
+  "loginGenericError": "Kirish muvaffaqiyatsiz. Qayta urinib ko'ring.",
+
+  "navHome": "Bosh sahifa",
+  "navTasks": "Vazifalar",
+  "navChat": "Suhbat",
+  "navKpi": "KPI",
+  "navProfile": "Profil",
+  "navEmployees": "Xodimlar",
+  "navAiRules": "AI Qoidalari",
+  "navAiChat": "AI yordamchi",
+
+  "actionLogout": "Chiqish",
+  "actionCancel": "Bekor",
+  "actionDelete": "O'chirish",
+  "actionSave": "Saqlash",
+  "actionRetry": "Qayta urinish",
+
+  "emptyTasks": "Hozircha vazifalar yo'q",
+  "emptyMessages": "Hali xabarlar yo'q. Suhbatni boshlang!"
+}

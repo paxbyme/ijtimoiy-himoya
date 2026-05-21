@@ -1,0 +1,36 @@
+{
+  "@@locale": "ru",
+
+  "appTitle": "Boss Manager",
+
+  "loginWelcome": "Добро пожаловать",
+  "loginSubtitle": "Введите данные для входа",
+  "loginPhoneLabel": "Номер телефона",
+  "loginPhoneHint": "Введите номер телефона",
+  "loginPasswordLabel": "Пароль",
+  "loginPasswordHint": "Введите пароль",
+  "loginSubmit": "Войти",
+  "loginPhoneRequired": "Введите номер телефона",
+  "loginPasswordRequired": "Введите пароль",
+  "loginPasswordTooShort": "Пароль должен быть не короче 6 символов",
+  "loginNetworkError": "Ошибка сети. Проверьте подключение.",
+  "loginGenericError": "Не удалось войти. Попробуйте ещё раз.",
+
+  "navHome": "Главная",
+  "navTasks": "Задачи",
+  "navChat": "Чат",
+  "navKpi": "KPI",
+  "navProfile": "Профиль",
+  "navEmployees": "Сотрудники",
+  "navAiRules": "Правила ИИ",
+  "navAiChat": "ИИ-помощник",
+
+  "actionLogout": "Выйти",
+  "actionCancel": "Отмена",
+  "actionDelete": "Удалить",
+  "actionSave": "Сохранить",
+  "actionRetry": "Повторить",
+
+  "emptyTasks": "Пока нет задач",
+  "emptyMessages": "Сообщений пока нет. Начните разговор!"
+}
