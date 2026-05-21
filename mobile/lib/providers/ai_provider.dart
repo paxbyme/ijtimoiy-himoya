@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/ai_rule_model.dart';
-import '../models/ai_conversation_model.dart';
+import '../models/chat/ai_rule_model.dart';
+import '../models/chat/ai_conversation_model.dart';
 import 'auth_provider.dart';
 
 final aiRulesProvider = FutureProvider<List<AiRule>>((ref) async {

@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/kpi_model.dart';
+import '../models/kpi/kpi_model.dart';
 import 'auth_provider.dart';
 
 final myKpiProvider = FutureProvider<KpiScore?>((ref) async {

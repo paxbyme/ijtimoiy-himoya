@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../models/user_model.dart';
-import '../../models/task_model.dart';
-import '../../models/kpi_model.dart';
+import '../../models/auth/user_model.dart';
+import '../../models/task/task_model.dart';
+import '../../models/kpi/kpi_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/kpi_gauge.dart';

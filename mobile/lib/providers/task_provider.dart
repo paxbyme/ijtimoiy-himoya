@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/task_model.dart';
+import '../models/task/task_model.dart';
 import 'auth_provider.dart';
 
 final myTasksProvider = FutureProvider<List<Task>>((ref) async {

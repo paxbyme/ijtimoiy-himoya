@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/chat_message_model.dart';
-import '../models/conversation_model.dart';
+import '../models/chat/chat_message_model.dart';
+import '../models/chat/conversation_model.dart';
 import 'auth_provider.dart';
 
 final conversationsProvider =

@@ -4,14 +4,14 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import '../config/api_config.dart';
-import '../models/user_model.dart';
-import '../models/task_model.dart';
-import '../models/kpi_model.dart';
-import '../models/ai_rule_model.dart';
-import '../models/ai_conversation_model.dart';
-import '../models/conversation_model.dart';
-import '../models/department_model.dart';
-import '../models/manager_stats_model.dart';
+import '../models/auth/user_model.dart';
+import '../models/task/task_model.dart';
+import '../models/kpi/kpi_model.dart';
+import '../models/chat/ai_rule_model.dart';
+import '../models/chat/ai_conversation_model.dart';
+import '../models/chat/conversation_model.dart';
+import '../models/task/department_model.dart';
+import '../models/kpi/manager_stats_model.dart';
 
 class ApiService {
   late final Dio _dio;
