@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../providers/kpi_provider.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/common/app_background.dart';
 
 class KpiDashboardScreen extends ConsumerWidget {
   const KpiDashboardScreen({super.key});

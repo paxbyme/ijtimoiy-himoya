@@ -7,10 +7,10 @@ import '../../models/kpi/kpi_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/kpi_provider.dart';
 import '../../providers/task_provider.dart';
-import '../../widgets/task_card.dart';
-import '../../widgets/kpi_gauge.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/task/task_card.dart';
+import '../../widgets/kpi/kpi_gauge.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/app_background.dart';
 
 class EmployeeDetailScreen extends ConsumerWidget {
   final String employeeId;

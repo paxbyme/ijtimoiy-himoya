@@ -4,9 +4,9 @@ import '../../models/task/department_model.dart';
 import '../../models/kpi/manager_stats_model.dart';
 import '../../models/auth/user_model.dart';
 import '../../providers/admin_provider.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/common/app_background.dart';
 
 class DevManagersScreen extends ConsumerWidget {
   const DevManagersScreen({super.key});

@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
-import '../../widgets/stat_card.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/kpi/stat_card.dart';
+import '../../widgets/common/app_background.dart';
 
 class DevHomeScreen extends ConsumerWidget {
   const DevHomeScreen({super.key});

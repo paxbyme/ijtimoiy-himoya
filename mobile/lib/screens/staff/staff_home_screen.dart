@@ -5,8 +5,8 @@ import '../../core/constants/route_names.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/stat_card.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/kpi/stat_card.dart';
+import '../../widgets/common/app_background.dart';
 
 class StaffHomeScreen extends ConsumerWidget {
   const StaffHomeScreen({super.key});

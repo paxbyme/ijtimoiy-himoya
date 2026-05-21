@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/kpi_provider.dart';
-import '../../widgets/kpi_gauge.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/kpi/kpi_gauge.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/app_background.dart';
 
 class KpiScreen extends ConsumerWidget {
   const KpiScreen({super.key});

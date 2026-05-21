@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
-import '../../widgets/chat_bubble.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/chat/chat_bubble.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/common/app_background.dart';
 import 'employee_list_screen.dart' show staffListProvider;
 
 class ManagerChatScreen extends ConsumerStatefulWidget {

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/app_background.dart';
 
 class StaffProfileScreen extends ConsumerWidget {
   const StaffProfileScreen({super.key});

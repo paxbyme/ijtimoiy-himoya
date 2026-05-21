@@ -5,9 +5,9 @@ import 'package:intl/intl.dart';
 import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/common/app_background.dart';
 import 'employee_list_screen.dart' show staffListProvider;
 
 class ManagerChatListScreen extends ConsumerWidget {

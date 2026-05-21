@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/auth/user_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/task_provider.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/app_background.dart';
 
 final _staffForTaskProvider = FutureProvider<List<User>>((ref) async {
   final result = await ref.read(adminRepositoryProvider).getStaffList();

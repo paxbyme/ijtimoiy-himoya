@@ -8,8 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/task/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/app_background.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   final String taskId;

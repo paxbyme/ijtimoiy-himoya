@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/route_names.dart';
 import '../../models/task/task_model.dart';
 import '../../providers/task_provider.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../widgets/task_card.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/task/task_card.dart';
+import '../../widgets/common/app_background.dart';
 
 class MyTasksScreen extends ConsumerStatefulWidget {
   const MyTasksScreen({super.key});

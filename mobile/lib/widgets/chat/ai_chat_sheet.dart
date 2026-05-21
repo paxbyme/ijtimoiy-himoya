@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/ai_provider.dart';
+import '../../providers/ai_provider.dart';
 import 'chat_bubble.dart';
 
 /// Opens the AI chat as a draggable bottom sheet.

@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../models/chat/ai_rule_model.dart';
 import '../../providers/ai_provider.dart';
-import '../../widgets/loading_widget.dart';
-import '../../widgets/empty_state_widget.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/common/app_background.dart';
 
 class AiRulesScreen extends ConsumerStatefulWidget {
   const AiRulesScreen({super.key});

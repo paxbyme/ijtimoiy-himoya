@@ -5,8 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../../core/constants/route_names.dart';
 import '../../providers/ai_provider.dart';
-import '../../widgets/chat_bubble.dart';
-import '../../widgets/app_background.dart';
+import '../../widgets/chat/chat_bubble.dart';
+import '../../widgets/common/app_background.dart';
 
 class AiChatbotScreen extends ConsumerStatefulWidget {
   const AiChatbotScreen({super.key});
