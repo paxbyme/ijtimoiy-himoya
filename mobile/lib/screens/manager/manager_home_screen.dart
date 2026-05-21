@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/route_names.dart';
+import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
@@ -27,7 +28,7 @@ class ManagerHomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.logout),
             tooltip: 'Chiqish',
             onPressed: () async {
-              await ref.read(authServiceProvider).signOut();
+              await ref.read(authRepositoryProvider).signOut();
               if (context.mounted) context.go(Routes.login);
             },
           ),
@@ -223,5 +224,6 @@ class ManagerHomeScreen extends ConsumerWidget {
 
 // Private provider for staff list on home screen
 final _staffListProvider = FutureProvider((ref) async {
-  return ref.read(apiServiceProvider).getStaffList();
+  final result = await ref.read(adminRepositoryProvider).getStaffList();
+  return result.fold((f) => throw f, (list) => list);
 });

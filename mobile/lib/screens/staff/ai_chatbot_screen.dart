@@ -5,7 +5,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import '../../core/constants/route_names.dart';
 import '../../providers/ai_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/app_background.dart';
 
@@ -106,27 +105,28 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
     }
 
     setState(() => _isTranscribing = true);
-    try {
-      final transcript =
-          await ref.read(apiServiceProvider).transcribeAudio(path);
-      final trimmed = transcript.trim();
-      if (trimmed.isNotEmpty) {
-        ref.read(aiChatProvider.notifier).sendMessage(trimmed);
-        _scrollToBottom();
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ovoz tushunilmadi, qayta urinib ko\'ring')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transkripsiyada xatolik: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isTranscribing = false);
+    final result = await ref.read(aiRepositoryProvider).transcribeAudio(path);
+    if (!mounted) {
+      return;
     }
+    setState(() => _isTranscribing = false);
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transkripsiyada xatolik: ${failure.message}')),
+      ),
+      (transcript) {
+        final trimmed = transcript.trim();
+        if (trimmed.isNotEmpty) {
+          ref.read(aiChatProvider.notifier).sendMessage(trimmed);
+          _scrollToBottom();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Ovoz tushunilmadi, qayta urinib ko\'ring')),
+          );
+        }
+      },
+    );
   }
 
   void _scrollToBottom() {
@@ -156,15 +156,13 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
     final conversationId = ref.read(aiChatProvider.notifier).conversationId;
     if (conversationId == null) return;
 
-    try {
-      await ref.read(apiServiceProvider).submitAiFeedback(
-            conversationId: conversationId,
-            messageIndex: messageIndex,
-            rating: rating,
-          );
-      setState(() {
-        _feedbackGiven.add(messageIndex);
-      });
+    final result = await ref.read(aiRepositoryProvider).submitFeedback(
+          conversationId: conversationId,
+          messageIndex: messageIndex,
+          rating: rating,
+        );
+    result.fold((_) {}, (_) {
+      setState(() => _feedbackGiven.add(messageIndex));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -173,7 +171,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           ),
         );
       }
-    } catch (_) {}
+    });
   }
 
   void _showConversationHistory() {
@@ -195,7 +193,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
             });
           },
           onDelete: (id) async {
-            await ref.read(apiServiceProvider).deleteAiConversation(id);
+            await ref.read(aiRepositoryProvider).deleteConversation(id);
             ref.invalidate(aiConversationsProvider);
             final currentId = ref.read(aiChatProvider.notifier).conversationId;
             if (currentId == id) {

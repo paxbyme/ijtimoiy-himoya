@@ -89,7 +89,7 @@ class StaffProfileScreen extends ConsumerWidget {
               // Sign out
               FilledButton.tonal(
                 onPressed: () async {
-                  await ref.read(authServiceProvider).signOut();
+                  await ref.read(authRepositoryProvider).signOut();
                   if (context.mounted) context.go(Routes.login);
                 },
                 style: FilledButton.styleFrom(

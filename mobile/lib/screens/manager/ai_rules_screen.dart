@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../models/chat/ai_rule_model.dart';
 import '../../providers/ai_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/app_background.dart';
@@ -542,7 +541,7 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                         totalFiles = selectedFiles.length;
                       });
 
-                      final apiService = ref.read(apiServiceProvider);
+                      final repo = ref.read(aiRepositoryProvider);
                       final category = categoryController.text.trim();
                       int successCount = 0;
                       final List<String> failedFiles = [];
@@ -550,21 +549,19 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                       for (int i = 0; i < selectedFiles.length; i++) {
                         setDialogState(() => currentIndex = i);
                         final file = selectedFiles[i];
-                        try {
-                          await apiService.uploadAiRuleFromFile(
-                            file.path!,
-                            file.name,
-                            category: category.isEmpty ? null : category,
-                          );
-                          successCount++;
-                        } catch (e) {
-                          // ignore: avoid_dynamic_calls
-                          final responseBody =
-                              (e as dynamic).response?.data?.toString() ?? '';
-                          debugPrint(
-                              'AI rule upload error (${file.name}): $e | body: $responseBody');
-                          failedFiles.add(file.name);
-                        }
+                        final result = await repo.uploadRuleFromFile(
+                          file.path!,
+                          file.name,
+                          category: category.isEmpty ? null : category,
+                        );
+                        result.fold(
+                          (failure) {
+                            debugPrint(
+                                'AI rule upload error (${file.name}): ${failure.message}');
+                            failedFiles.add(file.name);
+                          },
+                          (_) => successCount++,
+                        );
                       }
 
                       setDialogState(() => currentIndex = totalFiles);

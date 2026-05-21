@@ -1,30 +1,12 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/task/department_model.dart';
 import '../../models/kpi/manager_stats_model.dart';
 import '../../models/auth/user_model.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/app_background.dart';
-
-String _extractError(Object e) {
-  if (e is DioException) {
-    final data = e.response?.data;
-    if (data is Map) {
-      final msg = data['message'] as String?;
-      final errors = data['data'];
-      if (errors is Map && errors.isNotEmpty) {
-        return errors.values.first.toString();
-      }
-      if (msg != null && msg.isNotEmpty) return msg;
-    }
-    return 'Server error (${e.response?.statusCode ?? 'no response'})';
-  }
-  return e.toString();
-}
 
 class DevManagersScreen extends ConsumerWidget {
   const DevManagersScreen({super.key});
@@ -219,22 +201,27 @@ class DevManagersScreen extends ConsumerWidget {
             style: TextButton.styleFrom(foregroundColor: Colors.orange),
             onPressed: () async {
               Navigator.pop(ctx);
-              try {
-                await ref.read(apiServiceProvider).deactivateManager(id);
-                ref.invalidate(adminManagersProvider);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Manager deactivated')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Failed: ${_extractError(e)}'),
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ));
-                }
-              }
+              final result = await ref
+                  .read(adminRepositoryProvider)
+                  .deactivateManager(id);
+              result.fold(
+                (failure) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Failed: ${failure.message}'),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ));
+                  }
+                },
+                (_) {
+                  ref.invalidate(adminManagersProvider);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Manager deactivated')),
+                    );
+                  }
+                },
+              );
             },
             child: const Text('Deactivate'),
           ),
@@ -273,24 +260,29 @@ class DevManagersScreen extends ConsumerWidget {
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
-              try {
-                await ref.read(apiServiceProvider).hardDeleteManager(id);
-                ref.invalidate(adminManagersProvider);
-                ref.invalidate(adminDepartmentsProvider);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Manager permanently deleted')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Failed: ${_extractError(e)}'),
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ));
-                }
-              }
+              final result = await ref
+                  .read(adminRepositoryProvider)
+                  .hardDeleteManager(id);
+              result.fold(
+                (failure) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Failed: ${failure.message}'),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ));
+                  }
+                },
+                (_) {
+                  ref.invalidate(adminManagersProvider);
+                  ref.invalidate(adminDepartmentsProvider);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Manager permanently deleted')),
+                    );
+                  }
+                },
+              );
             },
             child: const Text('Delete Permanently'),
           ),
@@ -386,30 +378,34 @@ class DevManagersScreen extends ConsumerWidget {
                 ElevatedButton(
                   onPressed: () async {
                     if (!formKey.currentState!.validate()) return;
-                    try {
-                      await ref.read(apiServiceProvider).createManager({
-                        'displayName': nameController.text.trim(),
-                        'phone': phoneController.text.trim(),
-                        'password': passwordController.text,
-                        if (selectedDeptId != null)
-                          'departmentId': selectedDeptId,
-                      });
-                      ref.invalidate(adminManagersProvider);
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Manager created successfully')),
-                        );
-                      }
-                    } catch (e) {
-                      if (ctx.mounted) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                          content: Text('Failed: ${_extractError(e)}'),
-                          backgroundColor: Theme.of(ctx).colorScheme.error,
-                        ));
-                      }
-                    }
+                    final result =
+                        await ref.read(adminRepositoryProvider).createManager({
+                      'displayName': nameController.text.trim(),
+                      'phone': phoneController.text.trim(),
+                      'password': passwordController.text,
+                      if (selectedDeptId != null)
+                        'departmentId': selectedDeptId,
+                    });
+                    result.fold(
+                      (failure) {
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                            content: Text('Failed: ${failure.message}'),
+                            backgroundColor: Theme.of(ctx).colorScheme.error,
+                          ));
+                        }
+                      },
+                      (_) {
+                        ref.invalidate(adminManagersProvider);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Manager created successfully')),
+                          );
+                        }
+                      },
+                    );
                   },
                   child: const Text('Add Manager'),
                 ),
@@ -445,14 +441,20 @@ class _StatsSheetState extends State<_StatsSheet> {
   }
 
   Future<void> _load() async {
-    try {
-      final stats = await widget.ref
-          .read(apiServiceProvider)
-          .getManagerStats(widget.manager.id);
-      if (mounted) setState(() { _stats = stats; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = _extractError(e); _loading = false; });
-    }
+    final result = await widget.ref
+        .read(adminRepositoryProvider)
+        .getManagerStats(widget.manager.id);
+    if (!mounted) return;
+    result.fold(
+      (failure) => setState(() {
+        _error = failure.message;
+        _loading = false;
+      }),
+      (stats) => setState(() {
+        _stats = stats;
+        _loading = false;
+      }),
+    );
   }
 
   @override

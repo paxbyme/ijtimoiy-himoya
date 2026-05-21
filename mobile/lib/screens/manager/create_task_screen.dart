@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../models/auth/user_model.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/admin_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/app_background.dart';
 
 final _staffForTaskProvider = FutureProvider<List<User>>((ref) async {
-  return ref.read(apiServiceProvider).getStaffList();
+  final result = await ref.read(adminRepositoryProvider).getStaffList();
+  return result.fold((f) => throw f, (list) => list);
 });
 
 class CreateTaskScreen extends ConsumerStatefulWidget {

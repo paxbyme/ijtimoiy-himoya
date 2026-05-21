@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ai_provider.dart';
-import '../providers/auth_provider.dart';
 import 'chat_bubble.dart';
 
 /// Opens the AI chat as a draggable bottom sheet.
@@ -71,12 +70,12 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
   Future<void> _submitFeedback(int messageIndex, String rating) async {
     final conversationId = ref.read(aiChatProvider.notifier).conversationId;
     if (conversationId == null) return;
-    try {
-      await ref.read(apiServiceProvider).submitAiFeedback(
-            conversationId: conversationId,
-            messageIndex: messageIndex,
-            rating: rating,
-          );
+    final result = await ref.read(aiRepositoryProvider).submitFeedback(
+          conversationId: conversationId,
+          messageIndex: messageIndex,
+          rating: rating,
+        );
+    result.fold((_) {}, (_) {
       setState(() => _feedbackGiven.add(messageIndex));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -86,7 +85,7 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
           ),
         );
       }
-    } catch (_) {}
+    });
   }
 
   @override

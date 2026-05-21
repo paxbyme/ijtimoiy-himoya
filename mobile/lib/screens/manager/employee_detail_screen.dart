@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../models/auth/user_model.dart';
 import '../../models/task/task_model.dart';
 import '../../models/kpi/kpi_model.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/admin_provider.dart';
+import '../../providers/kpi_provider.dart';
+import '../../providers/task_provider.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/kpi_gauge.dart';
 import '../../widgets/loading_widget.dart';
@@ -192,28 +194,33 @@ class EmployeeDetailScreen extends ConsumerWidget {
 
 final _employeeProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
-  final api = ref.read(apiServiceProvider);
+  final admin = ref.read(adminRepositoryProvider);
+  final tasks = ref.read(taskRepositoryProvider);
+  final kpiRepo = ref.read(kpiRepositoryProvider);
 
-  // Fetch staff list and find the employee
-  final staffList = await api.getStaffList();
-  final employee = staffList.cast<User?>().firstWhere(
-        (s) => s!.id == id,
-        orElse: () => null,
-      );
+  final staffResult = await admin.getStaffList();
+  final employee = staffResult.fold<User?>(
+    (_) => null,
+    (list) => list.cast<User?>().firstWhere(
+          (s) => s!.id == id,
+          orElse: () => null,
+        ),
+  );
 
-  // Fetch tasks for this employee
-  final allTasks = await api.getTasks();
-  final employeeTasks = allTasks.where((t) => t.assignedTo == id).toList();
+  final tasksResult = await tasks.getAllTasks();
+  final employeeTasks = tasksResult.fold<List<Task>>(
+    (_) => const [],
+    (list) => list.where((t) => t.assignedTo == id).toList(),
+  );
 
-  // Try to fetch KPI
-  KpiScore? kpi;
-  try {
-    final rankings = await api.getKpiRankings();
-    kpi = rankings.cast<KpiScore?>().firstWhere(
+  final rankingsResult = await kpiRepo.getRankings();
+  final kpi = rankingsResult.fold<KpiScore?>(
+    (_) => null,
+    (rankings) => rankings.cast<KpiScore?>().firstWhere(
           (k) => k!.staffId == id,
           orElse: () => null,
-        );
-  } catch (_) {}
+        ),
+  );
 
   return {
     'employee': employee,

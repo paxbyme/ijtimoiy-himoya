@@ -7,9 +7,6 @@ import '../data/datasources/local/auth_local_datasource.dart';
 import '../data/datasources/remote/auth_remote_datasource.dart';
 import '../data/repositories/auth_repository.dart';
 import '../models/auth/user_model.dart';
-import '../services/api_service.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
 
 // ---- Shared infrastructure ----
 
@@ -18,13 +15,7 @@ final dioProvider = Provider<Dio>((ref) => DioClient.create());
 
 final networkInfoProvider = Provider<NetworkInfo>((ref) => NetworkInfo());
 
-// ---- Legacy service providers (kept until other slices migrate to repositories) ----
-
-final authServiceProvider = Provider((ref) => AuthService());
-final apiServiceProvider = Provider((ref) => ApiService());
-final firestoreServiceProvider = Provider((ref) => FirestoreService());
-
-// ---- Auth slice (Step 2 migration) ----
+// ---- Auth slice ----
 
 final authLocalDataSourceProvider =
     Provider<AuthLocalDataSource>((ref) => AuthLocalDataSource());

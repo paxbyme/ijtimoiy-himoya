@@ -25,7 +25,7 @@ class DevHomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
             onPressed: () async {
-              await ref.read(authServiceProvider).signOut();
+              await ref.read(authRepositoryProvider).signOut();
               if (context.mounted) context.go(Routes.login);
             },
           ),

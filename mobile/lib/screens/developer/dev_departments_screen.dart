@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/task/department_model.dart';
 import '../../models/auth/user_model.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
@@ -142,28 +141,29 @@ class DevDepartmentsScreen extends ConsumerWidget {
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
-              try {
-                await ref.read(apiServiceProvider).deleteDepartment(id);
-                ref.invalidate(adminDepartmentsProvider);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Department deleted')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  // Show backend guard message (e.g. "Cannot delete department with active staff")
-                  final msg = e.toString().contains('Cannot delete')
-                      ? e.toString().replaceAll('Exception: ', '')
-                      : 'Failed to delete department';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(msg),
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                  );
-                }
-              }
+              final result = await ref
+                  .read(adminRepositoryProvider)
+                  .deleteDepartment(id);
+              result.fold(
+                (failure) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(failure.message),
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                      ),
+                    );
+                  }
+                },
+                (_) {
+                  ref.invalidate(adminDepartmentsProvider);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Department deleted')),
+                    );
+                  }
+                },
+              );
             },
             child: const Text('Delete'),
           ),
@@ -236,44 +236,42 @@ class DevDepartmentsScreen extends ConsumerWidget {
                 ElevatedButton(
                   onPressed: () async {
                     if (!formKey.currentState!.validate()) return;
-                    try {
-                      final payload = {
-                        'name': nameController.text.trim(),
-                        if (selectedManagerId != null)
-                          'managerId': selectedManagerId,
-                      };
-                      if (existing == null) {
-                        await ref
-                            .read(apiServiceProvider)
-                            .createDepartment(payload);
-                      } else {
-                        await ref
-                            .read(apiServiceProvider)
-                            .updateDepartment(existing.id, payload);
-                      }
-                      ref.invalidate(adminDepartmentsProvider);
-                      ref.invalidate(adminManagersProvider);
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(existing == null
-                                ? 'Department created'
-                                : 'Department updated'),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (ctx.mounted) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed: $e'),
-                            backgroundColor:
-                                Theme.of(ctx).colorScheme.error,
-                          ),
-                        );
-                      }
-                    }
+                    final payload = {
+                      'name': nameController.text.trim(),
+                      if (selectedManagerId != null)
+                        'managerId': selectedManagerId,
+                    };
+                    final repo = ref.read(adminRepositoryProvider);
+                    final result = existing == null
+                        ? await repo.createDepartment(payload)
+                        : await repo.updateDepartment(existing.id, payload);
+                    result.fold(
+                      (failure) {
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed: ${failure.message}'),
+                              backgroundColor:
+                                  Theme.of(ctx).colorScheme.error,
+                            ),
+                          );
+                        }
+                      },
+                      (_) {
+                        ref.invalidate(adminDepartmentsProvider);
+                        ref.invalidate(adminManagersProvider);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(existing == null
+                                  ? 'Department created'
+                                  : 'Department updated'),
+                            ),
+                          );
+                        }
+                      },
+                    );
                   },
                   child: Text(existing == null ? 'Create' : 'Save Changes'),
                 ),

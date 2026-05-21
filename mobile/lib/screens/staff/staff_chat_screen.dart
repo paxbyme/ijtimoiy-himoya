@@ -46,7 +46,7 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
 
   void _resetUnread(String myId, String managerId) {
     final conversationId = _getConversationId(myId, managerId);
-    ref.read(firestoreServiceProvider).resetUnreadCount(conversationId, myId);
+    ref.read(chatRepositoryProvider).resetUnreadCount(conversationId, myId);
   }
 
   void _sendMessage(String managerId) {
@@ -54,7 +54,7 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
     if (text.isEmpty) return;
 
     _messageController.clear();
-    ref.read(apiServiceProvider).sendChatMessage(managerId, text);
+    ref.read(chatRepositoryProvider).sendMessageRest(managerId, text);
     _scrollToBottom();
   }
 

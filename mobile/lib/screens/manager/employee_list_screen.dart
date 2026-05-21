@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/route_names.dart';
 import '../../models/auth/user_model.dart';
+import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/chat_provider.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/empty_state_widget.dart';
 import '../../widgets/app_background.dart';
@@ -14,7 +16,7 @@ final staffListProvider = StreamProvider<List<User>>((ref) {
     data: (user) {
       final departmentId = user?.departmentId;
       if (departmentId == null) return Stream.value([]);
-      return ref.read(firestoreServiceProvider).staffStream(departmentId);
+      return ref.read(chatRepositoryProvider).staffStream(departmentId);
     },
     loading: () => Stream.value([]),
     error: (_, __) => Stream.value([]),
@@ -37,7 +39,7 @@ class EmployeeListScreen extends ConsumerWidget {
             icon: const Icon(Icons.logout),
             tooltip: 'Chiqish',
             onPressed: () async {
-              await ref.read(authServiceProvider).signOut();
+              await ref.read(authRepositoryProvider).signOut();
               if (context.mounted) context.go(Routes.login);
             },
           ),
@@ -198,29 +200,34 @@ class EmployeeListScreen extends ConsumerWidget {
                 onPressed: () async {
                   if (!formKey.currentState!.validate()) return;
 
-                  try {
-                    await ref.read(apiServiceProvider).createStaff({
-                      'displayName': nameController.text.trim(),
-                      'phone': phoneController.text.trim(),
-                      'password': passwordController.text,
-                    });
-                    if (ctx.mounted) Navigator.pop(ctx);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Xodim qo\'shildi')),
-                      );
-                    }
-                  } catch (e) {
-                    if (ctx.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Xodim qo\'shishda xatolik: $e'),
-                          backgroundColor:
-                              Theme.of(context).colorScheme.error,
-                        ),
-                      );
-                    }
-                  }
+                  final result =
+                      await ref.read(adminRepositoryProvider).createStaff({
+                    'displayName': nameController.text.trim(),
+                    'phone': phoneController.text.trim(),
+                    'password': passwordController.text,
+                  });
+                  result.fold(
+                    (failure) {
+                      if (ctx.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Xodim qo\'shishda xatolik: ${failure.message}'),
+                            backgroundColor:
+                                Theme.of(context).colorScheme.error,
+                          ),
+                        );
+                      }
+                    },
+                    (_) {
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Xodim qo\'shildi')),
+                        );
+                      }
+                    },
+                  );
                 },
                 child: const Text('Xodim qo\'shish'),
               ),
