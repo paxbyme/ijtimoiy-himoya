@@ -30,6 +30,10 @@ dependencies:
   web_socket_channel: ^3.0.1
   flutter_pcm_sound: ^3.3.3
 
+  # Step 2 — repository layer
+  dartz: ^0.10.1           # Either<Failure, T>
+  connectivity_plus: ^6.1.0 # NetworkInfo
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

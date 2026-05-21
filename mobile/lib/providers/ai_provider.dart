@@ -1,18 +1,36 @@
+import 'package:dartz/dartz.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/chat/ai_rule_model.dart';
+
+import '../core/error/failures.dart';
+import '../data/datasources/remote/ai_remote_datasource.dart';
+import '../data/repositories/ai_repository.dart';
 import '../models/chat/ai_conversation_model.dart';
+import '../models/chat/ai_rule_model.dart';
 import 'auth_provider.dart';
 
-final aiRulesProvider = FutureProvider<List<AiRule>>((ref) async {
-  final api = ref.read(apiServiceProvider);
-  return api.getAiRules();
+// ---- DI ----
+
+final aiRemoteDataSourceProvider = Provider<AiRemoteDataSource>(
+    (ref) => AiRemoteDataSource(ref.read(dioProvider)));
+
+final aiRepositoryProvider = Provider<AiRepository>((ref) {
+  return AiRepository(
+    ref.read(aiRemoteDataSourceProvider),
+    ref.read(networkInfoProvider),
+  );
 });
 
-// ---- AI Conversations List ----
+// ---- Lists ----
 
-final aiConversationsProvider = FutureProvider<List<AiConversation>>((ref) async {
-  final api = ref.read(apiServiceProvider);
-  return api.getAiConversations();
+final aiRulesProvider = FutureProvider<List<AiRule>>((ref) async {
+  final result = await ref.read(aiRepositoryProvider).getRules();
+  return result.fold((f) => throw f, (rules) => rules);
+});
+
+final aiConversationsProvider =
+    FutureProvider<List<AiConversation>>((ref) async {
+  final result = await ref.read(aiRepositoryProvider).getConversations();
+  return result.fold((f) => throw f, (list) => list);
 });
 
 // ---- AI Chat ----
@@ -50,7 +68,10 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
   bool get isLoading => _isLoading;
   String? get conversationId => _conversationId;
 
-  /// Send message with streaming response
+  AiRepository get _repo => ref.read(aiRepositoryProvider);
+
+  /// Send message with streaming response, falling back to the non-stream
+  /// endpoint when the stream fails (network blip, server error).
   Future<void> sendMessage(String message) async {
     state = [
       ...state,
@@ -58,11 +79,10 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
     ];
 
     _isLoading = true;
-    state = [...state]; // trigger rebuild to show loading
+    state = [...state];
 
     try {
-      final api = ref.read(apiServiceProvider);
-      final stream = api.sendAiMessageStream(message, _conversationId);
+      final stream = _repo.sendMessageStream(message, _conversationId);
 
       String fullResponse = '';
       bool addedAiMessage = false;
@@ -96,46 +116,48 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
       }
 
       _isLoading = false;
-      // Assign message indices for feedback
+
       final messages = <AiChatMessage>[];
       for (int i = 0; i < state.length; i++) {
         messages.add(state[i].copyWith(messageIndex: i));
       }
       state = messages;
 
-      // Refresh conversation list
       ref.invalidate(aiConversationsProvider);
-    } catch (e) {
+    } catch (_) {
       _isLoading = false;
-      // Fallback to non-streaming
-      try {
-        final api = ref.read(apiServiceProvider);
-        final response = await api.sendAiMessage(message, _conversationId);
-        _conversationId = response['conversationId']?.toString() ?? _conversationId;
-        final reply = response['response'] ?? response['reply'] ?? response['message'] ?? '';
-
-        state = [
-          ...state,
-          AiChatMessage(content: reply.toString(), isUser: false),
-        ];
-        ref.invalidate(aiConversationsProvider);
-      } catch (_) {
-        state = [
-          ...state,
-          AiChatMessage(
-            content: 'Sorry, something went wrong. Please try again.',
-            isUser: false,
-          ),
-        ];
-      }
+      // Fallback to non-streaming endpoint
+      final result = await _repo.sendMessage(message, _conversationId);
+      result.fold(
+        (_) {
+          state = [
+            ...state,
+            AiChatMessage(
+              content: 'Sorry, something went wrong. Please try again.',
+              isUser: false,
+            ),
+          ];
+        },
+        (response) {
+          _conversationId =
+              response['conversationId']?.toString() ?? _conversationId;
+          final reply = response['response'] ??
+              response['reply'] ??
+              response['message'] ??
+              '';
+          state = [
+            ...state,
+            AiChatMessage(content: reply.toString(), isUser: false),
+          ];
+          ref.invalidate(aiConversationsProvider);
+        },
+      );
     }
   }
 
-  /// Load an existing conversation
   Future<void> loadConversation(String id) async {
-    try {
-      final api = ref.read(apiServiceProvider);
-      final convo = await api.getAiConversation(id);
+    final result = await _repo.getConversation(id);
+    result.fold((_) {}, (convo) {
       _conversationId = id;
 
       final messages = <AiChatMessage>[];
@@ -153,9 +175,7 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
         ));
       }
       state = messages;
-    } catch (_) {
-      // Failed to load
-    }
+    });
   }
 
   void clearChat() {
@@ -173,44 +193,31 @@ class AiRulesNotifier extends Notifier<AsyncValue<void>> {
   @override
   AsyncValue<void> build() => const AsyncValue.data(null);
 
-  Future<bool> createRule(Map<String, dynamic> data) async {
+  AiRepository get _repo => ref.read(aiRepositoryProvider);
+
+  Future<bool> _run<T>(Future<Either<Failure, T>> Function() op) async {
     state = const AsyncValue.loading();
-    try {
-      await ref.read(apiServiceProvider).createAiRule(data);
-      ref.invalidate(aiRulesProvider);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      return false;
-    }
+    final result = await op();
+    return result.fold(
+      (failure) {
+        state = AsyncValue.error(failure, StackTrace.current);
+        return false;
+      },
+      (_) {
+        ref.invalidate(aiRulesProvider);
+        state = const AsyncValue.data(null);
+        return true;
+      },
+    );
   }
 
-  Future<bool> updateRule(String id, Map<String, dynamic> data) async {
-    state = const AsyncValue.loading();
-    try {
-      await ref.read(apiServiceProvider).updateAiRule(id, data);
-      ref.invalidate(aiRulesProvider);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      return false;
-    }
-  }
+  Future<bool> createRule(Map<String, dynamic> data) =>
+      _run(() => _repo.createRule(data));
 
-  Future<bool> deleteRule(String id) async {
-    state = const AsyncValue.loading();
-    try {
-      await ref.read(apiServiceProvider).deleteAiRule(id);
-      ref.invalidate(aiRulesProvider);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      return false;
-    }
-  }
+  Future<bool> updateRule(String id, Map<String, dynamic> data) =>
+      _run(() => _repo.updateRule(id, data));
+
+  Future<bool> deleteRule(String id) => _run(() => _repo.deleteRule(id));
 }
 
 final aiRulesNotifierProvider =

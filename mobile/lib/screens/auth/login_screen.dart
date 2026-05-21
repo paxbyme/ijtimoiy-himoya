@@ -33,32 +33,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     String? errorMessage;
     try {
-      final authService = ref.read(authServiceProvider);
-      await authService
-          .signIn(
-            _phoneController.text.trim(),
-            _passwordController.text,
-          )
-          .timeout(const Duration(seconds: 10));
+      final repo = ref.read(authRepositoryProvider);
+      final signInResult = await repo.signIn(
+        _phoneController.text.trim(),
+        _passwordController.text,
+      );
 
-      ref.invalidate(userProfileProvider);
-      final profile = await ref
-          .read(userProfileProvider.future)
-          .timeout(const Duration(seconds: 8));
-
-      if (!mounted) return;
-
-      if (profile == null) {
-        errorMessage = 'Tarmoq xatosi. Internet aloqasini tekshiring.';
-      } else if (profile.role == 'DEVELOPER') {
-        context.go(Routes.developerHome);
-      } else if (profile.isManager) {
-        context.go(Routes.managerHome);
+      final earlyError = signInResult.fold((f) => f.message, (_) => null);
+      if (earlyError != null) {
+        errorMessage = earlyError;
       } else {
-        context.go(Routes.staffHome);
+        ref.invalidate(userProfileProvider);
+        final profile = await ref
+            .read(userProfileProvider.future)
+            .timeout(const Duration(seconds: 8));
+
+        if (!mounted) return;
+
+        if (profile == null) {
+          errorMessage = 'Tarmoq xatosi. Internet aloqasini tekshiring.';
+        } else if (profile.role == 'DEVELOPER') {
+          context.go(Routes.developerHome);
+        } else if (profile.isManager) {
+          context.go(Routes.managerHome);
+        } else {
+          context.go(Routes.staffHome);
+        }
       }
     } catch (e) {
-      errorMessage = _getErrorMessage(e);
+      errorMessage = 'Kirish muvaffaqiyatsiz. Qayta urinib ko\'ring.';
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -72,27 +75,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
     }
-  }
-
-  String _getErrorMessage(dynamic error) {
-    final message = error.toString().toLowerCase();
-    if (message.contains('user-not-found') ||
-        message.contains('wrong-password') ||
-        message.contains('invalid-credential')) {
-      return 'Telefon raqami yoki parol noto\'g\'ri';
-    }
-    if (message.contains('too-many-requests')) {
-      return 'Juda ko\'p urinish. Keyinroq qayta urinib ko\'ring.';
-    }
-    if (message.contains('timeout') || message.contains('timed out')) {
-      return 'Ulanish vaqti tugadi. Internet aloqasini tekshiring.';
-    }
-    if (message.contains('profile_null') ||
-        message.contains('network') ||
-        message.contains('connection')) {
-      return 'Tarmoq xatosi. Internet aloqasini tekshiring.';
-    }
-    return 'Kirish muvaffaqiyatsiz. Qayta urinib ko\'ring.';
   }
 
   @override
