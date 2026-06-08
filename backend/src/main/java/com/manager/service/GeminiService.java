@@ -343,6 +343,7 @@ public class GeminiService {
         part.put("text", text);
         content.put("parts", List.of(part));
         requestBody.put("content", content);
+        requestBody.put("outputDimensionality", geminiConfig.getEmbeddingDimension());
 
         String json = objectMapper.writeValueAsString(requestBody);
 
@@ -391,6 +392,7 @@ public class GeminiService {
             content.put("parts", List.of(Map.of("text", text)));
             req.put("model", "models/" + geminiConfig.getEmbeddingModel());
             req.put("content", content);
+            req.put("outputDimensionality", geminiConfig.getEmbeddingDimension());
             requests.add(req);
         }
 

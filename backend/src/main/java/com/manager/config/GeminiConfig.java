@@ -18,6 +18,9 @@ public class GeminiConfig {
     @Value("${gemini.embedding.model}")
     private String embeddingModel;
 
+    @Value("${gemini.embedding.dimension:512}")
+    private int embeddingDimension;
+
     /** Override in tests to point at MockWebServer. */
     @Value("${gemini.base.url:https://generativelanguage.googleapis.com}")
     private String baseUrl;
@@ -26,5 +29,6 @@ public class GeminiConfig {
     public String getModel() { return model; }
     public String getOcrModel() { return ocrModel; }
     public String getEmbeddingModel() { return embeddingModel; }
+    public int getEmbeddingDimension() { return embeddingDimension; }
     public String getBaseUrl() { return baseUrl; }
 }
