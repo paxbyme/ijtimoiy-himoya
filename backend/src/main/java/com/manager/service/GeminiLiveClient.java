@@ -29,8 +29,20 @@ public class GeminiLiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 
-    private static final String LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-09-2025";
+    // Switched off gemini-2.5-flash-native-audio-preview-09-2025: it reliably
+    // closes real (VAD-triggered) turns with 1007 "invalid argument" — a known
+    // native-audio-preview quirk. gemini-3.1-flash-live-preview is a half-cascade
+    // Live model and tolerates our minimal setup. Overridable via GEMINI_LIVE_MODEL.
+    private static final String LIVE_MODEL = resolveLiveModel();
     private static final String VOICE_NAME = "Aoede";
+
+    private static String resolveLiveModel() {
+        String env = System.getenv("GEMINI_LIVE_MODEL");
+        if (env != null && !env.isBlank()) {
+            return env.startsWith("models/") ? env : "models/" + env;
+        }
+        return "models/gemini-3.1-flash-live-preview";
+    }
 
     // Diagnostic capture: the most recent live session copies its first N audio
     // chunks here so /api/debug/last-mic-capture can return them. Lets us inspect
