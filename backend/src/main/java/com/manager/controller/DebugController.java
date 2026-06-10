@@ -69,7 +69,12 @@ public class DebugController {
             // When > 0, send this many audio chunks in a tight loop (no pacing) right
             // after setupComplete, reproducing the real bridge's burst-drain. Used to
             // confirm that the burst — not the audio content — is what triggers 1007.
-            @RequestParam(defaultValue = "0") int burst) {
+            @RequestParam(defaultValue = "0") int burst,
+            // When non-empty, send a clientContent text turn after setupComplete to
+            // force the model to generate an AUDIO response — exercises the same
+            // generation path that real speech (via VAD) triggers. Lets us tell which
+            // models 1007 on response generation vs. respond cleanly, without a device.
+            @RequestParam(defaultValue = "") String say) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("model", model);
         result.put("durationMs", durationMs);
@@ -167,6 +172,18 @@ public class DebugController {
                 logEvent(events, "no_setup_complete", Map.of(
                         "waitedMs", 8000,
                         "note", "Gemini did not return setupComplete; closing"));
+            } else if (!say.isBlank()) {
+                // Force a response via a text turn, then wait for audio or a 1007 close.
+                Map<String, Object> clientContent = Map.of(
+                        "clientContent", Map.of(
+                                "turns", List.of(Map.of(
+                                        "role", "user",
+                                        "parts", List.of(Map.of("text", say)))),
+                                "turnComplete", true));
+                String json = mapper.writeValueAsString(clientContent);
+                logEvent(events, "send_clientContent", Map.of("text", say));
+                ws.send(json);
+                done.await(8, TimeUnit.SECONDS);
             } else {
                 // Stream synthetic 1 kHz sine, 16 kHz mono 16-bit, in 200 ms chunks.
                 int sampleRate = 16000;
