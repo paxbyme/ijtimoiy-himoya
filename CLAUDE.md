@@ -52,7 +52,7 @@ flutter test                         # Run tests
 flutter build apk                    # Debug APK
 flutter build apk --release          # Release APK (requires key.properties)
 ```
-API base URL configured in `mobile/lib/config/api_config.dart` (uses `10.0.2.2:8080` for Android emulator, `localhost:8080` for iOS). Can be overridden at build time via `--dart-define=API_BASE_URL=...`.
+API base URL resolved by `mobile/lib/core/constants/env_config.dart` from `--dart-define` flags (`ENV`, `API_URL`; `API_BASE_URL` is a legacy alias). All environments currently default to the production Railway URL — pass `--dart-define=API_URL=http://10.0.2.2:8080/api` to target a local backend from the Android emulator.
 
 Android release signing: copy `mobile/android/key.properties.example` to `mobile/android/key.properties` and fill in keystore details.
 
@@ -167,16 +167,8 @@ All repositories use Firebase Admin SDK directly. Pattern: manual `toMap()`/`fro
 - `/ai-chat` — AI chat interface
 
 ### Mobile App Architecture
-- **router/** — GoRouter with role-based redirect (staff → `/staff/*`, manager → `/manager/*`). Uses `NoTransitionPage` for tab switches.
-- **providers/** — Riverpod: `StreamProvider` for Firestore real-time data (auth, conversations, messages), `FutureProvider` for API calls (tasks, KPI, rules, profile), `Notifier` for mutations (TaskNotifier, AiChatNotifier, AiRulesNotifier that invalidate related providers after writes)
-- **services/** — `AuthService` (Firebase Auth), `ApiService` (Dio + token interceptor, platform-aware base URL), `FirestoreService` (real-time chat via Firestore SDK)
-- **screens/** — 17 total. Split into `staff/` (6 screens) and `manager/` (10 screens) with shell routes for bottom navigation
-- **widgets/** — Shared UI: `ChatBubble`, `TaskCard`, `StatCard`, `KpiGauge`, `LoadingWidget`, `EmptyStateWidget`
-- **models/** — 8 data classes (`user`, `task`, `kpi_score`, `chat_message`, `conversation`, `ai_conversation`, `ai_rule`, `api_response`) with `fromJson`/`toJson` factories. Custom `_parseTimestamp()` handles Firestore Timestamp, String, int, DateTime.
-- **config/** — `ApiConfig` (base URL with dart-define override), `AppTheme` (Material 3, Inter font, blue #2563EB)
-- **AsyncValue pattern**: All screens use `.when(loading: ..., error: ..., data: ...)` for state handling
 
-**Key mobile dependencies:** `flutter_riverpod ^3.3.1`, `go_router ^17.1.0`, `dio ^5.9.2`, `cloud_firestore ^6.1.3`, `firebase_auth ^6.2.0`, `fl_chart ^1.2.0`, `google_fonts ^8.0.2`, `intl ^0.20.2`
+See `mobile/CLAUDE.md` for the authoritative, detailed description. Summary: layered MVVM — screens (ConsumerWidget) → Riverpod providers → repositories (return `Either<Failure, T>` via dartz) → datasources (Dio REST / Firestore streams). Three role shells (staff, manager, developer) routed by GoRouter based on the user's role claim. Uzbek/Russian localization via `flutter gen-l10n` (Uzbek is the template). Real-time chat via Firestore streams; AI chat via SSE; live voice via WebSocket.
 
 ### AI/RAG Pipeline
 1. Documents uploaded → PDF extracted (PDFBox) → chunked (500 chars, 100 overlap)

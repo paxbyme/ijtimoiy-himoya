@@ -40,12 +40,13 @@ flutter build apk --release \
 
 ```
 lib/
-├── core/       # cross-cutting primitives (constants, errors, utils)
+├── core/       # cross-cutting primitives (constants, network, errors, utils)
 ├── config/     # thin facades (ApiConfig, AppTheme)
-├── models/     # data classes (grouped by domain after Step 1.4)
-├── services/   # legacy network/auth services (being migrated to data/ in Step 2)
-├── providers/  # Riverpod providers
+├── models/     # data classes grouped by domain (auth/, task/, chat/, kpi/, shared/)
+├── data/       # repositories + datasources (remote = Dio REST, local = Firestore/cache)
+├── providers/  # Riverpod providers (DI + state per feature slice)
 ├── router/     # GoRouter setup
+├── l10n/       # ARB files + generated AppL10n (uz template, ru)
 ├── screens/    # UI by role (staff/, manager/, developer/, auth/)
 └── widgets/    # shared widgets
 ```
