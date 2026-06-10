@@ -54,6 +54,10 @@ public class GeminiLiveClient {
     private final Runnable onTurnComplete;
     private final Consumer<Throwable> onError;
     private final Runnable onClose;
+    // Fired once Gemini confirms setupComplete. The bridge waits for this before
+    // telling the mobile client it may start streaming, so the client never sends
+    // audio that has to be buffered and then burst-drained (which triggers 1007).
+    private final Runnable onReady;
 
     private WebSocket webSocket;
     private volatile boolean closed;
@@ -69,7 +73,8 @@ public class GeminiLiveClient {
                             Consumer<String> onText,
                             Runnable onTurnComplete,
                             Consumer<Throwable> onError,
-                            Runnable onClose) {
+                            Runnable onClose,
+                            Runnable onReady) {
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(0, TimeUnit.MILLISECONDS) // no read timeout for streaming WS
@@ -82,6 +87,7 @@ public class GeminiLiveClient {
         this.onTurnComplete = onTurnComplete;
         this.onError = onError;
         this.onClose = onClose;
+        this.onReady = onReady;
         connect(config);
     }
 
@@ -183,7 +189,17 @@ public class GeminiLiveClient {
         }
         if (!snapshot.isEmpty()) {
             log.info("Gemini Live: draining {} buffered audio chunks", snapshot.size());
-            for (byte[] chunk : snapshot) sendAudioFrame(chunk);
+            // Pace the drain: Gemini rejects a tight-loop burst of realtimeInput
+            // frames with 1007. A small gap keeps it under the realtime input rate.
+            for (byte[] chunk : snapshot) {
+                sendAudioFrame(chunk);
+                try {
+                    Thread.sleep(20);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
     }
 
@@ -256,10 +272,19 @@ public class GeminiLiveClient {
                 if (!setupCompleteNode.isMissingNode()) {
                     log.info("Gemini Live setup complete (model={})", LIVE_MODEL);
                     setupComplete = true;
+                    // Only now is the session registered with Gemini. Tell the bridge
+                    // (which tells the mobile client) it may start streaming. Doing this
+                    // before setupComplete made the client stream early; those frames
+                    // buffered and then burst-drained, which Gemini rejects with 1007.
+                    try {
+                        onReady.run();
+                    } catch (Exception e) {
+                        log.warn("Gemini Live onReady callback failed", e);
+                    }
+                    // Drain anything that still slipped in before the client got 'ready'.
                     // Greeting trigger removed — clientContent text turn followed by
                     // realtimeInput.audio reproducibly triggers 1007 on native-audio
-                    // models (see commit 6ca986f). User speaks first; buffered mic
-                    // chunks drain immediately.
+                    // models (see commit 6ca986f). User speaks first.
                     drainPendingAudio();
                     return;
                 }

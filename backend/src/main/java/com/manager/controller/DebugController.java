@@ -65,7 +65,11 @@ public class DebugController {
     public ResponseEntity<Map<String, Object>> liveTest(
             @RequestParam(defaultValue = "gemini-2.5-flash-native-audio-preview-09-2025") String model,
             @RequestParam(defaultValue = "3000") int durationMs,
-            @RequestParam(defaultValue = "false") boolean include) {
+            @RequestParam(defaultValue = "false") boolean include,
+            // When > 0, send this many audio chunks in a tight loop (no pacing) right
+            // after setupComplete, reproducing the real bridge's burst-drain. Used to
+            // confirm that the burst — not the audio content — is what triggers 1007.
+            @RequestParam(defaultValue = "0") int burst) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("model", model);
         result.put("durationMs", durationMs);
@@ -170,6 +174,30 @@ public class DebugController {
                 int samplesPerChunk = sampleRate * chunkMs / 1000;
                 int totalChunks = Math.max(1, durationMs / chunkMs);
                 long sampleIndex = 0;
+
+                // Optional burst: dump `burst` chunks with no inter-frame delay,
+                // mimicking drainPendingAudio. If this 1007s while the paced loop
+                // below does not, the burst is confirmed as the 1007 trigger.
+                for (int c = 0; c < burst && done.getCount() > 0; c++) {
+                    byte[] pcm = new byte[samplesPerChunk * 2];
+                    for (int i = 0; i < samplesPerChunk; i++) {
+                        double t = (double) sampleIndex / sampleRate;
+                        int s = (int) (Math.sin(2 * Math.PI * 1000.0 * t) * 9830);
+                        pcm[i * 2] = (byte) (s & 0xff);
+                        pcm[i * 2 + 1] = (byte) ((s >> 8) & 0xff);
+                        sampleIndex++;
+                    }
+                    String b64 = Base64.getEncoder().encodeToString(pcm);
+                    Map<String, Object> frame = Map.of(
+                            "realtimeInput", Map.of(
+                                    "audio", Map.of(
+                                            "mimeType", "audio/pcm;rate=16000",
+                                            "data", b64)));
+                    logEvent(events, "send_burst", Map.of("chunk", c + 1, "bytes", pcm.length));
+                    ws.send(mapper.writeValueAsString(frame));
+                    // no sleep — this is the burst
+                }
+
                 for (int c = 0; c < totalChunks && done.getCount() > 0; c++) {
                     byte[] pcm = new byte[samplesPerChunk * 2];
                     for (int i = 0; i < samplesPerChunk; i++) {

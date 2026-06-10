@@ -140,11 +140,14 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
                     text -> sendText(session, Map.of("event", "text", "text", text)),
                     () -> sendText(session, Map.of("event", "turnComplete")),
                     err -> sendError(session, err.getMessage() != null ? err.getMessage() : "Gemini error"),
-                    () -> closeSession(session));
+                    () -> closeSession(session),
+                    // Tell the client to start streaming only once Gemini's session is
+                    // registered (setupComplete). Sending 'ready' earlier made the client
+                    // stream into a buffer that then burst-drained → Gemini 1007.
+                    () -> sendText(session, Map.of("event", "ready")));
             session.getAttributes().put(SESSION_KEY, client);
 
-            sendText(session, Map.of("event", "ready"));
-            log.info("Live WS session started: uid={} dept={}", uid, departmentId);
+            log.info("Live WS session started: uid={} dept={} (awaiting Gemini setupComplete before 'ready')", uid, departmentId);
         } catch (Exception e) {
             log.warn("Live WS auth failed", e);
             sendError(session, "Authentication failed");
