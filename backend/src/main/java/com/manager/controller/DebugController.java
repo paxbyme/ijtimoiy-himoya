@@ -264,6 +264,165 @@ public class DebugController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Like live-test, but streams caller-provided real audio instead of a sine —
+     * the only path that reproduces the production 1007 (VAD end-of-turn →
+     * generation). Streams the posted PCM paced like the real bridge, then
+     * trailing silence so server VAD can detect end of turn, then waits for the
+     * model's reply or a close.
+     *
+     * Body: { "model": "...", "audioB64": "<base64 raw PCM16LE 16kHz mono>",
+     *         "chunkMs": 240, "tailSilenceMs": 3000, "waitMs": 12000,
+     *         "goldenPrompt": true }
+     * goldenPrompt=true uses the production system instruction (GOLDEN_RULES).
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/live-test-audio")
+    public ResponseEntity<Map<String, Object>> liveTestAudio(
+            @org.springframework.web.bind.annotation.RequestBody Map<String, Object> body) {
+        String model = String.valueOf(body.getOrDefault("model", "gemini-3.1-flash-live-preview"));
+        String audioB64 = String.valueOf(body.getOrDefault("audioB64", ""));
+        int chunkMs = ((Number) body.getOrDefault("chunkMs", 240)).intValue();
+        int tailSilenceMs = ((Number) body.getOrDefault("tailSilenceMs", 3000)).intValue();
+        int waitMs = ((Number) body.getOrDefault("waitMs", 12000)).intValue();
+        boolean goldenPrompt = Boolean.TRUE.equals(body.get("goldenPrompt"));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("model", model);
+        result.put("goldenPrompt", goldenPrompt);
+        List<Map<String, Object>> events = new ArrayList<>();
+        result.put("events", events);
+
+        byte[] audio;
+        try {
+            audio = Base64.getDecoder().decode(audioB64);
+        } catch (IllegalArgumentException e) {
+            result.put("error", "audioB64 is not valid base64");
+            return ResponseEntity.badRequest().body(result);
+        }
+        if (audio.length < 3200) {
+            result.put("error", "audioB64 too short — need raw PCM16LE 16kHz mono speech");
+            return ResponseEntity.badRequest().body(result);
+        }
+        result.put("audioBytes", audio.length);
+        result.put("audioMs", audio.length / 32); // 32 bytes per ms at 16kHz mono 16-bit
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .pingInterval(20, TimeUnit.SECONDS)
+                .build();
+        String url = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
+                + geminiConfig.getApiKey();
+
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicInteger setupComplete = new AtomicInteger(0);
+        String instruction = goldenPrompt
+                ? com.manager.websocket.LiveAudioWebSocketHandler.GOLDEN_RULES
+                : "You are a concise voice assistant. Reply briefly in Uzbek.";
+
+        WebSocket ws = client.newWebSocket(new Request.Builder().url(url).build(), new WebSocketListener() {
+            @Override
+            public void onOpen(WebSocket ws, Response response) {
+                logEvent(events, "open", Map.of("httpStatus", response.code()));
+                try {
+                    Map<String, Object> setup = Map.of(
+                            "setup", Map.of(
+                                    "model", "models/" + model,
+                                    "generationConfig", Map.of(
+                                            "responseModalities", List.of("AUDIO")),
+                                    "systemInstruction", Map.of(
+                                            "parts", List.of(Map.of("text", instruction)))));
+                    ws.send(mapper.writeValueAsString(setup));
+                    logEvent(events, "send_setup", Map.of("instructionLen", instruction.length()));
+                } catch (Exception e) {
+                    logEvent(events, "send_setup_error", Map.of("error", e.toString()));
+                }
+            }
+
+            @Override
+            public void onMessage(WebSocket ws, String text) {
+                logEvent(events, "recv_text", Map.of("len", text.length(), "json", truncate(text, 1500)));
+                if (text.contains("setupComplete")) setupComplete.set(1);
+            }
+
+            @Override
+            public void onMessage(WebSocket ws, ByteString bytes) {
+                String s = bytes.utf8();
+                logEvent(events, "recv_binary", Map.of("len", bytes.size(), "utf8Preview", truncate(s, 1500)));
+                if (s.contains("setupComplete")) setupComplete.set(1);
+            }
+
+            @Override
+            public void onFailure(WebSocket ws, Throwable t, Response response) {
+                logEvent(events, "ws_failure", Map.of("throwable", t.toString(),
+                        "httpStatus", response != null ? response.code() : -1));
+                done.countDown();
+            }
+
+            @Override
+            public void onClosing(WebSocket ws, int code, String reason) {
+                logEvent(events, "closing", Map.of("code", code, "reason", reason));
+            }
+
+            @Override
+            public void onClosed(WebSocket ws, int code, String reason) {
+                logEvent(events, "closed", Map.of("code", code, "reason", reason));
+                done.countDown();
+            }
+        });
+
+        try {
+            long deadline = System.currentTimeMillis() + 8000;
+            while (setupComplete.get() == 0 && System.currentTimeMillis() < deadline && done.getCount() > 0) {
+                Thread.sleep(50);
+            }
+            if (setupComplete.get() == 0) {
+                logEvent(events, "no_setup_complete", Map.of("waitedMs", 8000));
+            } else {
+                int bytesPerChunk = 16000 * 2 * chunkMs / 1000;
+                if (bytesPerChunk % 2 != 0) bytesPerChunk++;
+                int sent = 0;
+                for (int off = 0; off < audio.length && done.getCount() > 0; off += bytesPerChunk) {
+                    int len = Math.min(bytesPerChunk, audio.length - off);
+                    byte[] chunk = new byte[len];
+                    System.arraycopy(audio, off, chunk, 0, len);
+                    ws.send(mapper.writeValueAsString(Map.of(
+                            "realtimeInput", Map.of(
+                                    "audio", Map.of(
+                                            "mimeType", "audio/pcm;rate=16000",
+                                            "data", Base64.getEncoder().encodeToString(chunk))))));
+                    sent++;
+                    Thread.sleep(chunkMs);
+                }
+                logEvent(events, "speech_sent", Map.of("chunks", sent));
+                // Trailing silence so server VAD detects end of turn — the real
+                // mic keeps streaming after the user stops speaking.
+                byte[] silence = new byte[bytesPerChunk];
+                int silenceChunks = Math.max(1, tailSilenceMs / chunkMs);
+                for (int c = 0; c < silenceChunks && done.getCount() > 0; c++) {
+                    ws.send(mapper.writeValueAsString(Map.of(
+                            "realtimeInput", Map.of(
+                                    "audio", Map.of(
+                                            "mimeType", "audio/pcm;rate=16000",
+                                            "data", Base64.getEncoder().encodeToString(silence))))));
+                    Thread.sleep(chunkMs);
+                }
+                logEvent(events, "silence_sent", Map.of("chunks", silenceChunks));
+                done.await(waitMs, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            logEvent(events, "test_error", Map.of("error", e.toString()));
+        } finally {
+            try { ws.close(1000, "test done"); } catch (Exception ignored) {}
+        }
+
+        result.put("setupCompleteSeen", setupComplete.get() == 1);
+        result.put("eventCount", events.size());
+        return ResponseEntity.ok(result);
+    }
+
     private static String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() <= max ? s : s.substring(0, max) + "...[+" + (s.length() - max) + "]";

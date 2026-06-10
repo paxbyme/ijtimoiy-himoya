@@ -42,7 +42,9 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
     private static final String SESSION_KEY = "geminiLive";
     private static final String UID_KEY = "uid";
 
-    private static final String GOLDEN_RULES = """
+    // Public so DebugController's live-test-audio can reproduce sessions with
+    // the exact production system instruction.
+    public static final String GOLDEN_RULES = """
             You are a friendly voice assistant for employees in this organization.
             Speak naturally and conversationally. Keep replies short and to the point — this is a voice call, not a written chat.
             Always reply in the same language the user spoke. If unclear, default to Uzbek (O'zbek tili).
