@@ -44,16 +44,16 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final EmbeddingService embeddingService;
     private final DocumentProcessorService documentProcessorService;
-    private final GeminiService geminiService;
+    private final AiService aiService;
 
     public DocumentService(DocumentRepository documentRepository,
                            EmbeddingService embeddingService,
                            DocumentProcessorService documentProcessorService,
-                           GeminiService geminiService) {
+                           AiService aiService) {
         this.documentRepository = documentRepository;
         this.embeddingService = embeddingService;
         this.documentProcessorService = documentProcessorService;
-        this.geminiService = geminiService;
+        this.aiService = aiService;
     }
 
     /**
@@ -182,8 +182,9 @@ public class DocumentService {
             log.info("PDF text extraction yielded {} chars — uploading PDF to Files API for OCR",
                     text == null ? 0 : text.trim().length());
             try {
-                // Upload raw PDF — Gemini reads all pages natively in one call
-                String ocrText = geminiService.ocrDocument(bytes, "application/pdf");
+                // Upload raw PDF — Gemini reads all pages natively in one call.
+                // (OpenAI throws here → falls through to page-render OCR below.)
+                String ocrText = aiService.ocrDocument(bytes, "application/pdf");
                 if (ocrText != null && !ocrText.isBlank() && !ocrText.startsWith("I'm sorry")) {
                     int origLen = text != null ? text.trim().length() : 0;
                     if (ocrText.trim().length() > origLen) return ocrText;
@@ -257,7 +258,7 @@ public class DocumentService {
 
         // Try Files API first: upload all images, one single inference call (no batching needed).
         try {
-            String ocrText = geminiService.ocrImagesViaFilesApi(images);
+            String ocrText = aiService.ocrImagesViaFilesApi(images);
             if (ocrText != null && !ocrText.isBlank() && !ocrText.startsWith("I'm sorry")) {
                 int origLen = originalText != null ? originalText.trim().length() : 0;
                 if (ocrText.trim().length() > origLen) {
@@ -272,7 +273,7 @@ public class DocumentService {
             for (int i = 0; i < images.size(); i += OCR_MAX_IMAGES_PER_CALL) {
                 List<byte[]> batch = images.subList(i, Math.min(i + OCR_MAX_IMAGES_PER_CALL, images.size()));
                 try {
-                    String batchText = geminiService.ocrImages(batch);
+                    String batchText = aiService.ocrImages(batch);
                     if (batchText != null && !batchText.isBlank() && !batchText.startsWith("I'm sorry")) {
                         if (combined.length() > 0) combined.append("\n\n");
                         combined.append(batchText.trim());

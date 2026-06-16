@@ -5,9 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
 import com.manager.config.GeminiConfig;
+import com.manager.config.OpenAiConfig;
 import com.manager.dto.AiRuleDto;
 import com.manager.service.AiRulesService;
+import com.manager.service.AiService;
 import com.manager.service.GeminiLiveClient;
+import com.manager.service.LiveClient;
+import com.manager.service.OpenAiLiveClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -21,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * WebSocket bridge between the mobile client and the Gemini Live API.
@@ -57,12 +62,17 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
             """;
 
     private final GeminiConfig geminiConfig;
+    private final OpenAiConfig openAiConfig;
     private final AiRulesService aiRulesService;
+    private final AiService aiService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public LiveAudioWebSocketHandler(GeminiConfig geminiConfig, AiRulesService aiRulesService) {
+    public LiveAudioWebSocketHandler(GeminiConfig geminiConfig, OpenAiConfig openAiConfig,
+                                     AiRulesService aiRulesService, AiService aiService) {
         this.geminiConfig = geminiConfig;
+        this.openAiConfig = openAiConfig;
         this.aiRulesService = aiRulesService;
+        this.aiService = aiService;
     }
 
     @Override
@@ -95,7 +105,7 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
 
         if (node.has("event")) {
             String event = node.get("event").asText();
-            GeminiLiveClient client = (GeminiLiveClient) session.getAttributes().get(SESSION_KEY);
+            LiveClient client = (LiveClient) session.getAttributes().get(SESSION_KEY);
             if (client == null) return;
             if ("endTurn".equals(event)) client.endTurn();
             else if ("startTurn".equals(event)) client.startTurn();
@@ -104,7 +114,7 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
 
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
-        GeminiLiveClient client = (GeminiLiveClient) session.getAttributes().get(SESSION_KEY);
+        LiveClient client = (LiveClient) session.getAttributes().get(SESSION_KEY);
         if (client == null) {
             sendError(session, "Not authenticated");
             return;
@@ -117,7 +127,7 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        GeminiLiveClient client = (GeminiLiveClient) session.getAttributes().get(SESSION_KEY);
+        LiveClient client = (LiveClient) session.getAttributes().get(SESSION_KEY);
         if (client != null) {
             client.close();
             session.getAttributes().remove(SESSION_KEY);
@@ -135,21 +145,26 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
 
             String systemInstruction = buildSystemInstruction(departmentId);
 
-            GeminiLiveClient client = new GeminiLiveClient(
-                    geminiConfig,
-                    systemInstruction,
-                    audio -> sendBinary(session, audio),
-                    text -> sendText(session, Map.of("event", "text", "text", text)),
-                    () -> sendText(session, Map.of("event", "turnComplete")),
-                    err -> sendError(session, err.getMessage() != null ? err.getMessage() : "Gemini error"),
-                    () -> closeSession(session),
-                    // Tell the client to start streaming only once Gemini's session is
-                    // registered (setupComplete). Sending 'ready' earlier made the client
-                    // stream into a buffer that then burst-drained → Gemini 1007.
-                    () -> sendText(session, Map.of("event", "ready")));
+            Consumer<byte[]> onAudio = audio -> sendBinary(session, audio);
+            Consumer<String> onText = text -> sendText(session, Map.of("event", "text", "text", text));
+            Runnable onTurnComplete = () -> sendText(session, Map.of("event", "turnComplete"));
+            Consumer<Throwable> onError = err ->
+                    sendError(session, err.getMessage() != null ? err.getMessage() : "AI error");
+            Runnable onClose = () -> closeSession(session);
+            // Tell the client to start streaming only once the model's session is
+            // registered. Sending 'ready' earlier made the client stream into a
+            // buffer that then burst-drained → Gemini 1007.
+            Runnable onReady = () -> sendText(session, Map.of("event", "ready"));
+
+            LiveClient client = aiService.isOpenAi()
+                    ? new OpenAiLiveClient(openAiConfig, systemInstruction,
+                            onAudio, onText, onTurnComplete, onError, onClose, onReady)
+                    : new GeminiLiveClient(geminiConfig, systemInstruction,
+                            onAudio, onText, onTurnComplete, onError, onClose, onReady);
             session.getAttributes().put(SESSION_KEY, client);
 
-            log.info("Live WS session started: uid={} dept={} (awaiting Gemini setupComplete before 'ready')", uid, departmentId);
+            log.info("Live WS session started: uid={} dept={} provider={}",
+                    uid, departmentId, aiService.isOpenAi() ? "openai" : "gemini");
         } catch (Exception e) {
             log.warn("Live WS auth failed", e);
             sendError(session, "Authentication failed");

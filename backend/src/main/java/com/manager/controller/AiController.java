@@ -6,13 +6,11 @@ import com.manager.exception.GeminiRateLimitException;
 import com.manager.repository.AiConversationRepository;
 import com.manager.repository.AiFeedbackRepository;
 import com.manager.service.AiRulesService;
-import com.manager.service.GeminiService;
-import com.manager.service.OpenAiService;
+import com.manager.service.AiService;
 import com.manager.service.RagService;
 import com.manager.service.RateLimiterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -49,8 +47,7 @@ public class AiController {
     private static final int MAX_HISTORY_MESSAGES = 20;
     private static final int MAX_REQUESTS_PER_MINUTE = 20;
 
-    private final GeminiService geminiService;
-    private final OpenAiService openAiService;
+    private final AiService aiService;
     private final AiRulesService aiRulesService;
     private final RagService ragService;
     private final AiConversationRepository aiConversationRepository;
@@ -58,27 +55,18 @@ public class AiController {
     private final RateLimiterService rateLimiterService;
     private final ObjectMapper objectMapper;
 
-    /** Which LLM backend answers chat: "openai" or "gemini" (default). */
-    @Value("${ai.chat.provider:gemini}")
-    private String chatProvider;
-
-    public AiController(GeminiService geminiService, OpenAiService openAiService,
+    public AiController(AiService aiService,
                         AiRulesService aiRulesService,
                         RagService ragService, AiConversationRepository aiConversationRepository,
                         AiFeedbackRepository aiFeedbackRepository,
                         RateLimiterService rateLimiterService) {
-        this.geminiService = geminiService;
-        this.openAiService = openAiService;
+        this.aiService = aiService;
         this.aiRulesService = aiRulesService;
         this.ragService = ragService;
         this.aiConversationRepository = aiConversationRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
         this.rateLimiterService = rateLimiterService;
         this.objectMapper = new ObjectMapper();
-    }
-
-    private boolean useOpenAi() {
-        return "openai".equalsIgnoreCase(chatProvider);
     }
 
     // ---- Chat (non-streaming, backward compatible) ----
@@ -99,9 +87,7 @@ public class AiController {
             ChatContext ctx = buildChatContext(uid, departmentId, request.getMessage(), request.getConversationId());
 
             // Call the configured LLM backend
-            String aiResponse = useOpenAi()
-                    ? openAiService.chat(ctx.systemPrompt, ctx.history, request.getMessage())
-                    : geminiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
+            String aiResponse = aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
 
             // Save conversation
             String conversationId = saveConversation(ctx, request.getMessage(), aiResponse);
@@ -173,9 +159,8 @@ public class AiController {
                         throw new RuntimeException(e);
                     }
                 };
-                String fullResponse = useOpenAi()
-                        ? openAiService.chatStream(ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink)
-                        : geminiService.chatStream(ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
+                String fullResponse = aiService.chatStream(
+                        ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
 
                 // Save conversation
                 saveConversation(ctx, request.getMessage(), fullResponse);
@@ -238,7 +223,7 @@ public class AiController {
             log.info("Transcribe request: uid={} size={}B rawMime={} normalized={} filename={}",
                     uid, audio.getSize(), rawMime, mimeType, audio.getOriginalFilename());
 
-            String transcript = geminiService.transcribeAudio(audio.getBytes(), mimeType);
+            String transcript = aiService.transcribeAudio(audio.getBytes(), mimeType);
             return ResponseEntity.ok(ApiResponse.ok(Map.of("transcript", transcript)));
 
         } catch (Exception e) {

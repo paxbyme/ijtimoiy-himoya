@@ -25,7 +25,7 @@ import java.util.function.Consumer;
  * 16-bit PCM 16kHz mono audio chunks from the caller and emits 24kHz PCM audio
  * chunks from the model.
  */
-public class GeminiLiveClient {
+public class GeminiLiveClient implements LiveClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiLiveClient.class);
 

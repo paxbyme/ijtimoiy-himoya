@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +100,163 @@ public class OpenAiService {
             String result = full.toString();
             return result.isEmpty() ? FALLBACK_TEXT : result;
         }
+    }
+
+    // ---- Embeddings ----
+
+    public float[] embed(String text) throws IOException {
+        List<float[]> result = batchEmbed(List.of(text));
+        if (result.isEmpty()) throw new IOException("OpenAI returned no embedding");
+        return result.get(0);
+    }
+
+    @Retryable(retryFor = IOException.class, maxAttempts = 3,
+               backoff = @Backoff(delay = 2000, multiplier = 2, maxDelay = 10000))
+    public List<float[]> batchEmbed(List<String> texts) throws IOException {
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", config.getEmbeddingModel());
+        requestBody.put("input", texts);
+        requestBody.put("dimensions", config.getEmbeddingDimension());
+
+        String json = objectMapper.writeValueAsString(requestBody);
+        RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(config.getBaseUrl() + "/v1/embeddings")
+                .header("Authorization", "Bearer " + config.getApiKey())
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "Unknown error";
+                if (response.code() == 429) {
+                    throw new GeminiRateLimitException("OpenAI embedding quota exhausted");
+                }
+                throw new IOException("OpenAI embedding error: " + response.code() + " - " + err);
+            }
+            JsonNode data = objectMapper.readTree(response.body().string()).path("data");
+            List<float[]> results = new ArrayList<>();
+            if (data.isArray()) {
+                for (JsonNode item : data) {
+                    JsonNode values = item.path("embedding");
+                    float[] vec = new float[values.size()];
+                    for (int i = 0; i < values.size(); i++) {
+                        vec[i] = (float) values.get(i).asDouble();
+                    }
+                    results.add(vec);
+                }
+            }
+            if (results.size() != texts.size()) {
+                throw new IOException("OpenAI returned " + results.size()
+                        + " embeddings for " + texts.size() + " texts");
+            }
+            return results;
+        }
+    }
+
+    // ---- Transcription (voice message -> text) ----
+
+    @Retryable(retryFor = IOException.class, maxAttempts = 2,
+               backoff = @Backoff(delay = 1500, multiplier = 2, maxDelay = 6000))
+    public String transcribeAudio(byte[] bytes, String mimeType) throws IOException {
+        String filename = "audio" + extensionForMime(mimeType);
+        RequestBody fileBody = RequestBody.create(bytes, MediaType.parse(mimeType));
+
+        MultipartBody multipart = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("file", filename, fileBody)
+                .addFormDataPart("model", config.getTranscribeModel())
+                // Bias toward Uzbek; Whisper still auto-detects Russian/English words.
+                .addFormDataPart("language", "uz")
+                .addFormDataPart("response_format", "json")
+                .build();
+
+        Request request = new Request.Builder()
+                .url(config.getBaseUrl() + "/v1/audio/transcriptions")
+                .header("Authorization", "Bearer " + config.getApiKey())
+                .post(multipart)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "Unknown error";
+                log.error("OpenAI transcribe error: status={} body={}", response.code(), err);
+                if (response.code() == 429) {
+                    throw new GeminiRateLimitException("OpenAI transcription quota exhausted");
+                }
+                throw new IOException("OpenAI transcribe error: " + response.code() + " - " + err);
+            }
+            String text = objectMapper.readTree(response.body().string()).path("text").asText("");
+            return text.trim();
+        }
+    }
+
+    private static String extensionForMime(String mime) {
+        if (mime == null) return ".m4a";
+        return switch (mime) {
+            case "audio/mpeg", "audio/mp3" -> ".mp3";
+            case "audio/wav", "audio/x-wav" -> ".wav";
+            case "audio/ogg", "audio/opus" -> ".ogg";
+            case "audio/flac" -> ".flac";
+            case "audio/webm" -> ".webm";
+            default -> ".m4a";
+        };
+    }
+
+    // ---- OCR (image -> text) via gpt-4o vision ----
+
+    /**
+     * OCR a batch of images in one vision call. For OpenAI this also serves the
+     * "files API" path — images are sent inline as data URLs, no upload step.
+     */
+    public String ocrImages(List<byte[]> images) throws IOException {
+        if (images == null || images.isEmpty()) return "";
+
+        List<Map<String, Object>> content = new ArrayList<>();
+        for (byte[] img : images) {
+            String mime = detectImageMime(img);
+            String dataUrl = "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(img);
+            content.add(Map.of("type", "image_url", "image_url", Map.of("url", dataUrl)));
+        }
+        content.add(Map.of("type", "text", "text",
+                "You are performing OCR on a scanned official document. " +
+                "Extract ALL visible text exactly as it appears, in any language (Uzbek, Russian, etc.). " +
+                "Preserve numbers, dates, names, document numbers, headings and paragraph structure. " +
+                "Return only the extracted text — no explanations or translations."));
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", config.getOcrModel());
+        requestBody.put("messages", List.of(Map.of("role", "user", "content", content)));
+
+        String json = objectMapper.writeValueAsString(requestBody);
+        try (Response response = execute(json)) {
+            JsonNode root = objectMapper.readTree(response.body() != null ? response.body().string() : "");
+            String text = root.path("choices").path(0).path("message").path("content").asText("");
+            log.info("OpenAI OCR extracted {} chars from {} image(s)", text.length(), images.size());
+            return text;
+        }
+    }
+
+    /** OpenAI has no separate Files API for OCR — inline images cover it. */
+    public String ocrImagesViaFilesApi(List<byte[]> images) throws IOException {
+        return ocrImages(images);
+    }
+
+    /**
+     * OpenAI vision does not accept a raw multi-page PDF the way Gemini's Files API
+     * does. Signal "unsupported" so DocumentService falls back to rendering PDF
+     * pages to images and calling {@link #ocrImagesViaFilesApi}.
+     */
+    public String ocrDocument(byte[] bytes, String mimeType) throws IOException {
+        throw new IOException("OpenAI OCR requires page images; render PDF to images first");
+    }
+
+    private String detectImageMime(byte[] bytes) {
+        if (bytes.length >= 2 && bytes[0] == (byte) 0xFF && bytes[1] == (byte) 0xD8) return "image/jpeg";
+        if (bytes.length >= 4 && bytes[0] == (byte) 0x89 && bytes[1] == 'P'
+                && bytes[2] == 'N' && bytes[3] == 'G') return "image/png";
+        if (bytes.length >= 3 && bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F') return "image/gif";
+        return "image/jpeg";
     }
 
     /** Sends the request and validates the HTTP status. Caller must close the Response. */

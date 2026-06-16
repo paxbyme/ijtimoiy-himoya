@@ -15,15 +15,15 @@ public class EmbeddingService {
 
     private static final int BATCH_SIZE = 20;
 
-    private final GeminiService geminiService;
+    private final AiService aiService;
     private final PineconeConfig pineconeConfig;
     private final DocumentRepository documentRepository;
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    public EmbeddingService(GeminiService geminiService, PineconeConfig pineconeConfig,
+    public EmbeddingService(AiService aiService, PineconeConfig pineconeConfig,
                             DocumentRepository documentRepository) {
-        this.geminiService = geminiService;
+        this.aiService = aiService;
         this.pineconeConfig = pineconeConfig;
         this.documentRepository = documentRepository;
         this.httpClient = new OkHttpClient.Builder()
@@ -40,7 +40,7 @@ public class EmbeddingService {
             List<String> batch = chunks.subList(batchStart, batchEnd);
 
             // Batch embed
-            List<float[]> embeddings = geminiService.batchEmbed(batch);
+            List<float[]> embeddings = aiService.batchEmbed(batch);
 
             List<Map<String, Object>> vectors = new ArrayList<>();
 

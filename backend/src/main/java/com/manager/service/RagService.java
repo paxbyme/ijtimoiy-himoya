@@ -14,15 +14,15 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class RagService {
 
-    private final GeminiService geminiService;
+    private final AiService aiService;
     private final PineconeConfig pineconeConfig;
     private final DocumentRepository documentRepository;
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    public RagService(GeminiService geminiService, PineconeConfig pineconeConfig,
+    public RagService(AiService aiService, PineconeConfig pineconeConfig,
                       DocumentRepository documentRepository) {
-        this.geminiService = geminiService;
+        this.aiService = aiService;
         this.pineconeConfig = pineconeConfig;
         this.documentRepository = documentRepository;
         this.httpClient = new OkHttpClient.Builder()
@@ -34,7 +34,7 @@ public class RagService {
 
     public List<String> query(String queryText, String departmentId, int topK) throws Exception {
         // Embed query text
-        float[] queryVector = geminiService.embed(queryText);
+        float[] queryVector = aiService.embed(queryText);
 
         // Query Pinecone
         String url = pineconeConfig.getIndexUrl() + "/query";
