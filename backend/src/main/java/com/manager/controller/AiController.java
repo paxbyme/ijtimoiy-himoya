@@ -7,10 +7,12 @@ import com.manager.repository.AiConversationRepository;
 import com.manager.repository.AiFeedbackRepository;
 import com.manager.service.AiRulesService;
 import com.manager.service.GeminiService;
+import com.manager.service.OpenAiService;
 import com.manager.service.RagService;
 import com.manager.service.RateLimiterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 @RestController
 @RequestMapping("/api/ai")
@@ -47,6 +50,7 @@ public class AiController {
     private static final int MAX_REQUESTS_PER_MINUTE = 20;
 
     private final GeminiService geminiService;
+    private final OpenAiService openAiService;
     private final AiRulesService aiRulesService;
     private final RagService ragService;
     private final AiConversationRepository aiConversationRepository;
@@ -54,17 +58,27 @@ public class AiController {
     private final RateLimiterService rateLimiterService;
     private final ObjectMapper objectMapper;
 
-    public AiController(GeminiService geminiService, AiRulesService aiRulesService,
+    /** Which LLM backend answers chat: "openai" or "gemini" (default). */
+    @Value("${ai.chat.provider:gemini}")
+    private String chatProvider;
+
+    public AiController(GeminiService geminiService, OpenAiService openAiService,
+                        AiRulesService aiRulesService,
                         RagService ragService, AiConversationRepository aiConversationRepository,
                         AiFeedbackRepository aiFeedbackRepository,
                         RateLimiterService rateLimiterService) {
         this.geminiService = geminiService;
+        this.openAiService = openAiService;
         this.aiRulesService = aiRulesService;
         this.ragService = ragService;
         this.aiConversationRepository = aiConversationRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
         this.rateLimiterService = rateLimiterService;
         this.objectMapper = new ObjectMapper();
+    }
+
+    private boolean useOpenAi() {
+        return "openai".equalsIgnoreCase(chatProvider);
     }
 
     // ---- Chat (non-streaming, backward compatible) ----
@@ -84,8 +98,10 @@ public class AiController {
 
             ChatContext ctx = buildChatContext(uid, departmentId, request.getMessage(), request.getConversationId());
 
-            // Call Gemini
-            String aiResponse = geminiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
+            // Call the configured LLM backend
+            String aiResponse = useOpenAi()
+                    ? openAiService.chat(ctx.systemPrompt, ctx.history, request.getMessage())
+                    : geminiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
 
             // Save conversation
             String conversationId = saveConversation(ctx, request.getMessage(), aiResponse);
@@ -146,19 +162,20 @@ public class AiController {
                                 "type", "meta",
                                 "conversationId", ctx.conversationId))));
 
-                // Stream response
-                String fullResponse = geminiService.chatStream(
-                        ctx.systemPrompt, ctx.history, request.getMessage(),
-                        token -> {
-                            try {
-                                emitter.send(SseEmitter.event().data(
-                                        objectMapper.writeValueAsString(Map.of(
-                                                "type", "token",
-                                                "text", token))));
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        });
+                // Stream response from the configured LLM backend
+                Consumer<String> tokenSink = token -> {
+                    try {
+                        emitter.send(SseEmitter.event().data(
+                                objectMapper.writeValueAsString(Map.of(
+                                        "type", "token",
+                                        "text", token))));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                String fullResponse = useOpenAi()
+                        ? openAiService.chatStream(ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink)
+                        : geminiService.chatStream(ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
 
                 // Save conversation
                 saveConversation(ctx, request.getMessage(), fullResponse);
