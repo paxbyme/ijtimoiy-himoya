@@ -2,6 +2,7 @@ package com.manager.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.manager.dto.*;
+import com.manager.exception.GeminiRateLimitException;
 import com.manager.repository.AiConversationRepository;
 import com.manager.repository.AiFeedbackRepository;
 import com.manager.service.AiRulesService;
@@ -97,7 +98,12 @@ public class AiController {
 
             return ResponseEntity.ok(ApiResponse.ok(response));
 
+        } catch (GeminiRateLimitException e) {
+            log.warn("AI chat rate-limited: {}", e.getMessage());
+            return ResponseEntity.status(429)
+                    .body(ApiResponse.error("AI is busy right now. Please try again in a moment."));
         } catch (Exception e) {
+            log.error("AI chat failed", e);
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("AI chat failed: " + e.getMessage()));
         }
@@ -165,11 +171,17 @@ public class AiController {
                 emitter.complete();
 
             } catch (Exception e) {
+                String errorMessage = (e instanceof GeminiRateLimitException)
+                        ? "AI is busy right now. Please try again in a moment."
+                        : (e.getMessage() != null ? e.getMessage() : "Unknown error");
+                if (e instanceof GeminiRateLimitException) {
+                    log.warn("AI chat (stream) rate-limited: {}", e.getMessage());
+                }
                 try {
                     emitter.send(SseEmitter.event().data(
                             objectMapper.writeValueAsString(Map.of(
                                     "type", "error",
-                                    "message", e.getMessage() != null ? e.getMessage() : "Unknown error"))));
+                                    "message", errorMessage))));
                     emitter.complete();
                 } catch (IOException ex) {
                     emitter.completeWithError(ex);

@@ -3,6 +3,7 @@ package com.manager.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.manager.config.GeminiConfig;
+import com.manager.exception.GeminiRateLimitException;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,13 +46,33 @@ public class GeminiService {
     @Retryable(retryFor = IOException.class, maxAttempts = 3,
                backoff = @Backoff(delay = 2000, multiplier = 2, maxDelay = 10000))
     public String chat(String systemInstruction, List<Map<String, Object>> history, String userMessage) throws IOException {
-        String url = String.format(
-                "%s/v1beta/models/%s:generateContent?key=%s",
-                geminiConfig.getBaseUrl(), geminiConfig.getModel(), geminiConfig.getApiKey()
-        );
-
         Map<String, Object> requestBody = buildRequestBody(systemInstruction, history, userMessage);
         String json = objectMapper.writeValueAsString(requestBody);
+
+        try {
+            return generateContent(geminiConfig.getModel(), json);
+        } catch (GeminiRateLimitException e) {
+            String fallback = geminiConfig.getFallbackModel();
+            if (fallback != null && !fallback.isBlank() && !fallback.equals(geminiConfig.getModel())) {
+                log.warn("Chat model {} quota exhausted (429); falling back to {}",
+                        geminiConfig.getModel(), fallback);
+                return generateContent(fallback, json);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Single non-streaming generateContent call against a specific model.
+     * Throws {@link GeminiRateLimitException} on HTTP 429 (so the @Retryable
+     * caller does NOT retry the exhausted bucket) and IOException on other
+     * non-success / network errors (which are safe to retry).
+     */
+    private String generateContent(String model, String json) throws IOException {
+        String url = String.format(
+                "%s/v1beta/models/%s:generateContent?key=%s",
+                geminiConfig.getBaseUrl(), model, geminiConfig.getApiKey()
+        );
 
         RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
         Request request = new Request.Builder()
@@ -62,12 +83,15 @@ public class GeminiService {
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String errorBody = response.body() != null ? response.body().string() : "Unknown error";
-                log.error("Gemini API error: status={} body={}", response.code(), errorBody);
+                log.error("Gemini API error: status={} model={} body={}", response.code(), model, errorBody);
+                if (response.code() == 429) {
+                    throw new GeminiRateLimitException("Gemini quota exhausted for model " + model);
+                }
                 throw new IOException("Gemini API error: " + response.code() + " - " + errorBody);
             }
 
             String responseBody = response.body().string();
-            log.debug("Gemini chat response received");
+            log.debug("Gemini chat response received (model={})", model);
             return extractTextFromResponse(responseBody);
         }
     }
@@ -80,13 +104,31 @@ public class GeminiService {
                backoff = @Backoff(delay = 2000, multiplier = 2, maxDelay = 10000))
     public String chatStream(String systemInstruction, List<Map<String, Object>> history,
                              String userMessage, Consumer<String> onToken) throws IOException {
-        String url = String.format(
-                "%s/v1beta/models/%s:streamGenerateContent?key=%s&alt=sse",
-                geminiConfig.getBaseUrl(), geminiConfig.getModel(), geminiConfig.getApiKey()
-        );
-
         Map<String, Object> requestBody = buildRequestBody(systemInstruction, history, userMessage);
         String json = objectMapper.writeValueAsString(requestBody);
+
+        try {
+            return streamGenerateContent(geminiConfig.getModel(), json, onToken);
+        } catch (GeminiRateLimitException e) {
+            String fallback = geminiConfig.getFallbackModel();
+            if (fallback != null && !fallback.isBlank() && !fallback.equals(geminiConfig.getModel())) {
+                log.warn("Streaming chat model {} quota exhausted (429); falling back to {}",
+                        geminiConfig.getModel(), fallback);
+                return streamGenerateContent(fallback, json, onToken);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Single streaming generateContent call against a specific model.
+     * Same 429 vs. IOException contract as {@link #generateContent(String, String)}.
+     */
+    private String streamGenerateContent(String model, String json, Consumer<String> onToken) throws IOException {
+        String url = String.format(
+                "%s/v1beta/models/%s:streamGenerateContent?key=%s&alt=sse",
+                geminiConfig.getBaseUrl(), model, geminiConfig.getApiKey()
+        );
 
         RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
         Request request = new Request.Builder()
@@ -97,6 +139,10 @@ public class GeminiService {
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                log.error("Gemini streaming error: status={} model={} body={}", response.code(), model, errorBody);
+                if (response.code() == 429) {
+                    throw new GeminiRateLimitException("Gemini quota exhausted for model " + model);
+                }
                 throw new IOException("Gemini streaming error: " + response.code() + " - " + errorBody);
             }
 

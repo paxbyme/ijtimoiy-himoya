@@ -12,6 +12,14 @@ public class GeminiConfig {
     @Value("${gemini.model}")
     private String model;
 
+    /**
+     * Model used for chat when the primary model returns 429 (per-model quota
+     * exhausted). Gemini token quotas are per-model-per-minute, so a different
+     * model id has its own separate bucket. Empty disables fallback.
+     */
+    @Value("${gemini.fallback.model:gemini-2.5-flash-lite}")
+    private String fallbackModel;
+
     @Value("${gemini.ocr.model:gemini-2.5-flash-lite}")
     private String ocrModel;
 
@@ -27,6 +35,7 @@ public class GeminiConfig {
 
     public String getApiKey() { return apiKey; }
     public String getModel() { return model; }
+    public String getFallbackModel() { return fallbackModel; }
     public String getOcrModel() { return ocrModel; }
     public String getEmbeddingModel() { return embeddingModel; }
     public int getEmbeddingDimension() { return embeddingDimension; }
