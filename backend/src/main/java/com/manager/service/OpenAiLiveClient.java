@@ -19,9 +19,12 @@ import java.util.function.Consumer;
 /**
  * Single bidirectional OpenAI Realtime API live-voice session.
  *
- * Protocol: connects to {@code wss://api.openai.com/v1/realtime?model=...} with
- * an {@code OpenAI-Beta: realtime=v1} header, sends a {@code session.update}
- * configuring server-VAD turn detection + pcm16 audio, then:
+ * Protocol (GA Realtime API): connects to
+ * {@code wss://api.openai.com/v1/realtime?model=gpt-realtime} with plain bearer
+ * auth (no {@code OpenAI-Beta} header — that selects the retired Beta API), sends
+ * a GA {@code session.update} (audio config nested under {@code session.audio.*},
+ * {@code format} as an {@code {type:"audio/pcm", rate}} object) configuring
+ * server-VAD turn detection + 24 kHz pcm audio, then:
  *   - inbound mic audio (16 kHz PCM, from the mobile) is RESAMPLED to 24 kHz
  *     (OpenAI's pcm16 rate) and appended to the input audio buffer;
  *   - outbound model audio (24 kHz PCM) is forwarded to {@link #onAudio}, which
@@ -81,10 +84,11 @@ public class OpenAiLiveClient implements LiveClient {
     private void connect() {
         String url = config.getBaseUrl().replaceFirst("^http", "ws")
                 + "/v1/realtime?model=" + config.getRealtimeModel();
+        // GA Realtime API: no "OpenAI-Beta: realtime=v1" header (that selects the
+        // retired Beta API). Plain bearer auth against /v1/realtime is the GA path.
         Request request = new Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer " + config.getApiKey())
-                .header("OpenAI-Beta", "realtime=v1")
                 .build();
         this.webSocket = httpClient.newWebSocket(request, new Listener());
     }
@@ -172,14 +176,21 @@ public class OpenAiLiveClient implements LiveClient {
         @Override
         public void onOpen(WebSocket ws, Response response) {
             try {
-                Map<String, Object> session = Map.of(
-                        "modalities", List.of("audio", "text"),
-                        "instructions", systemInstruction,
-                        "voice", config.getRealtimeVoice(),
-                        "input_audio_format", "pcm16",
-                        "output_audio_format", "pcm16",
+                // GA session shape: audio config nested under session.audio.{input,output},
+                // format as an {type:"audio/pcm", rate} object, output_modalities array.
+                Map<String, Object> audioFormat = Map.of("type", "audio/pcm", "rate", OAI_RATE);
+                Map<String, Object> input = Map.of(
+                        "format", audioFormat,
                         "turn_detection", Map.of("type", "server_vad"),
-                        "input_audio_transcription", Map.of("model", "whisper-1"));
+                        "transcription", Map.of("model", "whisper-1"));
+                Map<String, Object> output = Map.of(
+                        "format", audioFormat,
+                        "voice", config.getRealtimeVoice());
+                Map<String, Object> session = Map.of(
+                        "type", "realtime",
+                        "instructions", systemInstruction != null ? systemInstruction : "",
+                        "output_modalities", List.of("audio"),
+                        "audio", Map.of("input", input, "output", output));
                 String json = objectMapper.writeValueAsString(Map.of(
                         "type", "session.update",
                         "session", session));
@@ -202,15 +213,17 @@ public class OpenAiLiveClient implements LiveClient {
                             drainPending();
                         }
                     }
-                    case "response.audio.delta" -> {
+                    // GA event names are response.output_audio*; keep the Beta
+                    // response.audio* names too so either protocol version works.
+                    case "response.output_audio.delta", "response.audio.delta" -> {
                         String b64 = root.path("delta").asText("");
                         if (!b64.isEmpty()) onAudio.accept(Base64.getDecoder().decode(b64));
                     }
-                    case "response.audio_transcript.delta" -> {
+                    case "response.output_audio_transcript.delta", "response.audio_transcript.delta" -> {
                         String t = root.path("delta").asText("");
                         if (!t.isEmpty()) onText.accept(t);
                     }
-                    case "response.done", "response.audio.done" -> onTurnComplete.run();
+                    case "response.done", "response.output_audio.done", "response.audio.done" -> onTurnComplete.run();
                     case "error" -> {
                         String msg = root.path("error").path("message").asText(root.toString());
                         log.warn("OpenAI Realtime error: {}", msg);
