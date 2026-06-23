@@ -17,6 +17,12 @@ public class StartupValidationConfig {
     @Value("${gemini.api.key:}")
     private String geminiApiKey;
 
+    @Value("${openai.api.key:}")
+    private String openAiApiKey;
+
+    @Value("${ai.provider:gemini}")
+    private String aiProvider;
+
     @Value("${pinecone.api.key:}")
     private String pineconeApiKey;
 
@@ -30,9 +36,19 @@ public class StartupValidationConfig {
     public void validateRequiredProperties() {
         List<String> missing = new ArrayList<>();
 
-        if (geminiApiKey == null || geminiApiKey.isBlank()) {
-            missing.add("GEMINI_API_KEY (gemini.api.key)");
+        String provider = aiProvider != null ? aiProvider.trim().toLowerCase() : "";
+        if ("openai".equals(provider)) {
+            if (openAiApiKey == null || openAiApiKey.isBlank()) {
+                missing.add("OPENAI_API_KEY (openai.api.key)");
+            }
+        } else if ("gemini".equals(provider)) {
+            if (geminiApiKey == null || geminiApiKey.isBlank()) {
+                missing.add("GEMINI_API_KEY (gemini.api.key)");
+            }
+        } else {
+            missing.add("AI_PROVIDER must be either 'openai' or 'gemini'");
         }
+
         if (pineconeApiKey == null || pineconeApiKey.isBlank()) {
             missing.add("PINECONE_API_KEY (pinecone.api.key)");
         }

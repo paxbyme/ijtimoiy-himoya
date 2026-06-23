@@ -13,6 +13,8 @@ import java.util.Map;
 @Service
 public class AiRulesService {
 
+    private static final int MAX_RULE_CONTENT_CHARS = 8_000;
+
     private final AiRuleRepository aiRuleRepository;
     private final DocumentService documentService;
 
@@ -22,6 +24,8 @@ public class AiRulesService {
     }
 
     public AiRuleDto createRule(CreateAiRuleRequest req, String managerId, String departmentId) throws Exception {
+        validateRuleContent(req.getContent());
+
         AiRuleDto rule = AiRuleDto.builder()
                 .departmentId(departmentId)
                 .managerId(managerId)
@@ -47,6 +51,7 @@ public class AiRulesService {
                 "Please upload a document with selectable text, or enter the rule manually."
             );
         }
+        validateRuleContent(content);
         AiRuleDto rule = AiRuleDto.builder()
                 .departmentId(departmentId)
                 .managerId(managerId)
@@ -70,7 +75,10 @@ public class AiRulesService {
     public AiRuleDto updateRule(String id, CreateAiRuleRequest req) throws Exception {
         Map<String, Object> updates = new HashMap<>();
         if (req.getTitle() != null) updates.put("title", req.getTitle());
-        if (req.getContent() != null) updates.put("content", req.getContent());
+        if (req.getContent() != null) {
+            validateRuleContent(req.getContent());
+            updates.put("content", req.getContent());
+        }
         if (req.getCategory() != null) updates.put("category", req.getCategory());
         if (req.getPriority() != null) updates.put("priority", req.getPriority());
         if (req.getIsActive() != null) updates.put("isActive", req.getIsActive());
@@ -83,5 +91,17 @@ public class AiRulesService {
 
     public void deleteRule(String id) throws Exception {
         aiRuleRepository.delete(id);
+    }
+
+    private void validateRuleContent(String content) {
+        if (content == null) {
+            return;
+        }
+        int length = content.trim().length();
+        if (length > MAX_RULE_CONTENT_CHARS) {
+            throw new RuntimeException("AI rules must be short instructions (max "
+                    + MAX_RULE_CONTENT_CHARS
+                    + " characters). Upload long policy documents in Documents so RAG can index them.");
+        }
     }
 }

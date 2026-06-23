@@ -28,9 +28,14 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Brain, Pencil, Trash2, Loader2, ToggleLeft, ToggleRight, Upload, FileText } from "lucide-react";
 
+const MAX_RULE_CONTENT_CHARS = 8000;
+
 const ruleSchema = z.object({
   title: z.string().min(2, "Sarlavha kiritilishi shart"),
-  content: z.string().min(1, "Kontent kiritilishi shart"),
+  content: z
+    .string()
+    .min(1, "Kontent kiritilishi shart")
+    .max(MAX_RULE_CONTENT_CHARS, `Qoida ${MAX_RULE_CONTENT_CHARS} belgidan oshmasligi kerak`),
   category: z.string().min(1, "Kategoriya kiritilishi shart"),
   priority: z.number().min(1).max(10),
   active: z.boolean(),
@@ -38,12 +43,19 @@ const ruleSchema = z.object({
 
 type RuleFormData = z.infer<typeof ruleSchema>;
 
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const data = (error as { response?: { data?: { message?: string; error?: string } } }).response?.data;
+    if (data?.message) return data.message;
+    if (data?.error) return data.error;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function AiRulesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AiRule | null>(null);
-  const [uploadTitle, setUploadTitle] = useState("");
-  const [uploadCategory, setUploadCategory] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -61,11 +73,13 @@ export default function AiRulesPage() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<RuleFormData>({
     resolver: zodResolver(ruleSchema),
     defaultValues: { priority: 5, active: true },
   });
+  const ruleContentLength = watch("content", "").length;
 
   const createMutation = useMutation({
     mutationFn: async (data: RuleFormData) => {
@@ -91,7 +105,7 @@ export default function AiRulesPage() {
       setEditingRule(null);
       reset();
     },
-    onError: () => toast.error("Qoida saqlashda xatolik"),
+    onError: (error) => toast.error(getApiErrorMessage(error, "Qoida saqlashda xatolik")),
   });
 
   const uploadMutation = useMutation({
@@ -99,24 +113,18 @@ export default function AiRulesPage() {
       if (!selectedFile) throw new Error("Fayl tanlanmagan");
       const formData = new FormData();
       formData.append("file", selectedFile);
-      if (uploadTitle) formData.append("title", uploadTitle);
-      if (uploadCategory) formData.append("category", uploadCategory);
-      const res = await api.post("/ai-rules/upload", formData, {
+      const res = await api.post("/documents/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return res.data;
     },
-    onSuccess: (responseData) => {
-      const saved: AiRule = responseData.data || responseData;
-      queryClient.setQueryData<AiRule[]>(["ai-rules"], (old) => [...(old ?? []), saved]);
-      queryClient.invalidateQueries({ queryKey: ["ai-rules"] });
-      toast.success("Fayl o'qildi va qoida yaratildi");
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Hujjat knowledge base'ga yuklandi. Processing tugagach AI undan foydalanadi.");
       setUploadDialogOpen(false);
       setSelectedFile(null);
-      setUploadTitle("");
-      setUploadCategory("");
     },
-    onError: () => toast.error("Fayldan qoida yaratishda xatolik"),
+    onError: (error) => toast.error(getApiErrorMessage(error, "Hujjat yuklashda xatolik")),
   });
 
   const deleteMutation = useMutation({
@@ -195,7 +203,7 @@ export default function AiRulesPage() {
             onClick={() => setUploadDialogOpen(true)}
           >
             <Upload className="mr-2 h-4 w-4" />
-            Fayldan yuklash
+            Hujjat yuklash
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
@@ -222,6 +230,9 @@ export default function AiRulesPage() {
                 <div className="space-y-2">
                   <Label htmlFor="content">Kontent</Label>
                   <Textarea id="content" placeholder="Qoidani tasvirlab bering..." rows={4} {...register("content")} />
+                  <p className="text-xs text-muted-foreground">
+                    {ruleContentLength} / {MAX_RULE_CONTENT_CHARS} belgi. Katta hujjatlar uchun yuqoridagi Hujjat yuklash tugmasidan foydalaning.
+                  </p>
                   {errors.content && <p className="text-xs text-red-500">{errors.content.message}</p>}
                 </div>
 
@@ -258,13 +269,13 @@ export default function AiRulesPage() {
       {/* File upload dialog */}
       <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
         setUploadDialogOpen(open);
-        if (!open) { setSelectedFile(null); setUploadTitle(""); setUploadCategory(""); }
+        if (!open) { setSelectedFile(null); }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Fayldan qoida yaratish</DialogTitle>
+            <DialogTitle>Knowledge base hujjatini yuklash</DialogTitle>
             <DialogDescription>
-              Hujjat yuklanadi, matni o&#39;qiladi va qoida sifatida saqlanadi.
+              Katta PDF, DOC yoki TXT fayllar qoidaga aylantirilmaydi. Ular RAG knowledge base uchun indekslanadi.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -295,24 +306,6 @@ export default function AiRulesPage() {
               className="hidden"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
             />
-
-            <div className="space-y-2">
-              <Label>Sarlavha (ixtiyoriy)</Label>
-              <Input
-                placeholder="Fayl nomidan foydalaniladi"
-                value={uploadTitle}
-                onChange={(e) => setUploadTitle(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Kategoriya (ixtiyoriy)</Label>
-              <Input
-                placeholder="GENERAL"
-                value={uploadCategory}
-                onChange={(e) => setUploadCategory(e.target.value)}
-              />
-            </div>
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Bekor</DialogClose>
@@ -322,9 +315,9 @@ export default function AiRulesPage() {
               onClick={() => uploadMutation.mutate()}
             >
               {uploadMutation.isPending ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />O&#39;qilmoqda...</>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Yuklanmoqda...</>
               ) : (
-                <><Upload className="mr-2 h-4 w-4" />Yuklash</>
+                <><Upload className="mr-2 h-4 w-4" />Hujjat yuklash</>
               )}
             </Button>
           </DialogFooter>

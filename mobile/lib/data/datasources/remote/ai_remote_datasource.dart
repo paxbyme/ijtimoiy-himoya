@@ -161,4 +161,18 @@ class AiRemoteDataSource {
     );
     return AiRule.fromJson(response.data['data'] ?? response.data);
   }
+
+  Future<void> uploadKnowledgeDocument(String filePath, String fileName) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    await _dio.post(
+      '/documents/upload',
+      data: formData,
+      options: Options(
+        sendTimeout: AppConstants.uploadTimeout,
+        receiveTimeout: AppConstants.uploadTimeout,
+      ),
+    );
+  }
 }

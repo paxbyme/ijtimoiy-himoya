@@ -430,10 +430,14 @@ public class DocumentService {
     private List<String> simpleSplit(String text, int chunkSize, int overlap) {
         List<String> chunks = new ArrayList<>();
         int start = 0;
+        int step = Math.max(1, chunkSize - overlap);
         while (start < text.length()) {
             int end = Math.min(start + chunkSize, text.length());
-            chunks.add(text.substring(start, end).trim());
-            start += chunkSize - overlap;
+            String chunk = text.substring(start, end).trim();
+            if (!chunk.isEmpty()) {
+                chunks.add(chunk);
+            }
+            start += step;
         }
         return chunks;
     }

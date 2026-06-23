@@ -166,8 +166,6 @@ public class OpenAiService {
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", filename, fileBody)
                 .addFormDataPart("model", config.getTranscribeModel())
-                // Bias toward Uzbek; Whisper still auto-detects Russian/English words.
-                .addFormDataPart("language", "uz")
                 .addFormDataPart("response_format", "json")
                 .build();
 

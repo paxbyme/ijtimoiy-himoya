@@ -34,10 +34,19 @@ public class EmbeddingService {
     }
 
     public void embedAndStore(String documentId, String departmentId, List<String> chunks) throws Exception {
+        List<String> cleanChunks = new ArrayList<>();
+        if (chunks != null) {
+            for (String chunk : chunks) {
+                if (chunk != null && !chunk.trim().isEmpty()) {
+                    cleanChunks.add(chunk.trim());
+                }
+            }
+        }
+
         // Process in batches
-        for (int batchStart = 0; batchStart < chunks.size(); batchStart += BATCH_SIZE) {
-            int batchEnd = Math.min(batchStart + BATCH_SIZE, chunks.size());
-            List<String> batch = chunks.subList(batchStart, batchEnd);
+        for (int batchStart = 0; batchStart < cleanChunks.size(); batchStart += BATCH_SIZE) {
+            int batchEnd = Math.min(batchStart + BATCH_SIZE, cleanChunks.size());
+            List<String> batch = cleanChunks.subList(batchStart, batchEnd);
 
             // Batch embed
             List<float[]> embeddings = aiService.batchEmbed(batch);

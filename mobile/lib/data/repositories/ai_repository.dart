@@ -77,6 +77,10 @@ class AiRepository {
       _guard(() => _remote.uploadRuleFromFile(filePath, fileName,
           title: title, category: category));
 
+  Future<Either<Failure, void>> uploadKnowledgeDocument(
+          String filePath, String fileName) =>
+      _guard(() => _remote.uploadKnowledgeDocument(filePath, fileName));
+
   Future<Either<Failure, T>> _guard<T>(Future<T> Function() op) async {
     if (!await _network.isConnected) return const Left(NetworkFailure());
     try {

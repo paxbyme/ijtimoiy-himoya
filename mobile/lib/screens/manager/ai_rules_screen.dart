@@ -15,6 +15,8 @@ class AiRulesScreen extends ConsumerStatefulWidget {
 }
 
 class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
+  static const int _maxRuleContentChars = 8000;
+
   @override
   Widget build(BuildContext context) {
     final rulesAsync = ref.watch(aiRulesProvider);
@@ -26,7 +28,7 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file),
-            tooltip: 'Fayldan yuklash',
+            tooltip: 'Hujjat yuklash',
             onPressed: () => _showUploadDialog(context),
           ),
         ],
@@ -266,7 +268,13 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: contentController,
-                  decoration: const InputDecoration(labelText: 'Kontent'),
+                  maxLength: _maxRuleContentChars,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Kontent',
+                    helperText:
+                        'Katta hujjatlar uchun yuqoridagi hujjat yuklash tugmasidan foydalaning.',
+                  ),
                   maxLines: 4,
                 ),
                 const SizedBox(height: 12),
@@ -293,9 +301,19 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
             FilledButton(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
+                final content = contentController.text.trim();
+                if (content.length > _maxRuleContentChars) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Qoida juda uzun. Katta faylni knowledge base hujjati sifatida yuklang.'),
+                    ),
+                  );
+                  return;
+                }
                 final data = {
                   'title': titleController.text.trim(),
-                  'content': contentController.text.trim(),
+                  'content': content,
                   'category': categoryController.text.trim(),
                   'isActive': isActive,
                 };
@@ -330,7 +348,6 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
 
   void _showUploadDialog(BuildContext context) {
     final List<PlatformFile> selectedFiles = [];
-    final categoryController = TextEditingController();
     bool isUploading = false;
     int currentIndex = 0;
     int totalFiles = 0;
@@ -340,14 +357,14 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Fayldan qoidalar yaratish'),
+          title: const Text('Hujjatlarni knowledge base\'ga yuklash'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  "Bir nechta fayl tanlang — har bir fayl alohida qoida sifatida saqlanadi.",
+                  "Bir nechta fayl tanlang — ular AI qoidaga aylantirilmaydi, RAG knowledge base'ga indekslanadi.",
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
@@ -482,14 +499,6 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                TextField(
-                  controller: categoryController,
-                  enabled: !isUploading,
-                  decoration: const InputDecoration(
-                    labelText: 'Kategoriya (ixtiyoriy)',
-                    hintText: 'Barcha fayllarga qo\'llaniladi — masalan GENERAL',
-                  ),
-                ),
                 if (isUploading && totalFiles > 0) ...[
                   const SizedBox(height: 16),
                   LinearProgressIndicator(
@@ -542,22 +551,20 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                       });
 
                       final repo = ref.read(aiRepositoryProvider);
-                      final category = categoryController.text.trim();
                       int successCount = 0;
                       final List<String> failedFiles = [];
 
                       for (int i = 0; i < selectedFiles.length; i++) {
                         setDialogState(() => currentIndex = i);
                         final file = selectedFiles[i];
-                        final result = await repo.uploadRuleFromFile(
+                        final result = await repo.uploadKnowledgeDocument(
                           file.path!,
                           file.name,
-                          category: category.isEmpty ? null : category,
                         );
                         result.fold(
                           (failure) {
                             debugPrint(
-                                'AI rule upload error (${file.name}): ${failure.message}');
+                                'Knowledge document upload error (${file.name}): ${failure.message}');
                             failedFiles.add(file.name);
                           },
                           (_) => successCount++,
@@ -571,12 +578,12 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
 
                       final String msg;
                       if (failedFiles.isEmpty) {
-                        msg = "$successCount ta qoida yaratildi";
+                        msg = "$successCount ta hujjat yuklandi";
                       } else if (successCount == 0) {
                         msg = "Barcha fayllarda xatolik yuz berdi";
                       } else {
                         msg =
-                            "$successCount ta qoida yaratildi, ${failedFiles.length} ta xato: ${failedFiles.join(', ')}";
+                            "$successCount ta hujjat yuklandi, ${failedFiles.length} ta xato: ${failedFiles.join(', ')}";
                       }
                       messenger.showSnackBar(
                         SnackBar(

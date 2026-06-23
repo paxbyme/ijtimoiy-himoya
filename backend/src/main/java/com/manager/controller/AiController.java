@@ -46,6 +46,8 @@ public class AiController {
 
     private static final int MAX_HISTORY_MESSAGES = 20;
     private static final int MAX_REQUESTS_PER_MINUTE = 20;
+    private static final int MAX_RULE_CONTENT_CHARS = 2_000;
+    private static final int MAX_TOTAL_RULE_CHARS = 20_000;
 
     private final AiService aiService;
     private final AiRulesService aiRulesService;
@@ -369,10 +371,7 @@ public class AiController {
         });
 
         List<AiRuleDto> deptRules = rulesFuture.get(10, TimeUnit.SECONDS);
-        StringBuilder deptRulesText = new StringBuilder();
-        for (AiRuleDto rule : deptRules) {
-            deptRulesText.append("- ").append(rule.getTitle()).append(": ").append(rule.getContent()).append("\n");
-        }
+        String deptRulesText = buildDepartmentRulesPrompt(deptRules, departmentId);
 
         ctx.ragSources = new ArrayList<>();
         List<String> ragContext;
@@ -387,8 +386,8 @@ public class AiController {
         StringBuilder systemPrompt = new StringBuilder();
         systemPrompt.append(GOLDEN_RULES).append("\n\n");
 
-        if (!deptRulesText.isEmpty()) {
-            systemPrompt.append("Department-specific rules:\n").append(deptRulesText).append("\n\n");
+        if (!deptRulesText.isBlank()) {
+            systemPrompt.append("Department-specific rules:\n").append(deptRulesText).append("\n");
         }
 
         if (!ragContext.isEmpty()) {
@@ -440,6 +439,54 @@ public class AiController {
         ctx.departmentId = departmentId;
 
         return ctx;
+    }
+
+    private String buildDepartmentRulesPrompt(List<AiRuleDto> rules, String departmentId) {
+        StringBuilder text = new StringBuilder();
+        int truncated = 0;
+        int skipped = 0;
+
+        for (AiRuleDto rule : rules) {
+            String rawContent = rule.getContent() != null ? rule.getContent().trim() : "";
+            if (rawContent.isBlank()) {
+                continue;
+            }
+
+            String title = rule.getTitle() != null && !rule.getTitle().isBlank()
+                    ? rule.getTitle().trim()
+                    : "Untitled rule";
+            if (title.length() > 120) {
+                title = title.substring(0, 117) + "...";
+            }
+
+            String content = rawContent;
+            if (content.length() > MAX_RULE_CONTENT_CHARS) {
+                content = content.substring(0, MAX_RULE_CONTENT_CHARS).trim()
+                        + " ... [truncated; long policy documents belong in Documents/RAG]";
+                truncated++;
+            }
+
+            String prefix = "- " + title + ": ";
+            int remaining = MAX_TOTAL_RULE_CHARS - text.length() - prefix.length() - 1;
+            if (remaining < 200) {
+                skipped++;
+                continue;
+            }
+            if (content.length() > remaining) {
+                content = content.substring(0, remaining).trim()
+                        + " ... [truncated by prompt budget]";
+                truncated++;
+            }
+
+            text.append(prefix).append(content).append("\n");
+        }
+
+        if (truncated > 0 || skipped > 0) {
+            log.warn("AI rules prompt capped: dept={} activeRules={} includedChars={} truncated={} skipped={}",
+                    departmentId, rules.size(), text.length(), truncated, skipped);
+        }
+
+        return text.toString();
     }
 
     private String saveConversation(ChatContext ctx, String userMessage, String aiResponse) throws Exception {
