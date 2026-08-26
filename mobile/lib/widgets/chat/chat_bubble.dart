@@ -16,6 +16,12 @@ class ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final displayMessage = isMe
+        ? message
+        : message
+              .replaceAll('**', '')
+              .replaceAll('__', '')
+              .replaceAll(RegExp(r'^#{1,6}\s*', multiLine: true), '');
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -37,11 +43,12 @@ class ChatBubble extends StatelessWidget {
           ),
         ),
         child: Column(
-          crossAxisAlignment:
-              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
-            Text(
-              message,
+            SelectableText(
+              displayMessage,
               style: TextStyle(
                 color: isMe
                     ? theme.colorScheme.onPrimary

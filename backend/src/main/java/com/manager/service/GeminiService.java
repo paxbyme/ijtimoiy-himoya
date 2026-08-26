@@ -513,7 +513,15 @@ public class GeminiService {
         contents.add(userContent);
 
         requestBody.put("contents", contents);
+        requestBody.put("generationConfig", Map.of(
+                "temperature", 0.1,
+                "maxOutputTokens", configuredChatMaxOutputTokens()));
         return requestBody;
+    }
+
+    private int configuredChatMaxOutputTokens() {
+        int configured = geminiConfig.getChatMaxOutputTokens();
+        return configured > 0 ? configured : 2400;
     }
 
     private String extractTextFromResponse(String responseBody) throws IOException {

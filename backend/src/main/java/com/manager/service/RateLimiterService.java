@@ -1,89 +1,107 @@
 package com.manager.service;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
- * Sliding-window rate limiter backed by Firestore.
- * Survives server restarts, works across multiple backend instances.
+ * Per-instance token-bucket rate limiter for latency-sensitive AI endpoints.
  *
- * Collection: rate_limits
- * Document:   {key}  (typically Firebase UID)
- * Fields:     timestamps: List<Long>  – epoch-ms of each request in the current window
- *
- * Firestore transaction guarantees atomicity; each AI request adds ~one round-trip
- * (~80–150ms) which is acceptable given the 120s SSE timeout in AiController.
+ * The request path is memory-only: no Firestore transaction or other network
+ * operation occurs before an AI request is cleared. Each key has a small,
+ * independently synchronized bucket, so unrelated users never contend on a
+ * global lock. If the backend is scaled to multiple replicas, replace this
+ * implementation with a Redis-backed atomic bucket to preserve a global limit.
  */
 @Service
 public class RateLimiterService {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimiterService.class);
-    private static final String COLLECTION = "rate_limits";
-    private static final long WINDOW_MS = 60_000L;   // 1-minute sliding window
+    private static final long REFILL_PERIOD_NANOS = Duration.ofMinutes(1).toNanos();
+    private static final long STALE_BUCKET_NANOS = Duration.ofMinutes(15).toNanos();
 
-    private final Firestore firestore;
-
-    public RateLimiterService(Firestore firestore) {
-        this.firestore = firestore;
-    }
+    private final ConcurrentMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();
 
     /**
-     * Returns true if the caller has exceeded {@code maxRequests} in the last minute.
-     * Also records the current request timestamp when NOT limited.
+     * Returns {@code true} when the request must be rejected.
      *
-     * Falls back to NOT rate-limiting on Firestore errors so AI chat stays available.
+     * A full bucket allows {@code maxRequests} immediately and then refills at
+     * {@code maxRequests / minute}. The method performs only map and arithmetic
+     * operations and is intended to remain comfortably below 10 ms.
      */
     public boolean isRateLimited(String key, int maxRequests) {
-        try {
-            return runCheck(key, maxRequests);
-        } catch (Exception e) {
-            log.warn("RateLimiterService Firestore error for key={}, allowing request: {}", key, e.getMessage());
-            return false;
+        if (key == null || key.isBlank() || maxRequests <= 0) {
+            return true;
         }
+
+        long now = System.nanoTime();
+        TokenBucket bucket = buckets.computeIfAbsent(
+                key, ignored -> new TokenBucket(maxRequests, now));
+        boolean allowed = bucket.tryConsume(maxRequests, now);
+
+        if (!allowed) {
+            log.debug("Rate limit exceeded for key={}", key);
+        }
+        return !allowed;
     }
 
-    @SuppressWarnings("unchecked")
-    private boolean runCheck(String key, int maxRequests) throws Exception {
-        DocumentReference ref = firestore.collection(COLLECTION).document(key);
-        long now = System.currentTimeMillis();
-        long windowStart = now - WINDOW_MS;
+    /** Cleanup is off the request path, so a large key set cannot affect TTFT. */
+    @Scheduled(fixedDelayString = "${rate-limit.cleanup-ms:300000}")
+    void removeStaleBuckets() {
+        long cutoff = System.nanoTime() - STALE_BUCKET_NANOS;
+        buckets.entrySet().removeIf(entry -> entry.getValue().lastSeenNanos() < cutoff);
+    }
 
-        return firestore.<Boolean>runTransaction(tx -> {
-            DocumentSnapshot snap = tx.get(ref).get();
+    int trackedBucketCount() {
+        return buckets.size();
+    }
 
-            List<Long> timestamps;
-            if (snap.exists()) {
-                Object raw = snap.get("timestamps");
-                if (raw instanceof List) {
-                    // Firestore stores numbers as Long
-                    timestamps = new ArrayList<>((List<Long>) raw);
-                } else {
-                    timestamps = new ArrayList<>();
-                }
-            } else {
-                timestamps = new ArrayList<>();
+    private static final class TokenBucket {
+        private int capacity;
+        private double tokens;
+        private long lastRefillNanos;
+        private volatile long lastSeenNanos;
+
+        private TokenBucket(int capacity, long now) {
+            this.capacity = capacity;
+            this.tokens = capacity;
+            this.lastRefillNanos = now;
+            this.lastSeenNanos = now;
+        }
+
+        private synchronized boolean tryConsume(int requestedCapacity, long now) {
+            refill(now);
+
+            if (requestedCapacity != capacity) {
+                capacity = requestedCapacity;
+                tokens = Math.min(tokens, capacity);
             }
 
-            // Evict entries outside the window
-            final long ws = windowStart;
-            timestamps.removeIf(t -> t < ws);
-
-            if (timestamps.size() >= maxRequests) {
-                log.debug("Rate limit exceeded for key={}: {} requests in last 60s", key, timestamps.size());
-                return true;
+            lastSeenNanos = now;
+            if (tokens < 1.0) {
+                return false;
             }
 
-            timestamps.add(now);
-            tx.set(ref, Map.of("timestamps", timestamps));
-            return false;
-        }).get();
+            tokens -= 1.0;
+            return true;
+        }
+
+        private void refill(long now) {
+            long elapsed = Math.max(0, now - lastRefillNanos);
+            if (elapsed == 0) return;
+
+            double replenished = (double) elapsed * capacity / REFILL_PERIOD_NANOS;
+            tokens = Math.min(capacity, tokens + replenished);
+            lastRefillNanos = now;
+        }
+
+        private long lastSeenNanos() {
+            return lastSeenNanos;
+        }
     }
 }

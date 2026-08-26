@@ -39,6 +39,38 @@ public class AiConversationRepository {
         return data;
     }
 
+    /**
+     * Reads only ownership and the bounded prompt-history projection. Existing
+     * conversations created before that projection was introduced fall back to
+     * one full read until their next completed turn populates it.
+     */
+    public Map<String, Object> findRecentById(String id, int maxMessages)
+            throws ExecutionException, InterruptedException {
+        DocumentReference docRef = firestore.collection(COLLECTION).document(id);
+        List<DocumentSnapshot> selected = firestore.getAll(
+                new DocumentReference[]{docRef},
+                FieldMask.of("staffId", "recentMessages")).get();
+        if (selected.isEmpty() || !selected.get(0).exists()) return null;
+
+        DocumentSnapshot snapshot = selected.get(0);
+        Map<String, Object> data = new HashMap<>(snapshot.getData());
+        data.put("id", snapshot.getId());
+        Object recent = data.get("recentMessages");
+        if (recent instanceof List<?>) {
+            data.put("messages", recent);
+            return data;
+        }
+
+        Map<String, Object> legacy = findById(id);
+        if (legacy == null) return null;
+        Object stored = legacy.get("messages");
+        if (stored instanceof List<?> messages && messages.size() > maxMessages) {
+            legacy.put("messages", new ArrayList<>(
+                    messages.subList(messages.size() - maxMessages, messages.size())));
+        }
+        return legacy;
+    }
+
     public List<Map<String, Object>> findByStaffId(String staffId) throws ExecutionException, InterruptedException {
         ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION)
                 .whereEqualTo("staffId", staffId)
@@ -87,6 +119,48 @@ public class AiConversationRepository {
 
     public void update(String id, Map<String, Object> updates) throws ExecutionException, InterruptedException {
         firestore.collection(COLLECTION).document(id).update(updates).get();
+    }
+
+    /**
+     * Atomically appends a completed chat turn. The transaction prevents
+     * simultaneous requests for the same conversation from overwriting one
+     * another with stale history snapshots.
+     */
+    public void appendMessages(String id, List<Map<String, Object>> newMessages,
+                               int recentMessageLimit)
+            throws ExecutionException, InterruptedException {
+        DocumentReference docRef = firestore.collection(COLLECTION).document(id);
+        firestore.runTransaction(transaction -> {
+            DocumentSnapshot snapshot = transaction.get(docRef).get();
+            if (!snapshot.exists()) {
+                throw new IllegalArgumentException("Conversation not found");
+            }
+
+            List<Map<String, Object>> messages = new ArrayList<>();
+            Object stored = snapshot.get("messages");
+            if (stored instanceof List<?> storedMessages) {
+                for (Object item : storedMessages) {
+                    if (item instanceof Map<?, ?> raw) {
+                        Map<String, Object> message = new HashMap<>();
+                        raw.forEach((key, value) -> message.put(String.valueOf(key), value));
+                        messages.add(message);
+                    }
+                }
+            }
+            for (Map<String, Object> message : newMessages) {
+                messages.add(new HashMap<>(message));
+            }
+
+            int keepFrom = Math.max(0, messages.size() - Math.max(1, recentMessageLimit));
+            List<Map<String, Object>> recentMessages = new ArrayList<>(
+                    messages.subList(keepFrom, messages.size()));
+            transaction.update(docRef, Map.of(
+                    "messages", messages,
+                    "recentMessages", recentMessages,
+                    "messageCount", messages.size(),
+                    "updatedAt", java.time.Instant.now().toString()));
+            return null;
+        }).get();
     }
 
     public void delete(String id) throws ExecutionException, InterruptedException {

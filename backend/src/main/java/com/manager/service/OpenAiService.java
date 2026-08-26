@@ -312,6 +312,9 @@ public class OpenAiService {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", config.getModel());
         requestBody.put("messages", messages);
+        requestBody.put("temperature", 0.1);
+        int configuredMaxTokens = config.getChatMaxOutputTokens();
+        requestBody.put("max_tokens", configuredMaxTokens > 0 ? configuredMaxTokens : 2400);
         if (stream) {
             requestBody.put("stream", true);
         }

@@ -46,6 +46,10 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(LiveAudioWebSocketHandler.class);
     private static final String SESSION_KEY = "geminiLive";
     private static final String UID_KEY = "uid";
+    private static final int MAX_RULE_TITLE_CHARS = 120;
+    private static final int MAX_RULE_CONTENT_CHARS = 2_000;
+    private static final int MAX_TOTAL_RULE_CHARS = 12_000;
+    static final int MAX_SYSTEM_INSTRUCTION_CHARS = 16_000;
 
     // Public so DebugController's live-test-audio can reproduce sessions with
     // the exact production system instruction.
@@ -172,18 +176,61 @@ public class LiveAudioWebSocketHandler extends AbstractWebSocketHandler {
         }
     }
 
-    private String buildSystemInstruction(String departmentId) {
+    String buildSystemInstruction(String departmentId) {
         StringBuilder sb = new StringBuilder(GOLDEN_RULES);
         try {
             List<AiRuleDto> rules = aiRulesService.getActiveRulesForDepartment(departmentId);
             if (rules != null && !rules.isEmpty()) {
-                sb.append("\n\nDepartment-specific rules:\n");
+                StringBuilder ruleText = new StringBuilder();
+                int truncated = 0;
+                int skipped = 0;
                 for (AiRuleDto rule : rules) {
-                    sb.append("- ").append(rule.getTitle()).append(": ").append(rule.getContent()).append("\n");
+                    String rawContent = rule.getContent();
+                    if (rawContent == null || rawContent.isBlank()) continue;
+
+                    String title = rule.getTitle() == null || rule.getTitle().isBlank()
+                            ? "Untitled rule"
+                            : rule.getTitle().trim();
+                    if (title.length() > MAX_RULE_TITLE_CHARS) {
+                        title = title.substring(0, MAX_RULE_TITLE_CHARS - 1).trim() + "…";
+                        truncated++;
+                    }
+
+                    String content;
+                    if (rawContent.length() > MAX_RULE_CONTENT_CHARS) {
+                        content = rawContent.substring(0, MAX_RULE_CONTENT_CHARS - 1).trim() + "…";
+                        truncated++;
+                    } else {
+                        content = rawContent.trim();
+                    }
+
+                    String prefix = "- " + title + ": ";
+                    int remaining = MAX_TOTAL_RULE_CHARS - ruleText.length() - prefix.length() - 1;
+                    if (remaining < 80) {
+                        skipped++;
+                        continue;
+                    }
+                    if (content.length() > remaining) {
+                        content = content.substring(0, remaining - 1).trim() + "…";
+                        truncated++;
+                    }
+                    ruleText.append(prefix).append(content).append("\n");
+                }
+                if (!ruleText.isEmpty()) {
+                    sb.append("\n\nDepartment-specific rules:\n").append(ruleText);
+                }
+                if (truncated > 0 || skipped > 0) {
+                    log.warn("Live instruction rules capped: dept={} rules={} chars={} truncated={} skipped={}",
+                            departmentId, rules.size(), ruleText.length(), truncated, skipped);
                 }
             }
         } catch (Exception e) {
             log.warn("Failed to load AI rules for dept={}", departmentId, e);
+        }
+        if (sb.length() > MAX_SYSTEM_INSTRUCTION_CHARS) {
+            log.warn("Live system instruction hard-capped: dept={} originalChars={} maxChars={}",
+                    departmentId, sb.length(), MAX_SYSTEM_INSTRUCTION_CHARS);
+            return sb.substring(0, MAX_SYSTEM_INSTRUCTION_CHARS - 1).trim() + "…";
         }
         return sb.toString();
     }

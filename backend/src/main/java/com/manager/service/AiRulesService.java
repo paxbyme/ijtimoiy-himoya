@@ -9,14 +9,17 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AiRulesService {
 
     private static final int MAX_RULE_CONTENT_CHARS = 8_000;
+    private static final long ACTIVE_RULES_CACHE_MILLIS = 60_000;
 
     private final AiRuleRepository aiRuleRepository;
     private final DocumentService documentService;
+    private final Map<String, CachedRules> activeRulesCache = new ConcurrentHashMap<>();
 
     public AiRulesService(AiRuleRepository aiRuleRepository, DocumentService documentService) {
         this.aiRuleRepository = aiRuleRepository;
@@ -36,7 +39,9 @@ public class AiRulesService {
                 .priority(req.getPriority() != null ? req.getPriority() : 0)
                 .build();
 
-        return aiRuleRepository.save(rule);
+        AiRuleDto saved = aiRuleRepository.save(rule);
+        activeRulesCache.remove(departmentId);
+        return saved;
     }
 
     public AiRuleDto createRuleFromFile(MultipartFile file, String title, String category,
@@ -61,7 +66,9 @@ public class AiRulesService {
                 .isActive(true)
                 .priority(priority != null ? priority : 0)
                 .build();
-        return aiRuleRepository.save(rule);
+        AiRuleDto saved = aiRuleRepository.save(rule);
+        activeRulesCache.remove(departmentId);
+        return saved;
     }
 
     public List<AiRuleDto> getRulesByDepartment(String departmentId) throws Exception {
@@ -69,7 +76,15 @@ public class AiRulesService {
     }
 
     public List<AiRuleDto> getActiveRulesForDepartment(String departmentId) throws Exception {
-        return aiRuleRepository.findActiveByDepartmentId(departmentId);
+        CachedRules cached = activeRulesCache.get(departmentId);
+        long now = System.currentTimeMillis();
+        if (cached != null && now - cached.loadedAtMillis < ACTIVE_RULES_CACHE_MILLIS) {
+            return cached.rules;
+        }
+
+        List<AiRuleDto> rules = List.copyOf(aiRuleRepository.findActiveByDepartmentId(departmentId));
+        activeRulesCache.put(departmentId, new CachedRules(rules, now));
+        return rules;
     }
 
     public AiRuleDto updateRule(String id, CreateAiRuleRequest req) throws Exception {
@@ -85,12 +100,14 @@ public class AiRulesService {
 
         if (!updates.isEmpty()) {
             aiRuleRepository.update(id, updates);
+            activeRulesCache.clear();
         }
         return aiRuleRepository.findById(id);
     }
 
     public void deleteRule(String id) throws Exception {
         aiRuleRepository.delete(id);
+        activeRulesCache.clear();
     }
 
     private void validateRuleContent(String content) {
@@ -104,4 +121,6 @@ public class AiRulesService {
                     + " characters). Upload long policy documents in Documents so RAG can index them.");
         }
     }
+
+    private record CachedRules(List<AiRuleDto> rules, long loadedAtMillis) {}
 }

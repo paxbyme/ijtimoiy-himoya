@@ -11,7 +11,8 @@ import 'auth_provider.dart';
 // ---- DI ----
 
 final aiRemoteDataSourceProvider = Provider<AiRemoteDataSource>(
-    (ref) => AiRemoteDataSource(ref.read(dioProvider)));
+  (ref) => AiRemoteDataSource(ref.read(dioProvider)),
+);
 
 final aiRepositoryProvider = Provider<AiRepository>((ref) {
   return AiRepository(
@@ -27,8 +28,9 @@ final aiRulesProvider = FutureProvider<List<AiRule>>((ref) async {
   return result.fold((f) => throw f, (rules) => rules);
 });
 
-final aiConversationsProvider =
-    FutureProvider<List<AiConversation>>((ref) async {
+final aiConversationsProvider = FutureProvider<List<AiConversation>>((
+  ref,
+) async {
   final result = await ref.read(aiRepositoryProvider).getConversations();
   return result.fold((f) => throw f, (list) => list);
 });
@@ -61,11 +63,13 @@ class AiChatMessage {
 class AiChatNotifier extends Notifier<List<AiChatMessage>> {
   String? _conversationId;
   bool _isLoading = false;
+  String _statusMessage = '';
 
   @override
   List<AiChatMessage> build() => [];
 
   bool get isLoading => _isLoading;
+  String get statusMessage => _statusMessage;
   String? get conversationId => _conversationId;
 
   AiRepository get _repo => ref.read(aiRepositoryProvider);
@@ -73,12 +77,10 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
   /// Send message with streaming response, falling back to the non-stream
   /// endpoint when the stream fails (network blip, server error).
   Future<void> sendMessage(String message) async {
-    state = [
-      ...state,
-      AiChatMessage(content: message, isUser: true),
-    ];
+    state = [...state, AiChatMessage(content: message, isUser: true)];
 
     _isLoading = true;
+    _statusMessage = 'Lex.uz\'dan amaldagi normativ hujjatlar qidirilmoqda...';
     state = [...state];
 
     try {
@@ -92,9 +94,13 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
 
         if (type == 'meta') {
           _conversationId = event['conversationId']?.toString();
+        } else if (type == 'status') {
+          _statusMessage = event['message']?.toString() ?? '';
+          state = [...state];
         } else if (type == 'token') {
           final text = event['text'] as String? ?? '';
           fullResponse += text;
+          _statusMessage = '';
 
           if (!addedAiMessage) {
             addedAiMessage = true;
@@ -116,6 +122,7 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
       }
 
       _isLoading = false;
+      _statusMessage = '';
 
       final messages = <AiChatMessage>[];
       for (int i = 0; i < state.length; i++) {
@@ -126,6 +133,7 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
       ref.invalidate(aiConversationsProvider);
     } catch (_) {
       _isLoading = false;
+      _statusMessage = '';
       // Fallback to non-streaming endpoint
       final result = await _repo.sendMessage(message, _conversationId);
       result.fold(
@@ -141,7 +149,8 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
         (response) {
           _conversationId =
               response['conversationId']?.toString() ?? _conversationId;
-          final reply = response['response'] ??
+          final reply =
+              response['response'] ??
               response['reply'] ??
               response['message'] ??
               '';
@@ -168,11 +177,13 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
         final text = parts?.isNotEmpty == true
             ? (parts!.first as Map<String, dynamic>)['text']?.toString() ?? ''
             : '';
-        messages.add(AiChatMessage(
-          content: text,
-          isUser: m['role'] == 'user',
-          messageIndex: i,
-        ));
+        messages.add(
+          AiChatMessage(
+            content: text,
+            isUser: m['role'] == 'user',
+            messageIndex: i,
+          ),
+        );
       }
       state = messages;
     });
@@ -180,12 +191,14 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
 
   void clearChat() {
     _conversationId = null;
+    _statusMessage = '';
     state = [];
   }
 }
 
-final aiChatProvider =
-    NotifierProvider<AiChatNotifier, List<AiChatMessage>>(AiChatNotifier.new);
+final aiChatProvider = NotifierProvider<AiChatNotifier, List<AiChatMessage>>(
+  AiChatNotifier.new,
+);
 
 // ---- AI Rules Notifier ----
 

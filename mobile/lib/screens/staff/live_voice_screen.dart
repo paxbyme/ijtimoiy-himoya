@@ -36,6 +36,10 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   _LiveStatus _status = _LiveStatus.idle;
   String _errorMessage = '';
   bool _isMuted = false;
+  // True while we tear the session down on purpose (_stop/dispose/_setError).
+  // The socket's onDone fires during our own sink.close() and must not be
+  // mistaken for a server-side drop, or ending a call flashes a false error.
+  bool _closing = false;
 
   late final AnimationController _pulse;
 
@@ -63,6 +67,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
       _status = _LiveStatus.connecting;
       _errorMessage = '';
     });
+    _closing = false;
 
     try {
       if (!await _recorder.hasPermission()) {
@@ -89,7 +94,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
         },
         onDone: () {
           debugPrint('[Live] WS done — closeCode=${_channel?.closeCode} reason=${_channel?.closeReason}');
-          if (mounted && _status != _LiveStatus.idle) {
+          if (mounted && !_closing && _status != _LiveStatus.idle) {
             _setError('Aloqa uzildi (code=${_channel?.closeCode})');
           }
         },
@@ -147,8 +152,16 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
         bytes.offsetInBytes,
         bytes.lengthInBytes ~/ 2,
       );
+      final wasStarved = _playbackQueue.isEmpty;
       for (final s in samples) {
         _playbackQueue.add(s);
+      }
+      // flutter_pcm_sound's feed callback only re-fires after the native buffer
+      // is consumed below the threshold. Once the queue drains to empty the
+      // callback goes quiet, so audio arriving afterwards would sit unplayed.
+      // Kick the pump manually whenever playback resumes from a starved state.
+      if (wasStarved && _pcmSoundReady) {
+        _onFeed(0);
       }
       if (mounted && _status != _LiveStatus.speaking) {
         setState(() => _status = _LiveStatus.speaking);
@@ -211,6 +224,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   }
 
   Future<void> _disconnect() async {
+    // Mark teardown as intentional before we touch the socket, so the
+    // sink.close() below doesn't trip onDone's "connection lost" error.
+    _closing = true;
     await _micSub?.cancel();
     _micSub = null;
     if (await _recorder.isRecording()) {

@@ -83,6 +83,62 @@ public class DocumentRepository {
         return data;
     }
 
+    /**
+     * Resolves a ranked Pinecone result set in one Firestore query (per batch)
+     * instead of issuing one network request for every vector.
+     */
+    public Map<String, Map<String, Object>> findChunksByVectorIds(List<String> vectorIds)
+            throws ExecutionException, InterruptedException {
+        if (vectorIds == null || vectorIds.isEmpty()) return Map.of();
+
+        List<String> uniqueIds = vectorIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .toList();
+        Map<String, Map<String, Object>> results = new HashMap<>();
+
+        // Firestore IN queries accept a bounded list. RAG currently requests at
+        // most ten matches, but batching keeps this method safe for other callers.
+        for (int start = 0; start < uniqueIds.size(); start += 30) {
+            List<String> batch = uniqueIds.subList(start, Math.min(start + 30, uniqueIds.size()));
+            QuerySnapshot snapshot = firestore.collection(CHUNKS_COLLECTION)
+                    .whereIn("vectorId", batch)
+                    .get()
+                    .get();
+            for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
+                Map<String, Object> data = new HashMap<>(doc.getData());
+                data.put("id", doc.getId());
+                Object vectorId = data.get("vectorId");
+                if (vectorId != null) results.put(vectorId.toString(), data);
+            }
+        }
+        return results;
+    }
+
+    /** Fetches source labels for existing vectors whose Pinecone metadata predates titles. */
+    public Map<String, String> findDocumentTitlesByIds(List<String> documentIds)
+            throws ExecutionException, InterruptedException {
+        if (documentIds == null || documentIds.isEmpty()) return Map.of();
+
+        DocumentReference[] references = documentIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .map(id -> firestore.collection(COLLECTION).document(id))
+                .toArray(DocumentReference[]::new);
+        if (references.length == 0) return Map.of();
+
+        Map<String, String> titles = new HashMap<>();
+        for (DocumentSnapshot doc : firestore.getAll(references).get()) {
+            if (!doc.exists()) continue;
+            String title = doc.getString("title");
+            if (title == null || title.isBlank()) title = doc.getString("fileName");
+            if (title != null && !title.isBlank()) titles.put(doc.getId(), title);
+        }
+        return titles;
+    }
+
     public void delete(String id) throws ExecutionException, InterruptedException {
         // Delete chunks first
         List<Map<String, Object>> chunks = findChunksByDocumentId(id);

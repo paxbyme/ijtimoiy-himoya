@@ -78,9 +78,9 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Yozib olishda xatolik: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Yozib olishda xatolik: $e')));
       }
     }
   }
@@ -100,7 +100,8 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
     }
 
     // Skip very short recordings (likely accidental taps)
-    if (start != null && DateTime.now().difference(start).inMilliseconds < 500) {
+    if (start != null &&
+        DateTime.now().difference(start).inMilliseconds < 500) {
       return;
     }
 
@@ -122,7 +123,8 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Ovoz tushunilmadi, qayta urinib ko\'ring')),
+              content: Text('Ovoz tushunilmadi, qayta urinib ko\'ring'),
+            ),
           );
         }
       },
@@ -156,7 +158,9 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
     final conversationId = ref.read(aiChatProvider.notifier).conversationId;
     if (conversationId == null) return;
 
-    final result = await ref.read(aiRepositoryProvider).submitFeedback(
+    final result = await ref
+        .read(aiRepositoryProvider)
+        .submitFeedback(
           conversationId: conversationId,
           messageIndex: messageIndex,
           rating: rating,
@@ -209,6 +213,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
   Widget build(BuildContext context) {
     final messages = ref.watch(aiChatProvider);
     final isLoading = ref.read(aiChatProvider.notifier).isLoading;
+    final statusMessage = ref.read(aiChatProvider.notifier).statusMessage;
     final theme = Theme.of(context);
 
     // Auto-scroll when messages change
@@ -216,7 +221,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Yordamchi'),
+        title: const Text('IHMA Bosh AI yordamchisi'),
         actions: [
           IconButton(
             icon: const Icon(Icons.phone_in_talk_outlined),
@@ -240,127 +245,129 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           ),
         ],
       ),
-      body: AppBackground(child: Column(
-        children: [
-          Expanded(
-            child: messages.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+      body: AppBackground(
+        child: Column(
+          children: [
+            Expanded(
+              child: messages.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Opacity(
+                              opacity: 0.5,
+                              child: Image.asset(
+                                'assets/images/logo.png',
+                                width: 80,
+                                height: 80,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'IHMA Bosh AI yordamchisi',
+                              style: theme.textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Fuqaro holatini yozing. Yordamchi Lex.uz\'dagi amaldagi normativ hujjatlarga tayangan holda kompleks yo\'l xaritasini tuzadi.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      itemCount: messages.length + (isLoading ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == messages.length && isLoading) {
+                          return _buildThinkingIndicator(theme, statusMessage);
+                        }
+
+                        final msg = messages[index];
+
+                        return Column(
+                          crossAxisAlignment: msg.isUser
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
+                          children: [
+                            ChatBubble(
+                              message: msg.content,
+                              isMe: msg.isUser,
+                              timestamp: msg.timestamp,
+                            ),
+                            // Feedback buttons for AI messages
+                            if (!msg.isUser &&
+                                !isLoading &&
+                                msg.content.isNotEmpty &&
+                                msg.messageIndex != null)
+                              _buildFeedbackRow(msg.messageIndex!, theme),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: _isRecording
+                    ? _buildRecordingBar(theme)
+                    : Row(
                         children: [
-                          Opacity(
-                            opacity: 0.5,
-                            child: Image.asset(
-                              'assets/images/logo.png',
-                              width: 80,
-                              height: 80,
+                          Expanded(
+                            child: TextField(
+                              controller: _messageController,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => _sendMessage(),
+                              enabled: !_isTranscribing,
+                              decoration: InputDecoration(
+                                hintText: _isTranscribing
+                                    ? 'Ovoz matnga o\'girilmoqda...'
+                                    : 'Xabar yozing...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                              ),
+                              maxLines: null,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'AI Yordamchi',
-                            style: theme.textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Ish, topshiriqlar yoki kompaniya qoidalari haqida savol bering.',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
+                          const SizedBox(width: 8),
+                          _buildMicOrSendButton(theme),
                         ],
                       ),
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    itemCount: messages.length + (isLoading ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == messages.length && isLoading) {
-                        return _buildThinkingIndicator(theme);
-                      }
-
-                      final msg = messages[index];
-
-                      return Column(
-                        crossAxisAlignment: msg.isUser
-                            ? CrossAxisAlignment.end
-                            : CrossAxisAlignment.start,
-                        children: [
-                          ChatBubble(
-                            message: msg.content,
-                            isMe: msg.isUser,
-                            timestamp: msg.timestamp,
-                          ),
-                          // Feedback buttons for AI messages
-                          if (!msg.isUser &&
-                              !isLoading &&
-                              msg.content.isNotEmpty &&
-                              msg.messageIndex != null)
-                            _buildFeedbackRow(msg.messageIndex!, theme),
-                        ],
-                      );
-                    },
-                  ),
-          ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
+              ),
             ),
-            child: SafeArea(
-              bottom: false,
-              child: _isRecording
-                  ? _buildRecordingBar(theme)
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _messageController,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _sendMessage(),
-                            enabled: !_isTranscribing,
-                            decoration: InputDecoration(
-                              hintText: _isTranscribing
-                                  ? 'Ovoz matnga o\'girilmoqda...'
-                                  : 'Xabar yozing...',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide.none,
-                              ),
-                              filled: true,
-                              fillColor:
-                                  theme.colorScheme.surfaceContainerHighest,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
-                            ),
-                            maxLines: null,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildMicOrSendButton(theme),
-                      ],
-                    ),
-            ),
-          ),
-        ],
-      )),
+          ],
+        ),
+      ),
     );
   }
 
@@ -429,7 +436,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
     );
   }
 
-  Widget _buildThinkingIndicator(ThemeData theme) {
+  Widget _buildThinkingIndicator(ThemeData theme, String statusMessage) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -452,10 +459,10 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              'O\'ylanmoqda...',
-              style: TextStyle(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              statusMessage.isNotEmpty
+                  ? statusMessage
+                  : 'Javob tayyorlanmoqda...',
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -487,8 +494,9 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           ),
           const SizedBox(width: 4),
           InkWell(
-            onTap:
-                hasGiven ? null : () => _submitFeedback(messageIndex, 'down'),
+            onTap: hasGiven
+                ? null
+                : () => _submitFeedback(messageIndex, 'down'),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(4),
@@ -562,8 +570,10 @@ class _ConversationHistorySheet extends ConsumerWidget {
             child: conversationsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Suhbatlarni yuklashda xatolik',
-                    style: TextStyle(color: theme.colorScheme.error)),
+                child: Text(
+                  'Suhbatlarni yuklashda xatolik',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
               ),
               data: (conversations) {
                 if (conversations.isEmpty) {
@@ -571,9 +581,11 @@ class _ConversationHistorySheet extends ConsumerWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.chat_bubble_outline,
-                            size: 48,
-                            color: theme.colorScheme.outline),
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 48,
+                          color: theme.colorScheme.outline,
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           'Hali suhbatlar yo\'q',
@@ -588,8 +600,10 @@ class _ConversationHistorySheet extends ConsumerWidget {
 
                 return ListView.separated(
                   controller: scrollController,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   itemCount: conversations.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 2),
                   itemBuilder: (context, index) {
@@ -602,7 +616,8 @@ class _ConversationHistorySheet extends ConsumerWidget {
                         builder: (ctx) => AlertDialog(
                           title: const Text('Suhbatni o\'chirish?'),
                           content: const Text(
-                              'Bu amalni ortga qaytarib bo\'lmaydi.'),
+                            'Bu amalni ortga qaytarib bo\'lmaydi.',
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx, false),
@@ -620,13 +635,14 @@ class _ConversationHistorySheet extends ConsumerWidget {
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 16),
                         color: theme.colorScheme.error,
-                        child: Icon(Icons.delete,
-                            color: theme.colorScheme.onError),
+                        child: Icon(
+                          Icons.delete,
+                          color: theme.colorScheme.onError,
+                        ),
                       ),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor:
-                              theme.colorScheme.primaryContainer,
+                          backgroundColor: theme.colorScheme.primaryContainer,
                           child: Padding(
                             padding: const EdgeInsets.all(6),
                             child: Image.asset('assets/images/logo.png'),
@@ -646,8 +662,10 @@ class _ConversationHistorySheet extends ConsumerWidget {
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        trailing: Icon(Icons.chevron_right,
-                            color: theme.colorScheme.outline),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: theme.colorScheme.outline,
+                        ),
                         onTap: () => onSelect(convo.id),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),

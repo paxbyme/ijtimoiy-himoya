@@ -34,6 +34,9 @@ dependencies {
     // OkHttp for REST calls (Gemini, Pinecone)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // Parse Lex.uz search results and official document pages
+    implementation("org.jsoup:jsoup:1.18.3")
+
     // Jackson
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")

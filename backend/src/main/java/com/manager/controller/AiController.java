@@ -5,13 +5,17 @@ import com.manager.dto.*;
 import com.manager.exception.GeminiRateLimitException;
 import com.manager.repository.AiConversationRepository;
 import com.manager.repository.AiFeedbackRepository;
+import com.manager.service.AiConversationPersistenceService;
 import com.manager.service.AiRulesService;
 import com.manager.service.AiService;
-import com.manager.service.RagService;
+import com.manager.service.LegalAssistantPrompt;
+import com.manager.service.LexUzService;
 import com.manager.service.RateLimiterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +26,8 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -31,43 +37,40 @@ public class AiController {
 
     private static final Logger log = LoggerFactory.getLogger(AiController.class);
 
-    private static final String GOLDEN_RULES = """
-            You are an AI assistant for employees in this organization.
-            Rules you MUST follow:
-            1. Never reveal confidential salary, HR, or financial information.
-            2. Always be professional and respectful.
-            3. Do not provide legal or medical advice.
-            4. If you don't know something, say so honestly.
-            5. Follow all department-specific rules provided below.
-            6. Base your answers on the provided context documents when available.
-            7. Do not make up information that isn't in your context.
-            8. Keep responses concise and actionable.
-            """;
-
-    private static final int MAX_HISTORY_MESSAGES = 20;
+    private static final int MAX_HISTORY_MESSAGES = 6;
     private static final int MAX_REQUESTS_PER_MINUTE = 20;
-    private static final int MAX_RULE_CONTENT_CHARS = 2_000;
-    private static final int MAX_TOTAL_RULE_CHARS = 20_000;
+    private static final int MAX_RULE_CONTENT_CHARS = 1_000;
+    private static final int MAX_TOTAL_RULE_CHARS = 6_000;
+    private static final int RAG_TOP_K = 10;
 
     private final AiService aiService;
     private final AiRulesService aiRulesService;
-    private final RagService ragService;
+    private final LexUzService lexUzService;
     private final AiConversationRepository aiConversationRepository;
     private final AiFeedbackRepository aiFeedbackRepository;
     private final RateLimiterService rateLimiterService;
+    private final AiConversationPersistenceService conversationPersistenceService;
+    private final Executor aiPipelineExecutor;
+    private final Executor aiStreamExecutor;
     private final ObjectMapper objectMapper;
 
     public AiController(AiService aiService,
                         AiRulesService aiRulesService,
-                        RagService ragService, AiConversationRepository aiConversationRepository,
+                        LexUzService lexUzService, AiConversationRepository aiConversationRepository,
                         AiFeedbackRepository aiFeedbackRepository,
-                        RateLimiterService rateLimiterService) {
+                        RateLimiterService rateLimiterService,
+                        AiConversationPersistenceService conversationPersistenceService,
+                        @Qualifier("aiPipelineExecutor") Executor aiPipelineExecutor,
+                        @Qualifier("aiStreamExecutor") Executor aiStreamExecutor) {
         this.aiService = aiService;
         this.aiRulesService = aiRulesService;
-        this.ragService = ragService;
+        this.lexUzService = lexUzService;
         this.aiConversationRepository = aiConversationRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
         this.rateLimiterService = rateLimiterService;
+        this.conversationPersistenceService = conversationPersistenceService;
+        this.aiPipelineExecutor = aiPipelineExecutor;
+        this.aiStreamExecutor = aiStreamExecutor;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -88,8 +91,9 @@ public class AiController {
 
             ChatContext ctx = buildChatContext(uid, departmentId, request.getMessage(), request.getConversationId());
 
-            // Call the configured LLM backend
-            String aiResponse = aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
+            String aiResponse = ctx.evidence.isEmpty()
+                    ? LegalAssistantPrompt.NO_NORMATIVE_BASIS
+                    : aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
 
             // Save conversation
             String conversationId = saveConversation(ctx, request.getMessage(), aiResponse);
@@ -97,7 +101,7 @@ public class AiController {
             AiChatResponse response = AiChatResponse.builder()
                     .response(aiResponse)
                     .conversationId(conversationId)
-                    .sources(ctx.ragSources)
+                    .sources(ctx.citations)
                     .build();
 
             return ResponseEntity.ok(ApiResponse.ok(response));
@@ -136,12 +140,17 @@ public class AiController {
                 } catch (IOException e) {
                     emitter.completeWithError(e);
                 }
-            });
+            }, aiStreamExecutor);
             return emitter;
         }
 
         CompletableFuture.runAsync(() -> {
             try {
+                emitter.send(SseEmitter.event().data(
+                        objectMapper.writeValueAsString(Map.of(
+                                "type", "status",
+                                "message", "Lex.uz'dan amaldagi normativ hujjatlar qidirilmoqda..."))));
+
                 ChatContext ctx = buildChatContext(uid, departmentId, request.getMessage(), request.getConversationId());
 
                 // Send meta with conversationId
@@ -150,7 +159,6 @@ public class AiController {
                                 "type", "meta",
                                 "conversationId", ctx.conversationId))));
 
-                // Stream response from the configured LLM backend
                 Consumer<String> tokenSink = token -> {
                     try {
                         emitter.send(SseEmitter.event().data(
@@ -161,18 +169,36 @@ public class AiController {
                         throw new RuntimeException(e);
                     }
                 };
-                String fullResponse = aiService.chatStream(
-                        ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
 
-                // Save conversation
-                saveConversation(ctx, request.getMessage(), fullResponse);
+                String fullResponse;
+                if (ctx.evidence.isEmpty()) {
+                    fullResponse = LegalAssistantPrompt.NO_NORMATIVE_BASIS;
+                    tokenSink.accept(fullResponse);
+                } else {
+                    emitter.send(SseEmitter.event().data(
+                            objectMapper.writeValueAsString(Map.of(
+                                    "type", "status",
+                                    "message", "Asoslangan javob tayyorlanmoqda..."))));
+                    fullResponse = aiService.chatStream(
+                            ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
+                }
 
                 // Send done
                 emitter.send(SseEmitter.event().data(
                         objectMapper.writeValueAsString(Map.of(
                                 "type", "done",
-                                "sources", ctx.ragSources != null ? ctx.ragSources : List.of()))));
+                                "sources", ctx.citations != null ? ctx.citations : List.of()))));
                 emitter.complete();
+
+                // Queue persistence only after the completion event was sent. A
+                // disconnected client can retry without duplicating a saved turn.
+                try {
+                    conversationPersistenceService.persistTurnAsync(
+                            ctx.conversationId, request.getMessage(), fullResponse, MAX_HISTORY_MESSAGES);
+                } catch (TaskRejectedException e) {
+                    log.error("Conversation persistence queue is full: conversationId={}",
+                            ctx.conversationId, e);
+                }
 
             } catch (Exception e) {
                 String errorMessage = (e instanceof GeminiRateLimitException)
@@ -191,7 +217,7 @@ public class AiController {
                     emitter.completeWithError(ex);
                 }
             }
-        });
+        }, aiStreamExecutor);
 
         return emitter;
     }
@@ -353,92 +379,102 @@ public class AiController {
                                          String message, String conversationId) throws Exception {
         ChatContext ctx = new ChatContext();
 
-        // Load department rules and query RAG in parallel
+        // Rules, documentary evidence, and conversation history are independent
+        // remote reads. Starting all three together removes their cumulative
+        // latency from the critical path.
         CompletableFuture<List<AiRuleDto>> rulesFuture = CompletableFuture.supplyAsync(() -> {
             try {
                 return aiRulesService.getActiveRulesForDepartment(departmentId);
             } catch (Exception e) {
+                log.warn("AI rules unavailable for dept={}: {}", departmentId, e.getMessage());
                 return List.<AiRuleDto>of();
             }
-        });
+        }, aiPipelineExecutor).completeOnTimeout(List.of(), 1500, TimeUnit.MILLISECONDS);
 
-        CompletableFuture<List<String>> ragFuture = CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<List<RagSource>> ragFuture = CompletableFuture.supplyAsync(() -> {
             try {
-                return ragService.query(message, departmentId, 5);
+                return lexUzService.query(message, RAG_TOP_K);
             } catch (Exception e) {
-                return List.<String>of();
+                log.warn("Lex.uz search unavailable: {}", e.getMessage());
+                return List.<RagSource>of();
             }
-        });
+        }, aiPipelineExecutor).completeOnTimeout(List.of(), 18_000, TimeUnit.MILLISECONDS);
 
-        List<AiRuleDto> deptRules = rulesFuture.get(10, TimeUnit.SECONDS);
+        final String requestedConversationId = conversationId;
+        CompletableFuture<ConversationState> conversationFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                return loadOrCreateConversation(
+                        uid, departmentId, message, requestedConversationId);
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        }, aiPipelineExecutor);
+
+        CompletableFuture.allOf(rulesFuture, ragFuture, conversationFuture)
+                .get(19, TimeUnit.SECONDS);
+
+        ConversationState conversation = conversationFuture.join();
+        List<AiRuleDto> deptRules = rulesFuture.join();
+        List<RagSource> evidence = ragFuture.join();
         String deptRulesText = buildDepartmentRulesPrompt(deptRules, departmentId);
 
-        ctx.ragSources = new ArrayList<>();
-        List<String> ragContext;
-        try {
-            ragContext = ragFuture.get(5, TimeUnit.SECONDS);
-            ctx.ragSources.addAll(ragContext);
-        } catch (Exception e) {
-            ragContext = new ArrayList<>();
-        }
-
-        // Build system prompt
-        StringBuilder systemPrompt = new StringBuilder();
-        systemPrompt.append(GOLDEN_RULES).append("\n\n");
-
-        if (!deptRulesText.isBlank()) {
-            systemPrompt.append("Department-specific rules:\n").append(deptRulesText).append("\n");
-        }
-
-        if (!ragContext.isEmpty()) {
-            systemPrompt.append("Relevant context from documents:\n");
-            for (String context : ragContext) {
-                systemPrompt.append("---\n").append(context).append("\n");
-            }
-            systemPrompt.append("---\n\n");
-        }
-
-        ctx.systemPrompt = systemPrompt.toString();
-
-        // Load or create conversation
-        List<Map<String, Object>> history = new ArrayList<>();
-
-        if (conversationId != null && !conversationId.isEmpty()) {
-            Map<String, Object> conversation = aiConversationRepository.findById(conversationId);
-            if (conversation != null && conversation.containsKey("messages")) {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> storedMessages = (List<Map<String, Object>>) conversation.get("messages");
-                if (storedMessages != null) {
-                    history.addAll(storedMessages);
-                }
-            }
-            ctx.conversationId = conversationId;
-            ctx.isNew = false;
-        } else {
-            Map<String, Object> conversation = new HashMap<>();
-            conversation.put("staffId", uid);
-            conversation.put("departmentId", departmentId);
-            conversation.put("title", truncateTitle(message));
-            conversation.put("messageCount", 0);
-            conversation.put("messages", new ArrayList<>());
-            conversation.put("createdAt", Instant.now().toString());
-            conversation.put("updatedAt", Instant.now().toString());
-            conversation = aiConversationRepository.save(conversation);
-            conversationId = conversation.get("id").toString();
-            ctx.conversationId = conversationId;
-            ctx.isNew = true;
-        }
-
-        // Truncate history to last N messages to stay within token limits
+        List<Map<String, Object>> history = new ArrayList<>(conversation.history);
         if (history.size() > MAX_HISTORY_MESSAGES) {
             history = new ArrayList<>(history.subList(history.size() - MAX_HISTORY_MESSAGES, history.size()));
         }
 
+        ctx.conversationId = conversation.id;
+        ctx.isNew = conversation.isNew;
         ctx.history = history;
         ctx.uid = uid;
         ctx.departmentId = departmentId;
+        ctx.evidence = evidence;
+        ctx.citations = evidence.stream()
+                .map(RagSource::citationReference)
+                .distinct()
+                .toList();
+        ctx.systemPrompt = LegalAssistantPrompt.buildGroundedPrompt(evidence, deptRulesText);
 
         return ctx;
+    }
+
+    private ConversationState loadOrCreateConversation(String uid, String departmentId,
+                                                        String message, String conversationId) throws Exception {
+        if (conversationId != null && !conversationId.isBlank()) {
+            Map<String, Object> conversation = aiConversationRepository.findRecentById(
+                    conversationId, MAX_HISTORY_MESSAGES);
+            if (conversation == null) {
+                throw new IllegalArgumentException("Conversation not found");
+            }
+            if (!uid.equals(Objects.toString(conversation.get("staffId"), ""))) {
+                throw new IllegalArgumentException("Access denied");
+            }
+
+            List<Map<String, Object>> history = new ArrayList<>();
+            Object stored = conversation.get("messages");
+            if (stored instanceof List<?> messages) {
+                for (Object item : messages) {
+                    if (item instanceof Map<?, ?> raw) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> typed = (Map<String, Object>) raw;
+                        history.add(typed);
+                    }
+                }
+            }
+            return new ConversationState(conversationId, history, false);
+        }
+
+        Map<String, Object> conversation = new HashMap<>();
+        conversation.put("staffId", uid);
+        conversation.put("departmentId", departmentId);
+        conversation.put("title", truncateTitle(message));
+        conversation.put("messageCount", 0);
+        conversation.put("messages", new ArrayList<>());
+        conversation.put("recentMessages", new ArrayList<>());
+        conversation.put("createdAt", Instant.now().toString());
+        conversation.put("updatedAt", Instant.now().toString());
+        Map<String, Object> saved = aiConversationRepository.save(conversation);
+        return new ConversationState(saved.get("id").toString(), new ArrayList<>(), true);
     }
 
     private String buildDepartmentRulesPrompt(List<AiRuleDto> rules, String departmentId) {
@@ -490,22 +526,8 @@ public class AiController {
     }
 
     private String saveConversation(ChatContext ctx, String userMessage, String aiResponse) throws Exception {
-        // Add new messages to history
-        Map<String, Object> userMsg = new HashMap<>();
-        userMsg.put("role", "user");
-        userMsg.put("parts", List.of(Map.of("text", userMessage)));
-        ctx.history.add(userMsg);
-
-        Map<String, Object> assistantMsg = new HashMap<>();
-        assistantMsg.put("role", "model");
-        assistantMsg.put("parts", List.of(Map.of("text", aiResponse)));
-        ctx.history.add(assistantMsg);
-
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("messages", ctx.history);
-        updates.put("messageCount", ctx.history.size());
-        updates.put("updatedAt", Instant.now().toString());
-        aiConversationRepository.update(ctx.conversationId, updates);
+        conversationPersistenceService.persistTurn(
+                ctx.conversationId, userMessage, aiResponse, MAX_HISTORY_MESSAGES);
 
         return ctx.conversationId;
     }
@@ -526,7 +548,14 @@ public class AiController {
         String conversationId;
         String systemPrompt;
         List<Map<String, Object>> history;
-        List<String> ragSources;
+        List<RagSource> evidence;
+        List<String> citations;
         boolean isNew;
     }
+
+    private record ConversationState(
+            String id,
+            List<Map<String, Object>> history,
+            boolean isNew
+    ) {}
 }

@@ -86,7 +86,10 @@ public class DocumentService {
         try {
             log.info("Starting async document processing documentId={} fileName={}", documentId, fileName);
             String text = extractText(fileBytes, fileName);
-            List<String> chunks = splitIntoChunks(text, 500, 100);
+            // Legal clauses often need the preceding heading and conditions to
+            // remain together. A wider, overlapped chunk improves citation
+            // accuracy while producing fewer vectors than the old 500-char split.
+            List<String> chunks = splitIntoChunks(text, 900, 180);
             log.debug("Extracted {} chunks from documentId={}", chunks.size(), documentId);
             documentProcessorService.process(documentId, fileBytes, fileName, departmentId, chunks);
         } catch (Exception e) {
@@ -119,7 +122,7 @@ public class DocumentService {
 
         try {
             String text = extractText(file.getBytes(), file.getOriginalFilename());
-            List<String> chunks = splitIntoChunks(text, 500, 100);
+            List<String> chunks = splitIntoChunks(text, 900, 180);
             embeddingService.embedAndStore(document.getId(), departmentId, chunks);
             updateDocumentStatus(document.getId(), "COMPLETED");
             document.setStatus("COMPLETED");

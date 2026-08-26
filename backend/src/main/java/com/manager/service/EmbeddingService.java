@@ -2,6 +2,7 @@ package com.manager.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.manager.config.PineconeConfig;
+import com.manager.dto.DocumentDto;
 import com.manager.repository.DocumentRepository;
 import okhttp3.*;
 import org.springframework.stereotype.Service;
@@ -43,13 +44,33 @@ public class EmbeddingService {
             }
         }
 
+        String documentTitle = "";
+        try {
+            DocumentDto document = documentRepository.findById(documentId);
+            if (document != null) {
+                documentTitle = document.getTitle() != null && !document.getTitle().isBlank()
+                        ? document.getTitle().trim()
+                        : Objects.toString(document.getFileName(), "").trim();
+            }
+        } catch (Exception ignored) {
+            // Title is useful retrieval context, but indexing must not fail without it.
+        }
+
         // Process in batches
         for (int batchStart = 0; batchStart < cleanChunks.size(); batchStart += BATCH_SIZE) {
             int batchEnd = Math.min(batchStart + BATCH_SIZE, cleanChunks.size());
             List<String> batch = cleanChunks.subList(batchStart, batchEnd);
 
-            // Batch embed
-            List<float[]> embeddings = aiService.batchEmbed(batch);
+            // Include the source title in the semantic input. The stored chunk
+            // remains unchanged, while searches for a decree/document name get
+            // substantially better recall.
+            List<String> embeddingInputs = new ArrayList<>(batch.size());
+            for (String chunk : batch) {
+                embeddingInputs.add(documentTitle.isBlank()
+                        ? chunk
+                        : "Hujjat: " + documentTitle + "\n" + chunk);
+            }
+            List<float[]> embeddings = aiService.batchEmbed(embeddingInputs);
 
             List<Map<String, Object>> vectors = new ArrayList<>();
 
@@ -74,6 +95,8 @@ public class EmbeddingService {
                 metadata.put("documentId", documentId);
                 metadata.put("departmentId", departmentId);
                 metadata.put("chunkIndex", globalIndex);
+                metadata.put("content", chunk);
+                if (!documentTitle.isBlank()) metadata.put("documentTitle", documentTitle);
                 vector.put("metadata", metadata);
 
                 vectors.add(vector);
@@ -85,6 +108,7 @@ public class EmbeddingService {
                 chunkData.put("chunkIndex", globalIndex);
                 chunkData.put("content", chunk);
                 chunkData.put("vectorId", vectorId);
+                if (!documentTitle.isBlank()) chunkData.put("documentTitle", documentTitle);
                 documentRepository.saveChunk(chunkData);
             }
 

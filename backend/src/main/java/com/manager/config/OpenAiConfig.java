@@ -27,6 +27,9 @@ public class OpenAiConfig {
     @Value("${openai.embedding.dimension:512}")
     private int embeddingDimension;
 
+    @Value("${ai.chat.max-output-tokens:2400}")
+    private int chatMaxOutputTokens;
+
     /** Realtime (live voice) model. */
     @Value("${openai.realtime.model:gpt-4o-realtime-preview}")
     private String realtimeModel;
@@ -45,6 +48,7 @@ public class OpenAiConfig {
     public String getTranscribeModel() { return transcribeModel; }
     public String getEmbeddingModel() { return embeddingModel; }
     public int getEmbeddingDimension() { return embeddingDimension; }
+    public int getChatMaxOutputTokens() { return chatMaxOutputTokens; }
     public String getRealtimeModel() { return realtimeModel; }
     public String getRealtimeVoice() { return realtimeVoice; }
     public String getBaseUrl() { return baseUrl; }

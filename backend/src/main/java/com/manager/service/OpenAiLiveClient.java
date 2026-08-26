@@ -40,6 +40,7 @@ public class OpenAiLiveClient implements LiveClient {
     private static final int MIC_RATE = 16000;   // mobile mic input rate
     private static final int OAI_RATE = 24000;    // OpenAI pcm16 rate
     private static final int MAX_PENDING_CHUNKS = 80;
+    static final int MAX_SESSION_INSTRUCTION_CHARS = 32_000;
 
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -71,7 +72,7 @@ public class OpenAiLiveClient implements LiveClient {
                 .pingInterval(20, TimeUnit.SECONDS)
                 .build();
         this.config = config;
-        this.systemInstruction = systemInstruction;
+        this.systemInstruction = limitSystemInstruction(systemInstruction);
         this.onAudio = onAudio;
         this.onText = onText;
         this.onTurnComplete = onTurnComplete;
@@ -172,6 +173,18 @@ public class OpenAiLiveClient implements LiveClient {
         return s;
     }
 
+    static String limitSystemInstruction(String instruction) {
+        if (instruction == null) return "";
+        if (instruction.length() <= MAX_SESSION_INSTRUCTION_CHARS) return instruction;
+        log.warn("OpenAI Realtime instruction hard-capped: originalChars={} maxChars={}",
+                instruction.length(), MAX_SESSION_INSTRUCTION_CHARS);
+        return instruction.substring(0, MAX_SESSION_INSTRUCTION_CHARS - 1).trim() + "…";
+    }
+
+    static boolean isReadyEvent(String eventType) {
+        return "session.updated".equals(eventType);
+    }
+
     private final class Listener extends WebSocketListener {
         @Override
         public void onOpen(WebSocket ws, Response response) {
@@ -206,7 +219,9 @@ public class OpenAiLiveClient implements LiveClient {
                 JsonNode root = objectMapper.readTree(text);
                 String type = root.path("type").asText("");
                 switch (type) {
-                    case "session.created", "session.updated" -> {
+                    case "session.created" -> log.debug(
+                            "OpenAI Realtime session created; waiting for session.update acknowledgement");
+                    case "session.updated" -> {
                         if (!ready) {
                             ready = true;
                             try { onReady.run(); } catch (Exception e) { log.warn("onReady failed", e); }

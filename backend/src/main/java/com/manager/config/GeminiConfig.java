@@ -29,6 +29,9 @@ public class GeminiConfig {
     @Value("${gemini.embedding.dimension:512}")
     private int embeddingDimension;
 
+    @Value("${ai.chat.max-output-tokens:2400}")
+    private int chatMaxOutputTokens;
+
     /** Override in tests to point at MockWebServer. */
     @Value("${gemini.base.url:https://generativelanguage.googleapis.com}")
     private String baseUrl;
@@ -39,5 +42,6 @@ public class GeminiConfig {
     public String getOcrModel() { return ocrModel; }
     public String getEmbeddingModel() { return embeddingModel; }
     public int getEmbeddingDimension() { return embeddingDimension; }
+    public int getChatMaxOutputTokens() { return chatMaxOutputTokens; }
     public String getBaseUrl() { return baseUrl; }
 }
