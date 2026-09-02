@@ -147,7 +147,8 @@ public class KpiService {
     }
 
     public List<KpiDto> getKpiRankings(String departmentId, String period) throws Exception {
-        List<KpiDto> kpis = kpiRepository.findByDepartmentIdAndPeriod(departmentId, period);
+        List<KpiDto> kpis = new ArrayList<>(
+                kpiRepository.findByDepartmentIdAndPeriod(departmentId, period));
         // Sort by score descending
         kpis.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
         // Assign ranks

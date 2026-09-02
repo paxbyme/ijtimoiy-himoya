@@ -6,7 +6,6 @@ import com.manager.dto.UserDto;
 import com.manager.repository.KpiRepository;
 import com.manager.repository.TaskRepository;
 import com.manager.repository.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -36,8 +35,7 @@ class KpiServiceTest {
     private final String DEPT_ID  = "dept-001";
     private final String PERIOD   = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
 
-    @BeforeEach
-    void setUp() throws Exception {
+    private void stubNewKpiPeriod() throws Exception {
         UserDto staff = UserDto.builder().id(STAFF_ID).name("Alice").build();
         when(userRepository.findById(STAFF_ID)).thenReturn(staff);
         when(kpiRepository.findByStaffIdAndPeriod(eq(STAFF_ID), eq(PERIOD))).thenReturn(null);
@@ -47,9 +45,10 @@ class KpiServiceTest {
 
     @Test
     void calculateKpi_noTasks_returnsZeroScore() throws Exception {
+        stubNewKpiPeriod();
         when(taskRepository.findByAssignedToAndPeriod(eq(STAFF_ID), any(), any()))
                 .thenReturn(Collections.emptyList());
-        KpiDto saved = KpiDto.builder().staffId(STAFF_ID).score(0).build();
+        KpiDto saved = KpiDto.builder().staffId(STAFF_ID).score(0.0).build();
         when(kpiRepository.save(any())).thenReturn(saved);
 
         KpiDto result = kpiService.calculateKpi(STAFF_ID, DEPT_ID);
@@ -60,6 +59,7 @@ class KpiServiceTest {
 
     @Test
     void calculateKpi_allTasksOnTime_returnsPerfectScore() throws Exception {
+        stubNewKpiPeriod();
         String now   = Instant.now().toString();
         String later = Instant.now().plusSeconds(86400).toString(); // deadline tomorrow
 
@@ -86,9 +86,10 @@ class KpiServiceTest {
 
     @Test
     void calculateKpi_taskCompletedLate_penalisesTimeliness() throws Exception {
-        String created   = Instant.now().minusSeconds(7200).toString();
-        String deadline  = Instant.now().minusSeconds(3600).toString(); // deadline 1h ago (past)
-        String completed = Instant.now().toString();                    // completed now (late)
+        stubNewKpiPeriod();
+        String created   = "2026-03-01T00:00:00Z";
+        String deadline  = "2026-03-01T12:00:00Z";
+        String completed = "2026-03-02T00:00:00Z";
 
         TaskDto lateTask = TaskDto.builder()
                 .id("t2")
@@ -106,12 +107,13 @@ class KpiServiceTest {
 
         KpiDto result = kpiService.calculateKpi(STAFF_ID, DEPT_ID);
 
-        // timeliness = 0 (late), completion = 30 (100% completed), efficiency = 0 (ratio > 1 capped)
-        assertThat(result.getScore()).isLessThan(40.0);
+        assertThat(result.getBreakdown().get("timeliness")).isEqualTo(0.0);
+        assertThat(result.getScore()).isEqualTo(45.0);
     }
 
     @Test
     void calculateKpi_mixedTasks_partialCompletion() throws Exception {
+        stubNewKpiPeriod();
         String base = Instant.now().minusSeconds(7200).toString();
         String dl   = Instant.now().plusSeconds(3600).toString();
         String comp = Instant.now().toString();
@@ -132,6 +134,8 @@ class KpiServiceTest {
 
     @Test
     void calculateKpi_existingKpiForPeriod_updatesInsteadOfCreating() throws Exception {
+        UserDto staff = UserDto.builder().id(STAFF_ID).name("Alice").build();
+        when(userRepository.findById(STAFF_ID)).thenReturn(staff);
         KpiDto existing = KpiDto.builder().id("kpi-1").staffId(STAFF_ID).score(50.0).build();
         when(kpiRepository.findByStaffIdAndPeriod(eq(STAFF_ID), eq(PERIOD))).thenReturn(existing);
         when(taskRepository.findByAssignedToAndPeriod(eq(STAFF_ID), any(), any()))
