@@ -147,9 +147,10 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
 
   void _sendMessage() {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    final notifier = ref.read(aiChatProvider.notifier);
+    if (text.isEmpty || notifier.isLoading) return;
 
-    ref.read(aiChatProvider.notifier).sendMessage(text);
+    notifier.sendMessage(text);
     _messageController.clear();
     _scrollToBottom();
   }
@@ -231,17 +232,19 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Suhbat tarixi',
-            onPressed: _showConversationHistory,
+            onPressed: isLoading ? null : _showConversationHistory,
           ),
           IconButton(
             icon: const Icon(Icons.add_comment_outlined),
             tooltip: 'Yangi suhbat',
-            onPressed: () {
-              ref.read(aiChatProvider.notifier).clearChat();
-              setState(() {
-                _feedbackGiven.clear();
-              });
-            },
+            onPressed: isLoading
+                ? null
+                : () {
+                    ref.read(aiChatProvider.notifier).clearChat();
+                    setState(() {
+                      _feedbackGiven.clear();
+                    });
+                  },
           ),
         ],
       ),
@@ -339,7 +342,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
                               controller: _messageController,
                               textInputAction: TextInputAction.send,
                               onSubmitted: (_) => _sendMessage(),
-                              enabled: !_isTranscribing,
+                              enabled: !_isTranscribing && !isLoading,
                               decoration: InputDecoration(
                                 hintText: _isTranscribing
                                     ? 'Ovoz matnga o\'girilmoqda...'
@@ -360,7 +363,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          _buildMicOrSendButton(theme),
+                          _buildMicOrSendButton(theme, isLoading),
                         ],
                       ),
               ),
@@ -371,10 +374,10 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
     );
   }
 
-  Widget _buildMicOrSendButton(ThemeData theme) {
+  Widget _buildMicOrSendButton(ThemeData theme, bool isLoading) {
     final hasText = _messageController.text.trim().isNotEmpty;
 
-    if (_isTranscribing) {
+    if (_isTranscribing || isLoading) {
       return const SizedBox(
         width: 48,
         height: 48,
@@ -446,6 +449,9 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.85,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -458,11 +464,13 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              statusMessage.isNotEmpty
-                  ? statusMessage
-                  : 'Javob tayyorlanmoqda...',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            Flexible(
+              child: Text(
+                statusMessage.isNotEmpty
+                    ? statusMessage
+                    : 'Javob tayyorlanmoqda...',
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              ),
             ),
           ],
         ),
