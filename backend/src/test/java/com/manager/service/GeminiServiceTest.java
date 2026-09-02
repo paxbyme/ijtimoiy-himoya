@@ -1,6 +1,7 @@
 package com.manager.service;
 
 import com.manager.config.GeminiConfig;
+import com.manager.exception.GeminiRateLimitException;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -88,12 +89,12 @@ class GeminiServiceTest {
     }
 
     @Test
-    void chat_apiError_throwsIOException() {
+    void chat_rateLimit_throwsDedicatedException() {
         server.enqueue(new MockResponse().setResponseCode(429).setBody("Too Many Requests"));
 
         assertThatThrownBy(() -> geminiService.chat("sys", List.of(), "msg"))
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("429");
+                .isInstanceOf(GeminiRateLimitException.class)
+                .hasMessageContaining("gemini-2.0-flash");
     }
 
     @Test

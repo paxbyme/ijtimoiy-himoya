@@ -21,6 +21,8 @@ class DocumentServiceTest {
 
     @Mock DocumentRepository documentRepository;
     @Mock EmbeddingService embeddingService;
+    @Mock DocumentProcessorService documentProcessorService;
+    @Mock AiService aiService;
 
     @InjectMocks DocumentService documentService;
 
@@ -125,26 +127,23 @@ class DocumentServiceTest {
         String docId = "doc-async";
         byte[] content = "Some plain text content for testing.".getBytes(StandardCharsets.UTF_8);
 
-        DocumentDto doc = DocumentDto.builder().id(docId).status("PROCESSING").build();
-        when(documentRepository.findById(docId)).thenReturn(doc);
-        when(documentRepository.save(any())).thenReturn(doc);
-
         documentService.processDocumentAsync(docId, content, "notes.txt", "dept-1");
 
         // processDocumentAsync is @Async but in tests runs synchronously (no executor override)
-        verify(embeddingService).embedAndStore(eq(docId), eq("dept-1"), anyList());
-        verify(documentRepository, atLeastOnce()).save(argThat(d -> "COMPLETED".equals(d.getStatus())));
+        verify(documentProcessorService).process(
+                eq(docId), same(content), eq("notes.txt"), eq("dept-1"), anyList());
     }
 
     @Test
-    void processDocumentAsync_embeddingFailure_marksDocumentFailed() throws Exception {
+    void processDocumentAsync_processorFailure_marksDocumentFailed() throws Exception {
         String docId = "doc-fail";
         byte[] content = "text".getBytes(StandardCharsets.UTF_8);
 
         DocumentDto doc = DocumentDto.builder().id(docId).status("PROCESSING").build();
         when(documentRepository.findById(docId)).thenReturn(doc);
         when(documentRepository.save(any())).thenReturn(doc);
-        doThrow(new RuntimeException("Embedding error")).when(embeddingService).embedAndStore(any(), any(), any());
+        doThrow(new RuntimeException("Processing error")).when(documentProcessorService)
+                .process(anyString(), any(byte[].class), anyString(), anyString(), anyList());
 
         documentService.processDocumentAsync(docId, content, "notes.txt", "dept-1");
 
