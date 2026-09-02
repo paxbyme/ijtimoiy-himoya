@@ -158,6 +158,72 @@ class LexUzServiceTest {
                 .isEqualTo("kunduzgi parvarish subsidiya ajratilgan");
     }
 
+    @Test
+    void complexFamilyCaseSearchesLegalNeedsInsteadOfNamesAndAddress() throws Exception {
+        server.enqueue(searchResult("-101", "Nogironligi bo'lgan bolaga nafaqa",
+                "Vazirlar Mahkamasining 101-son qarori"));
+        server.enqueue(searchResult("-202", "Kompleks ijtimoiy xizmatlar",
+                "Vazirlar Mahkamasining 202-son qarori"));
+        server.enqueue(searchResult("-303", "Ishsiz shaxslar bandligi",
+                "Vazirlar Mahkamasining 303-son qarori"));
+
+        server.enqueue(htmlResponse("""
+                <html><body><div id="divCont">
+                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Nogironligi bo'lgan bolaga nafaqa tayinlash tartibi</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-11" id="-11">17-band. <span class="show_context">Nogironligi</span> bo'lgan bolaga belgilangan shartlarda nafaqa tayinlanadi.</div></div>
+                </div></body></html>
+                """));
+        server.enqueue(htmlResponse("""
+                <html><body><div id="divCont">
+                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Kompleks ijtimoiy xizmatlarni ko'rsatish tartibi</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-21" id="-21">5-band. Nogironligi bo'lgan bola uchun <span class="show_context">ijtimoiy xizmat</span>lar individual ehtiyoj asosida belgilanadi.</div></div>
+                </div></body></html>
+                """));
+
+        List<RagSource> result = service.query("""
+                Uchqo'rg'on tumani Yorqin Hayot mahallasidagi Sotvoldiyev Jahongirning
+                aqliy zaiflikning o'rta darajasi bo'lgan 7 yoshli o'g'li bor. Ayoli bola
+                mashg'uloti bilan mashg'ul, Jahongir esa ishsiz. Bolaga nogironlik nafaqasi
+                tayinlanmagan. Qarorlar asosida kompleks ijtimoiy hizmatlar ishlab chiq.
+                """, 10);
+
+        assertThat(result)
+                .extracting(RagSource::documentId)
+                .containsExactlyInAnyOrder("-101", "-202");
+
+        RecordedRequest benefitSearch = server.takeRequest();
+        RecordedRequest serviceSearch = server.takeRequest();
+        RecordedRequest employmentSearch = server.takeRequest();
+        assertThat(benefitSearch.getRequestUrl().queryParameter("query"))
+                .isEqualTo("nogironligi bola nafaqa tayinlash");
+        assertThat(serviceSearch.getRequestUrl().queryParameter("query"))
+                .isEqualTo("ijtimoiy xizmat nogironligi bola");
+        assertThat(employmentSearch.getRequestUrl().queryParameter("query"))
+                .isEqualTo("ishsiz bandlik");
+        assertThat(List.of(
+                benefitSearch.getRequestUrl().queryParameter("query"),
+                serviceSearch.getRequestUrl().queryParameter("query"),
+                employmentSearch.getRequestUrl().queryParameter("query")))
+                .allSatisfy(query -> assertThat(query)
+                        .doesNotContainIgnoringCase("Uchqo'rg'on", "Yorqin", "Sotvoldiyev", "Jahongir"));
+    }
+
+    private MockResponse searchResult(String documentId, String title, String metadata) {
+        return htmlResponse("""
+                <html><body><table>
+                  <tr class="dd-table__main-item">
+                    <td><span class="lx_act_state"><i class="status_code_y"></i></span></td>
+                    <td>
+                      <div class="dd-table__main-left-desc">
+                        <a class="lx_link" href="/uz/docs/%s">%s</a>
+                      </div>
+                      <span class="badge-nine">%s</span>
+                    </td>
+                  </tr>
+                </table></body></html>
+                """.formatted(documentId, title, metadata));
+    }
+
     private MockResponse htmlResponse(String body) {
         return new MockResponse()
                 .addHeader("Content-Type", "text/html; charset=utf-8")

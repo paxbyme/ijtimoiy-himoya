@@ -57,6 +57,35 @@ public class LexUzService {
     private static final int MAX_DOCUMENT_BYTES = 6 * 1024 * 1024;
     private static final int MAX_SNIPPET_CHARS = 6_000;
     private static final int MAX_CACHE_ENTRIES = 200;
+    private static final int MAX_QUERY_TERMS = 16;
+
+    /**
+     * Legal concepts must outrank names and addresses in long case narratives.
+     * Equal-priority terms retain the order in which the user wrote them.
+     */
+    private static final Map<String, Integer> QUERY_TERM_PRIORITY = Map.ofEntries(
+            Map.entry("nogironligi", 120),
+            Map.entry("kunduzgi", 120),
+            Map.entry("bola", 115),
+            Map.entry("farzandi", 115),
+            Map.entry("parvarish", 115),
+            Map.entry("ijtimoiy", 110),
+            Map.entry("subsidiya", 110),
+            Map.entry("xizmat", 105),
+            Map.entry("nafaqa", 100),
+            Map.entry("reabilitatsiya", 100),
+            Map.entry("bandlik", 95),
+            Map.entry("ishsiz", 90),
+            Map.entry("tayinlash", 90),
+            Map.entry("aqliy", 85),
+            Map.entry("zaiflik", 80),
+            Map.entry("pensiya", 80),
+            Map.entry("kompensatsiya", 80),
+            Map.entry("kompleks", 75),
+            Map.entry("daraja", 70),
+            Map.entry("ariza", 65),
+            Map.entry("transport", 65)
+    );
 
     private static final Set<String> STOP_WORDS = Set.of(
             "men", "menda", "meni", "mening", "biz", "bizda", "bizning",
@@ -118,21 +147,54 @@ public class LexUzService {
         List<String> terms = extractQueryTerms(question);
         if (terms.isEmpty()) return List.of();
 
-        SearchSelection selection = findDocuments(terms);
-        if (selection.documents.isEmpty()) {
+        List<List<String>> queryGroups = buildQueryGroups(terms);
+        List<CompletableFuture<SearchSelection>> searchFutures = queryGroups.stream()
+                .map(group -> CompletableFuture.supplyAsync(() -> findDocuments(group), executor)
+                        .completeOnTimeout(new SearchSelection("", List.of()), 8, TimeUnit.SECONDS)
+                        .exceptionally(error -> {
+                            log.warn("Lex.uz grouped search failed: terms={} error={}",
+                                    group, rootMessage(error));
+                            return new SearchSelection("", List.of());
+                        }))
+                .toList();
+
+        List<SearchSelection> selections = searchFutures.stream()
+                .map(CompletableFuture::join)
+                .filter(selection -> !selection.documents.isEmpty())
+                .toList();
+        if (selections.isEmpty()) {
             return List.of();
         }
 
+        // Round-robin across needs (benefits, services, employment) so one
+        // broad search cannot consume the entire document budget.
+        List<EvidenceRequest> requests = new ArrayList<>();
+        Set<String> selectedDocumentIds = new HashSet<>();
+        for (int documentIndex = 0; requests.size() < maxDocuments; documentIndex++) {
+            boolean foundAtThisIndex = false;
+            for (SearchSelection selection : selections) {
+                if (documentIndex >= selection.documents.size()) continue;
+                foundAtThisIndex = true;
+                SearchDocument document = selection.documents.get(documentIndex);
+                if (selectedDocumentIds.add(document.documentId)) {
+                    requests.add(new EvidenceRequest(document, selection.query));
+                    if (requests.size() >= maxDocuments) break;
+                }
+            }
+            if (!foundAtThisIndex) break;
+        }
+
         List<CompletableFuture<List<RagSource>>> futures = new ArrayList<>();
-        for (int i = 0; i < selection.documents.size(); i++) {
-            SearchDocument document = selection.documents.get(i);
+        for (int i = 0; i < requests.size(); i++) {
+            EvidenceRequest request = requests.get(i);
             int rank = i;
             futures.add(CompletableFuture.supplyAsync(
-                            () -> fetchEvidence(document, selection.query, question, rank), executor)
+                            () -> fetchEvidence(
+                                    request.document, request.query, question, rank), executor)
                     .completeOnTimeout(List.of(), 8, TimeUnit.SECONDS)
                     .exceptionally(error -> {
                         log.warn("Lex.uz document fetch failed: documentId={} error={}",
-                                document.documentId, rootMessage(error));
+                                request.document.documentId, rootMessage(error));
                         return List.of();
                     }));
         }
@@ -171,6 +233,49 @@ public class LexUzService {
             }
         }
         return new SearchSelection("", List.of());
+    }
+
+    private List<List<String>> buildQueryGroups(List<String> terms) {
+        Set<String> available = new LinkedHashSet<>(terms);
+        List<List<String>> groups = new ArrayList<>();
+
+        if (hasAny(available, "nafaqa", "pensiya", "tayinlash")
+                && hasAny(available, "nogironligi", "bola", "farzandi")) {
+            addGroup(groups, available,
+                    "nogironligi", "bola", "farzandi", "nafaqa", "pensiya", "tayinlash");
+        }
+
+        if (hasAny(available, "ijtimoiy", "xizmat", "reabilitatsiya")) {
+            addGroup(groups, available,
+                    "ijtimoiy", "xizmat", "nogironligi", "bola", "farzandi", "reabilitatsiya");
+        }
+
+        if (hasAny(available, "ishsiz", "bandlik")) {
+            List<String> employment = new ArrayList<>();
+            if (available.contains("ishsiz")) employment.add("ishsiz");
+            // "bandlik" is a safe legal-search expansion for an unemployment
+            // need even when the user did not use the formal statutory term.
+            employment.add("bandlik");
+            groups.add(List.copyOf(employment));
+        }
+
+        if (groups.isEmpty()) groups.add(terms);
+        return groups.stream().distinct().toList();
+    }
+
+    private void addGroup(List<List<String>> groups, Set<String> available, String... orderedTerms) {
+        List<String> group = new ArrayList<>();
+        for (String term : orderedTerms) {
+            if (available.contains(term) && !group.contains(term)) group.add(term);
+        }
+        if (!group.isEmpty()) groups.add(List.copyOf(group));
+    }
+
+    private boolean hasAny(Set<String> values, String... candidates) {
+        for (String candidate : candidates) {
+            if (values.contains(candidate)) return true;
+        }
+        return false;
     }
 
     private List<SearchDocument> search(String query) throws Exception {
@@ -501,23 +606,47 @@ public class LexUzService {
                 .replace('ʼ', '\'')
                 .toLowerCase(Locale.ROOT);
         Matcher matcher = TOKEN_PATTERN.matcher(normalized);
-        LinkedHashSet<String> terms = new LinkedHashSet<>();
+        LinkedHashMap<String, Integer> terms = new LinkedHashMap<>();
+        int position = 0;
         while (matcher.find()) {
             String token = matcher.group();
             if (token.length() < 3 || STOP_WORDS.contains(token)) continue;
             token = canonicalLegalTerm(token);
-            if (token.length() >= 3 && !STOP_WORDS.contains(token)) terms.add(token);
-            if (terms.size() >= 8) break;
+            if (token.length() >= 3 && !STOP_WORDS.contains(token)) {
+                terms.putIfAbsent(token, position++);
+            }
+            if (terms.size() >= 64) break;
         }
-        return List.copyOf(terms);
+        return terms.entrySet().stream()
+                .sorted(Comparator
+                        .<Map.Entry<String, Integer>>comparingInt(
+                                entry -> QUERY_TERM_PRIORITY.getOrDefault(entry.getKey(), 0))
+                        .reversed()
+                        .thenComparingInt(Map.Entry::getValue))
+                .limit(MAX_QUERY_TERMS)
+                .map(Map.Entry::getKey)
+                .toList();
     }
 
     private String canonicalLegalTerm(String token) {
         if (token.startsWith("nogiron")) return "nogironligi";
         if (token.startsWith("farzand")) return "farzandi";
+        if (token.startsWith("bola")) return "bola";
         if (token.startsWith("nafaqa")) return "nafaqa";
         if (token.startsWith("imtiyoz")) return "imtiyoz";
         if (token.startsWith("pensiya")) return "pensiya";
+        if (token.startsWith("ijtimoiy")) return "ijtimoiy";
+        if (token.startsWith("xizmat") || token.startsWith("hizmat")) return "xizmat";
+        if (token.startsWith("ishsiz")) return "ishsiz";
+        if (token.startsWith("bandlik")) return "bandlik";
+        if (token.startsWith("tayinlan") || token.startsWith("tayinlash")) return "tayinlash";
+        if (token.startsWith("parvarish")) return "parvarish";
+        if (token.startsWith("reabilit")) return "reabilitatsiya";
+        if (token.startsWith("subsidiya")) return "subsidiya";
+        if (token.startsWith("kompensatsiya")) return "kompensatsiya";
+        if (token.startsWith("zaif")) return "zaiflik";
+        if (token.startsWith("daraja")) return "daraja";
+        if (token.startsWith("yosh")) return "yosh";
 
         String[] suffixes = {"laringiz", "larining", "larning", "lardan", "larga",
                 "larini", "lari", "larni", "ning", "ingiz", "imiz", "lar"};
@@ -595,6 +724,8 @@ public class LexUzService {
     ) {}
 
     private record SearchSelection(String query, List<SearchDocument> documents) {}
+
+    private record EvidenceRequest(SearchDocument document, String query) {}
 
     private record EvidenceMatch(String id, Element element, String content, int relevance) {}
 
