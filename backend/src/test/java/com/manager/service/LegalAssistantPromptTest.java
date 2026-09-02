@@ -13,14 +13,14 @@ class LegalAssistantPromptTest {
     void promptRequiresDocumentAndExactClauseForEveryRecommendation() {
         String prompt = LegalAssistantPrompt.buildGroundedPrompt(
                 List.of(new RagSource(
-                        "v1", "d1", "VMQ-123-son qarori", 7, 0.82,
+                        "v1", "d1", "Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori", 7, 0.82,
                         "17-band. Belgilangan toifadagi shaxslarga dori bepul beriladi.",
-                        "https://lex.uz/uz/docs/-123")),
+                        "https://lex.uz/uz/docs/-123#-17")),
                 "Javobni o'zbek tilida yozing");
 
         assertThat(prompt)
                 .contains("Siz Ijtimoiy himoya milliy agentligining Bosh AI yordamchisisiz")
-                .contains("Har bir imtiyoz va tavsiya uchun Hujjat nomi, aniq bandi va Lex.uz havolasini ko‘rsating")
+                .contains("qaysi qaror yoki boshqa normativ hujjatga asoslanayotganingizni")
                 .contains("Vazifangiz faqat qoidani ko‘chirish yoki qayta aytish emas")
                 .contains("aynan shu qoidadan kelib chiqib holatga mos javob hamda amaliy yechim bering")
                 .contains("Qisqa javob:")
@@ -28,11 +28,17 @@ class LegalAssistantPromptTest {
                 .contains("Amaliy yechim:")
                 .contains("mos keladigan, mos kelmaydigan va yetishmayotgan shartlarni")
                 .contains("Qoidada ko‘rsatilmagan ariza tartibi, hujjatlar ro‘yxati")
+                .contains("Har bir xulosa va amaliy qadamdan keyin unga tegishli [Asos N] belgisini yozing")
+                .contains("Huquqiy asoslar:")
+                .contains("- Hujjat:")
+                .contains("- Norma joylashuvi:")
+                .contains("- Norma mazmuni:")
+                .contains("- Holatga qo‘llanishi:")
                 .contains("Aniqlashtirish uchun:")
                 .contains("aniq raqam, foiz, BHM ulushi, toifa, hudud, sana, muddat")
                 .contains("javobni sunʼiy qisqartirmang")
-                .contains("Hujjat: VMQ-123-son qarori")
-                .contains("Lex.uz: https://lex.uz/uz/docs/-123")
+                .contains("Hujjat: Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori")
+                .contains("Lex.uz: https://lex.uz/uz/docs/-123#-17")
                 .contains("17-band. Belgilangan toifadagi shaxslarga dori bepul beriladi.")
                 .contains(LegalAssistantPrompt.NO_NORMATIVE_BASIS);
     }
