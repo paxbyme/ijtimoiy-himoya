@@ -64,6 +64,7 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
   String? _conversationId;
   bool _isLoading = false;
   String _statusMessage = '';
+  int _operationId = 0;
 
   @override
   List<AiChatMessage> build() => [];
@@ -76,20 +77,27 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
 
   /// Send message with streaming response, falling back to the non-stream
   /// endpoint when the stream fails (network blip, server error).
-  Future<void> sendMessage(String message) async {
+  Future<void> sendMessage(String rawMessage) async {
+    final message = rawMessage.trim();
+    if (message.isEmpty || _isLoading) return;
+
+    final operationId = ++_operationId;
     state = [...state, AiChatMessage(content: message, isUser: true)];
 
     _isLoading = true;
     _statusMessage = 'Lex.uz\'dan amaldagi normativ hujjatlar qidirilmoqda...';
     state = [...state];
 
+    bool addedAiMessage = false;
+
     try {
       final stream = _repo.sendMessageStream(message, _conversationId);
 
       String fullResponse = '';
-      bool addedAiMessage = false;
 
       await for (final event in stream) {
+        if (operationId != _operationId) return;
+
         final type = event['type'] as String?;
 
         if (type == 'meta') {
@@ -121,27 +129,37 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
         }
       }
 
+      if (operationId != _operationId) return;
+
       _isLoading = false;
       _statusMessage = '';
-
-      final messages = <AiChatMessage>[];
-      for (int i = 0; i < state.length; i++) {
-        messages.add(state[i].copyWith(messageIndex: i));
-      }
-      state = messages;
+      state = _withMessageIndexes(state);
 
       ref.invalidate(aiConversationsProvider);
     } catch (_) {
-      _isLoading = false;
-      _statusMessage = '';
+      if (operationId != _operationId) return;
+
+      // A stream can fail after rendering a few tokens. Remove that partial
+      // assistant message before adding the complete fallback response.
+      if (addedAiMessage && state.isNotEmpty && !state.last.isUser) {
+        state = state.sublist(0, state.length - 1);
+      }
+
+      _statusMessage = 'Javob qayta tayyorlanmoqda...';
+      state = [...state];
+
       // Fallback to non-streaming endpoint
       final result = await _repo.sendMessage(message, _conversationId);
+      if (operationId != _operationId) return;
+
+      _isLoading = false;
+      _statusMessage = '';
       result.fold(
         (_) {
           state = [
             ...state,
             AiChatMessage(
-              content: 'Sorry, something went wrong. Please try again.',
+              content: 'Xatolik yuz berdi. Qayta urinib ko\'ring.',
               isUser: false,
             ),
           ];
@@ -158,6 +176,7 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
             ...state,
             AiChatMessage(content: reply.toString(), isUser: false),
           ];
+          state = _withMessageIndexes(state);
           ref.invalidate(aiConversationsProvider);
         },
       );
@@ -165,7 +184,11 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
   }
 
   Future<void> loadConversation(String id) async {
+    if (_isLoading) return;
+    final operationId = ++_operationId;
     final result = await _repo.getConversation(id);
+    if (operationId != _operationId) return;
+
     result.fold((_) {}, (convo) {
       _conversationId = id;
 
@@ -190,9 +213,18 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
   }
 
   void clearChat() {
+    _operationId++;
     _conversationId = null;
+    _isLoading = false;
     _statusMessage = '';
     state = [];
+  }
+
+  List<AiChatMessage> _withMessageIndexes(List<AiChatMessage> messages) {
+    return [
+      for (int i = 0; i < messages.length; i++)
+        messages[i].copyWith(messageIndex: i),
+    ];
   }
 }
 

@@ -93,7 +93,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
           _setError('Ulanish xatosi: $e');
         },
         onDone: () {
-          debugPrint('[Live] WS done — closeCode=${_channel?.closeCode} reason=${_channel?.closeReason}');
+          debugPrint(
+            '[Live] WS done — closeCode=${_channel?.closeCode} reason=${_channel?.closeReason}',
+          );
           if (mounted && !_closing && _status != _LiveStatus.idle) {
             _setError('Aloqa uzildi (code=${_channel?.closeCode})');
           }
@@ -123,7 +125,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     if (_playbackQueue.isEmpty) return;
     // Drain up to 0.5s of audio per callback to keep latency low
     final maxFrames = _speakerSampleRate ~/ 2;
-    final n = _playbackQueue.length < maxFrames ? _playbackQueue.length : maxFrames;
+    final n = _playbackQueue.length < maxFrames
+        ? _playbackQueue.length
+        : maxFrames;
     final samples = List<int>.generate(n, (_) => _playbackQueue.removeFirst());
     FlutterPcmSound.feed(PcmArrayInt16.fromList(samples));
   }
@@ -280,9 +284,7 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
                           padding: const EdgeInsets.only(top: 8),
                           child: _buildStatusLabel(theme),
                         ),
-                        Expanded(
-                          child: Center(child: _buildMicOrb(theme)),
-                        ),
+                        Expanded(child: Center(child: _buildMicOrb(theme))),
                         _buildControlButtons(theme),
                         const SizedBox(height: 24),
                         _buildHelperText(theme),
@@ -309,7 +311,10 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
 
   Widget _buildStatusLabel(ThemeData theme) {
     final (text, color) = switch (_status) {
-      _LiveStatus.idle => ('Suhbatni boshlash uchun bosing', theme.colorScheme.onSurfaceVariant),
+      _LiveStatus.idle => (
+        'Suhbatni boshlash uchun bosing',
+        theme.colorScheme.onSurfaceVariant,
+      ),
       _LiveStatus.connecting => ('Ulanmoqda...', theme.colorScheme.primary),
       _LiveStatus.listening => ('Tinglayapman...', theme.colorScheme.primary),
       _LiveStatus.speaking => ('AI gapirmoqda', theme.colorScheme.tertiary),
@@ -317,12 +322,16 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
     };
     return Text(
       text,
-      style: theme.textTheme.titleLarge?.copyWith(color: color, fontWeight: FontWeight.w600),
+      style: theme.textTheme.titleLarge?.copyWith(
+        color: color,
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 
   Widget _buildMicOrb(ThemeData theme) {
-    final isActive = _status == _LiveStatus.listening || _status == _LiveStatus.speaking;
+    final isActive =
+        _status == _LiveStatus.listening || _status == _LiveStatus.speaking;
     final color = switch (_status) {
       _LiveStatus.speaking => theme.colorScheme.tertiary,
       _LiveStatus.error => theme.colorScheme.error,
@@ -354,17 +363,14 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
                 color: _isMuted ? theme.colorScheme.outline : color,
                 boxShadow: [
                   BoxShadow(
-                    color: (_isMuted ? theme.colorScheme.outline : color).withValues(alpha: 0.4),
+                    color: (_isMuted ? theme.colorScheme.outline : color)
+                        .withValues(alpha: 0.4),
                     blurRadius: isActive && !_isMuted ? 40 : 16,
                     spreadRadius: isActive && !_isMuted ? 8 : 0,
                   ),
                 ],
               ),
-              child: Icon(
-                iconData,
-                color: Colors.white,
-                size: 72,
-              ),
+              child: Icon(iconData, color: Colors.white, size: 72),
             ),
           );
         },
@@ -373,7 +379,8 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   }
 
   Widget _buildControlButtons(ThemeData theme) {
-    final inSession = _status == _LiveStatus.listening || _status == _LiveStatus.speaking;
+    final inSession =
+        _status == _LiveStatus.listening || _status == _LiveStatus.speaking;
     if (!inSession) return const SizedBox(height: 56);
 
     return Row(

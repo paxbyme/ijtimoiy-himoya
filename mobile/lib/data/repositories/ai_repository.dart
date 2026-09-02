@@ -15,21 +15,24 @@ class AiRepository {
   // ---- Chat ----
 
   Future<Either<Failure, Map<String, dynamic>>> sendMessage(
-          String message, String? conversationId) =>
-      _guard(() => _remote.sendMessage(message, conversationId));
+    String message,
+    String? conversationId,
+  ) => _guard(() => _remote.sendMessage(message, conversationId));
 
   /// SSE stream — passthrough. Network errors surface via Stream.error so
   /// the consumer's existing `try/await for` keeps working. The fallback
   /// to the non-streaming endpoint is owned by the notifier above.
   Stream<Map<String, dynamic>> sendMessageStream(
-          String message, String? conversationId) =>
-      _remote.sendMessageStream(message, conversationId);
+    String message,
+    String? conversationId,
+  ) => _remote.sendMessageStream(message, conversationId);
 
   // ---- Voice ----
 
-  Future<Either<Failure, String>> transcribeAudio(String filePath,
-          {String mimeType = 'audio/m4a'}) =>
-      _guard(() => _remote.transcribeAudio(filePath, mimeType: mimeType));
+  Future<Either<Failure, String>> transcribeAudio(
+    String filePath, {
+    String mimeType = 'audio/m4a',
+  }) => _guard(() => _remote.transcribeAudio(filePath, mimeType: mimeType));
 
   // ---- Conversations ----
 
@@ -49,13 +52,14 @@ class AiRepository {
     required int messageIndex,
     required String rating,
     String? comment,
-  }) =>
-      _guard(() => _remote.submitFeedback(
-            conversationId: conversationId,
-            messageIndex: messageIndex,
-            rating: rating,
-            comment: comment,
-          ));
+  }) => _guard(
+    () => _remote.submitFeedback(
+      conversationId: conversationId,
+      messageIndex: messageIndex,
+      rating: rating,
+      comment: comment,
+    ),
+  );
 
   // ---- Rules ----
 
@@ -65,21 +69,31 @@ class AiRepository {
       _guard(() => _remote.createRule(data));
 
   Future<Either<Failure, AiRule>> updateRule(
-          String id, Map<String, dynamic> data) =>
-      _guard(() => _remote.updateRule(id, data));
+    String id,
+    Map<String, dynamic> data,
+  ) => _guard(() => _remote.updateRule(id, data));
 
   Future<Either<Failure, void>> deleteRule(String id) =>
       _guard(() => _remote.deleteRule(id));
 
   Future<Either<Failure, AiRule>> uploadRuleFromFile(
-          String filePath, String fileName,
-          {String? title, String? category}) =>
-      _guard(() => _remote.uploadRuleFromFile(filePath, fileName,
-          title: title, category: category));
+    String filePath,
+    String fileName, {
+    String? title,
+    String? category,
+  }) => _guard(
+    () => _remote.uploadRuleFromFile(
+      filePath,
+      fileName,
+      title: title,
+      category: category,
+    ),
+  );
 
   Future<Either<Failure, void>> uploadKnowledgeDocument(
-          String filePath, String fileName) =>
-      _guard(() => _remote.uploadKnowledgeDocument(filePath, fileName));
+    String filePath,
+    String fileName,
+  ) => _guard(() => _remote.uploadKnowledgeDocument(filePath, fileName));
 
   Future<Either<Failure, T>> _guard<T>(Future<T> Function() op) async {
     if (!await _network.isConnected) return const Left(NetworkFailure());

@@ -13,11 +13,13 @@ class AiRemoteDataSource {
   // ---- Chat ----
 
   Future<Map<String, dynamic>> sendMessage(
-      String message, String? conversationId) async {
-    final response = await _dio.post('/ai/chat', data: {
-      'message': message,
-      'conversationId': conversationId,
-    });
+    String message,
+    String? conversationId,
+  ) async {
+    final response = await _dio.post(
+      '/ai/chat',
+      data: {'message': message, 'conversationId': conversationId},
+    );
     return response.data['data'] ?? response.data;
   }
 
@@ -26,24 +28,26 @@ class AiRemoteDataSource {
   /// Yields parsed JSON payloads from each `data:` line. Network errors
   /// surface as stream errors — callers should wrap with try/await for.
   Stream<Map<String, dynamic>> sendMessageStream(
-      String message, String? conversationId) async* {
+    String message,
+    String? conversationId,
+  ) async* {
     final response = await _dio.post<ResponseBody>(
       '/ai/chat/stream',
-      data: {
-        'message': message,
-        'conversationId': conversationId,
-      },
+      data: {'message': message, 'conversationId': conversationId},
       options: Options(
         responseType: ResponseType.stream,
         receiveTimeout: AppConstants.sseTimeout,
       ),
     );
 
-    final stream = response.data!.stream;
+    // Decode the response as one continuous UTF-8 stream. Decoding each
+    // network chunk separately breaks whenever a multi-byte character is
+    // split across chunk boundaries.
+    final stream = utf8.decoder.bind(response.data!.stream);
     String buffer = '';
 
-    await for (final bytes in stream) {
-      buffer += utf8.decode(bytes);
+    await for (final chunk in stream) {
+      buffer += chunk;
       final lines = buffer.split('\n');
       buffer = lines.removeLast();
 
@@ -71,8 +75,10 @@ class AiRemoteDataSource {
 
   // ---- Voice ----
 
-  Future<String> transcribeAudio(String filePath,
-      {String mimeType = 'audio/m4a'}) async {
+  Future<String> transcribeAudio(
+    String filePath, {
+    String mimeType = 'audio/m4a',
+  }) async {
     final formData = FormData.fromMap({
       'audio': await MultipartFile.fromFile(
         filePath,
@@ -116,13 +122,15 @@ class AiRemoteDataSource {
     required int messageIndex,
     required String rating,
     String? comment,
-  }) =>
-      _dio.post('/ai/feedback', data: {
-        'conversationId': conversationId,
-        'messageIndex': messageIndex,
-        'rating': rating,
-        'comment': comment,
-      });
+  }) => _dio.post(
+    '/ai/feedback',
+    data: {
+      'conversationId': conversationId,
+      'messageIndex': messageIndex,
+      'rating': rating,
+      'comment': comment,
+    },
+  );
 
   // ---- Rules ----
 
@@ -144,8 +152,12 @@ class AiRemoteDataSource {
 
   Future<void> deleteRule(String id) => _dio.delete('/ai-rules/$id');
 
-  Future<AiRule> uploadRuleFromFile(String filePath, String fileName,
-      {String? title, String? category}) async {
+  Future<AiRule> uploadRuleFromFile(
+    String filePath,
+    String fileName, {
+    String? title,
+    String? category,
+  }) async {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
       if (title != null) 'title': title,
