@@ -7,12 +7,11 @@ import 'config/app_theme.dart';
 import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'router/app_router.dart';
+import 'widgets/common/mobile_app_frame.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const ProviderScope(child: ManagerApp()));
 }
 
@@ -26,6 +25,8 @@ class ManagerApp extends ConsumerWidget {
       onGenerateTitle: (ctx) => AppL10n.of(ctx).appTitle,
       theme: AppTheme.lightTheme,
       routerConfig: router,
+      builder: (context, child) =>
+          MobileAppFrame(child: child ?? const SizedBox.shrink()),
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
         AppL10n.delegate,
