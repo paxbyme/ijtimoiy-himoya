@@ -9,7 +9,9 @@ import com.manager.service.AiConversationPersistenceService;
 import com.manager.service.AiRulesService;
 import com.manager.service.AiService;
 import com.manager.service.LegalAssistantPrompt;
+import com.manager.service.LegalQueryPlanner;
 import com.manager.service.LexUzService;
+import com.manager.service.RagService;
 import com.manager.service.RateLimiterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +48,8 @@ public class AiController {
     private final AiService aiService;
     private final AiRulesService aiRulesService;
     private final LexUzService lexUzService;
+    private final LegalQueryPlanner legalQueryPlanner;
+    private final RagService ragService;
     private final AiConversationRepository aiConversationRepository;
     private final AiFeedbackRepository aiFeedbackRepository;
     private final RateLimiterService rateLimiterService;
@@ -56,7 +60,9 @@ public class AiController {
 
     public AiController(AiService aiService,
                         AiRulesService aiRulesService,
-                        LexUzService lexUzService, AiConversationRepository aiConversationRepository,
+                        LexUzService lexUzService, LegalQueryPlanner legalQueryPlanner,
+                        RagService ragService,
+                        AiConversationRepository aiConversationRepository,
                         AiFeedbackRepository aiFeedbackRepository,
                         RateLimiterService rateLimiterService,
                         AiConversationPersistenceService conversationPersistenceService,
@@ -65,6 +71,8 @@ public class AiController {
         this.aiService = aiService;
         this.aiRulesService = aiRulesService;
         this.lexUzService = lexUzService;
+        this.legalQueryPlanner = legalQueryPlanner;
+        this.ragService = ragService;
         this.aiConversationRepository = aiConversationRepository;
         this.aiFeedbackRepository = aiFeedbackRepository;
         this.rateLimiterService = rateLimiterService;
@@ -391,9 +399,22 @@ public class AiController {
             }
         }, aiPipelineExecutor).completeOnTimeout(List.of(), 1500, TimeUnit.MILLISECONDS);
 
-        CompletableFuture<List<RagSource>> ragFuture = CompletableFuture.supplyAsync(() -> {
+        // The LLM planner analyses the question and produces focused Lex.uz
+        // search queries before retrieval. It runs in parallel with the other
+        // preflight reads; only the Lex.uz search waits on it. A planner
+        // timeout or failure yields an empty plan, and the search then falls
+        // back to keyword extraction — retrieval never blocks on the planner.
+        CompletableFuture<List<String>> plannerFuture = CompletableFuture.supplyAsync(
+                        () -> legalQueryPlanner.plan(message), aiPipelineExecutor)
+                .completeOnTimeout(List.of(), 3_500, TimeUnit.MILLISECONDS)
+                .exceptionally(e -> {
+                    log.warn("Legal query planner unavailable: {}", e.getMessage());
+                    return List.of();
+                });
+
+        CompletableFuture<List<RagSource>> ragFuture = plannerFuture.thenApplyAsync(plannedQueries -> {
             try {
-                return lexUzService.query(message, RAG_TOP_K);
+                return lexUzService.query(message, plannedQueries, RAG_TOP_K);
             } catch (Exception e) {
                 log.warn("Lex.uz search unavailable: {}", e.getMessage());
                 return List.<RagSource>of();
@@ -416,6 +437,15 @@ public class AiController {
         ConversationState conversation = conversationFuture.join();
         List<AiRuleDto> deptRules = rulesFuture.join();
         List<RagSource> evidence = ragFuture.join();
+
+        // Live Lex.uz scraping is the primary source but can come back empty on
+        // a slow/timed-out fetch even when the law exists. Fall back to the
+        // pre-indexed department RAG so a transient Lex.uz failure no longer
+        // forces a blanket "no normative basis" reply with the model unused.
+        if (evidence.isEmpty()) {
+            evidence = fallbackRagSearch(message, departmentId);
+        }
+
         String deptRulesText = buildDepartmentRulesPrompt(deptRules, departmentId);
 
         List<Map<String, Object>> history = new ArrayList<>(conversation.history);
@@ -436,6 +466,20 @@ public class AiController {
         ctx.systemPrompt = LegalAssistantPrompt.buildGroundedPrompt(evidence, deptRulesText);
 
         return ctx;
+    }
+
+    private List<RagSource> fallbackRagSearch(String message, String departmentId) {
+        try {
+            List<RagSource> fallback = ragService.query(message, departmentId, RAG_TOP_K);
+            if (!fallback.isEmpty()) {
+                log.info("Lex.uz returned no evidence; served {} indexed RAG source(s) as fallback for dept={}",
+                        fallback.size(), departmentId);
+            }
+            return fallback;
+        } catch (Exception e) {
+            log.warn("RAG fallback search failed for dept={}: {}", departmentId, e.getMessage());
+            return List.of();
+        }
     }
 
     private ConversationState loadOrCreateConversation(String uid, String departmentId,

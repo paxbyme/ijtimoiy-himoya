@@ -130,6 +130,9 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
       }
 
       if (operationId != _operationId) return;
+      if (!addedAiMessage) {
+        throw const FormatException('AI stream returned no response');
+      }
 
       _isLoading = false;
       _statusMessage = '';

@@ -62,7 +62,10 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   // ---- Lifecycle ----
 
   Future<void> _start() async {
-    if (_status != _LiveStatus.idle && _status != _LiveStatus.error) return;
+    if (_closing ||
+        (_status != _LiveStatus.idle && _status != _LiveStatus.error)) {
+      return;
+    }
     setState(() {
       _status = _LiveStatus.connecting;
       _errorMessage = '';
@@ -228,24 +231,33 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
   }
 
   Future<void> _disconnect() async {
+    if (_closing) return;
+
     // Mark teardown as intentional before we touch the socket, so the
     // sink.close() below doesn't trip onDone's "connection lost" error.
     _closing = true;
-    await _micSub?.cancel();
-    _micSub = null;
-    if (await _recorder.isRecording()) {
-      await _recorder.stop();
-    }
+    try {
+      await _micSub?.cancel();
+      _micSub = null;
+      if (await _recorder.isRecording()) {
+        await _recorder.stop();
+      }
 
-    await _channel?.sink.close();
-    _channel = null;
+      await _channel?.sink.close();
+      _channel = null;
 
-    _playbackQueue.clear();
-    if (_pcmSoundReady) {
-      await FlutterPcmSound.release();
-      _pcmSoundReady = false;
+      _playbackQueue.clear();
+      if (_pcmSoundReady) {
+        await FlutterPcmSound.release();
+        _pcmSoundReady = false;
+      }
+      _isMuted = false;
+    } finally {
+      _closing = false;
+      if (mounted && _status == _LiveStatus.error) {
+        setState(() {});
+      }
     }
-    _isMuted = false;
   }
 
   void _toggleMute() {
@@ -338,7 +350,9 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
       _ => theme.colorScheme.primary,
     };
 
-    final canTap = _status == _LiveStatus.idle || _status == _LiveStatus.error;
+    final canTap =
+        !_closing &&
+        (_status == _LiveStatus.idle || _status == _LiveStatus.error);
     final iconData = switch (_status) {
       _LiveStatus.idle => Icons.mic,
       _LiveStatus.error => Icons.mic,

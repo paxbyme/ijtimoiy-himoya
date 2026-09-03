@@ -395,266 +395,270 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Hujjatlarni knowledge base\'ga yuklash'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  "Bir nechta fayl tanlang — ular AI qoidaga aylantirilmaydi, RAG knowledge base'ga indekslanadi.",
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: isUploading
-                      ? null
-                      : () async {
-                          final result = await FilePicker.platform.pickFiles(
-                            type: FileType.custom,
-                            allowMultiple: true,
-                            allowedExtensions: [
-                              'pdf',
-                              'docx',
-                              'doc',
-                              'txt',
-                              'md',
-                            ],
-                          );
-                          if (result != null && result.files.isNotEmpty) {
-                            setDialogState(() {
-                              for (final f in result.files) {
-                                if (f.path != null &&
-                                    !selectedFiles.any(
-                                      (s) => s.path == f.path,
-                                    )) {
-                                  selectedFiles.add(f);
+        builder: (ctx, setDialogState) => PopScope(
+          canPop: !isUploading,
+          child: AlertDialog(
+            title: const Text('Hujjatlarni knowledge base\'ga yuklash'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    "Bir nechta fayl tanlang — ular AI qoidaga aylantirilmaydi, RAG knowledge base'ga indekslanadi.",
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: isUploading
+                        ? null
+                        : () async {
+                            final result = await FilePicker.platform.pickFiles(
+                              type: FileType.custom,
+                              allowMultiple: true,
+                              allowedExtensions: [
+                                'pdf',
+                                'docx',
+                                'doc',
+                                'txt',
+                                'md',
+                              ],
+                            );
+                            if (result != null && result.files.isNotEmpty) {
+                              setDialogState(() {
+                                for (final f in result.files) {
+                                  if (f.path != null &&
+                                      !selectedFiles.any(
+                                        (s) => s.path == f.path,
+                                      )) {
+                                    selectedFiles.add(f);
+                                  }
                                 }
-                              }
-                            });
-                          }
-                        },
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: selectedFiles.isNotEmpty
-                            ? Colors.blue
-                            : Colors.grey.shade400,
-                        width: 2,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      color: selectedFiles.isNotEmpty
-                          ? Colors.blue.shade50
-                          : Colors.grey.shade50,
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          selectedFiles.isNotEmpty
-                              ? Icons.library_add
-                              : Icons.upload_file,
-                          size: 40,
+                              });
+                            }
+                          },
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        border: Border.all(
                           color: selectedFiles.isNotEmpty
                               ? Colors.blue
-                              : Colors.grey,
+                              : Colors.grey.shade400,
+                          width: 2,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          selectedFiles.isEmpty
-                              ? "Fayllarni tanlash uchun bosing"
-                              : "Yana fayl qo'shish uchun bosing",
-                          style: TextStyle(
+                        borderRadius: BorderRadius.circular(12),
+                        color: selectedFiles.isNotEmpty
+                            ? Colors.blue.shade50
+                            : Colors.grey.shade50,
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            selectedFiles.isNotEmpty
+                                ? Icons.library_add
+                                : Icons.upload_file,
+                            size: 40,
                             color: selectedFiles.isNotEmpty
-                                ? Colors.blue.shade700
-                                : Colors.grey.shade600,
-                            fontWeight: selectedFiles.isNotEmpty
-                                ? FontWeight.w600
-                                : FontWeight.normal,
+                                ? Colors.blue
+                                : Colors.grey,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        if (selectedFiles.isEmpty)
+                          const SizedBox(height: 8),
                           Text(
-                            'PDF, DOCX, TXT, DOC, MD',
+                            selectedFiles.isEmpty
+                                ? "Fayllarni tanlash uchun bosing"
+                                : "Yana fayl qo'shish uchun bosing",
                             style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade500,
+                              color: selectedFiles.isNotEmpty
+                                  ? Colors.blue.shade700
+                                  : Colors.grey.shade600,
+                              fontWeight: selectedFiles.isNotEmpty
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
                             ),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (selectedFiles.isEmpty)
+                            Text(
+                              'PDF, DOCX, TXT, DOC, MD',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (selectedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Tanlangan: ${selectedFiles.length} ta fayl',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (int i = 0; i < selectedFiles.length; i++)
+                          Builder(
+                            builder: (_) {
+                              final f = selectedFiles[i];
+                              final isCurrent =
+                                  isUploading && i == currentIndex;
+                              final isDone = isUploading && i < currentIndex;
+                              return ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                leading: isDone
+                                    ? const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.green,
+                                        size: 20,
+                                      )
+                                    : isCurrent
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.description,
+                                        size: 20,
+                                        color: Colors.blueGrey,
+                                      ),
+                                title: Text(
+                                  f.name,
+                                  style: const TextStyle(fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '${(f.size / 1024).toStringAsFixed(1)} KB',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                trailing: isUploading
+                                    ? null
+                                    : IconButton(
+                                        icon: const Icon(Icons.close, size: 18),
+                                        onPressed: () => setDialogState(
+                                          () => selectedFiles.removeAt(i),
+                                        ),
+                                      ),
+                              );
+                            },
                           ),
                       ],
                     ),
-                  ),
-                ),
-                if (selectedFiles.isNotEmpty) ...[
+                  ],
                   const SizedBox(height: 12),
-                  Text(
-                    'Tanlangan: ${selectedFiles.length} ta fayl',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  if (isUploading && totalFiles > 0) ...[
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(
+                      value: totalFiles == 0 ? null : currentIndex / totalFiles,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (int i = 0; i < selectedFiles.length; i++)
-                        Builder(
-                          builder: (_) {
-                            final f = selectedFiles[i];
-                            final isCurrent = isUploading && i == currentIndex;
-                            final isDone = isUploading && i < currentIndex;
-                            return ListTile(
-                              dense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 4,
+                    const SizedBox(height: 6),
+                    Text(
+                      'Yuklanmoqda: $currentIndex / $totalFiles',
+                      style: const TextStyle(fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isUploading ? null : () => Navigator.pop(ctx),
+                child: const Text('Bekor'),
+              ),
+              FilledButton(
+                onPressed: (selectedFiles.isEmpty || isUploading)
+                    ? null
+                    : () async {
+                        final messenger = ScaffoldMessenger.of(context);
+
+                        // Hajm tekshiruvi — har bir fayl uchun 50MB limit
+                        const maxBytes = 50 * 1024 * 1024;
+                        for (final f in selectedFiles) {
+                          if (f.size > maxBytes) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  "${f.name}: hajmi ${(f.size / 1024 / 1024).toStringAsFixed(1)} MB — "
+                                  "maksimum 50 MB.",
+                                ),
+                                duration: const Duration(seconds: 5),
                               ),
-                              leading: isDone
-                                  ? const Icon(
-                                      Icons.check_circle,
-                                      color: Colors.green,
-                                      size: 20,
-                                    )
-                                  : isCurrent
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.description,
-                                      size: 20,
-                                      color: Colors.blueGrey,
-                                    ),
-                              title: Text(
-                                f.name,
-                                style: const TextStyle(fontSize: 13),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                '${(f.size / 1024).toStringAsFixed(1)} KB',
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              trailing: isUploading
-                                  ? null
-                                  : IconButton(
-                                      icon: const Icon(Icons.close, size: 18),
-                                      onPressed: () => setDialogState(
-                                        () => selectedFiles.removeAt(i),
-                                      ),
-                                    ),
                             );
-                          },
-                        ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 12),
-                if (isUploading && totalFiles > 0) ...[
-                  const SizedBox(height: 16),
-                  LinearProgressIndicator(
-                    value: totalFiles == 0 ? null : currentIndex / totalFiles,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Yuklanmoqda: $currentIndex / $totalFiles',
-                    style: const TextStyle(fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isUploading ? null : () => Navigator.pop(ctx),
-              child: const Text('Bekor'),
-            ),
-            FilledButton(
-              onPressed: (selectedFiles.isEmpty || isUploading)
-                  ? null
-                  : () async {
-                      final messenger = ScaffoldMessenger.of(context);
-
-                      // Hajm tekshiruvi — har bir fayl uchun 50MB limit
-                      const maxBytes = 50 * 1024 * 1024;
-                      for (final f in selectedFiles) {
-                        if (f.size > maxBytes) {
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                "${f.name}: hajmi ${(f.size / 1024 / 1024).toStringAsFixed(1)} MB — "
-                                "maksimum 50 MB.",
-                              ),
-                              duration: const Duration(seconds: 5),
-                            ),
-                          );
-                          return;
+                            return;
+                          }
                         }
-                      }
 
-                      setDialogState(() {
-                        isUploading = true;
-                        currentIndex = 0;
-                        totalFiles = selectedFiles.length;
-                      });
+                        setDialogState(() {
+                          isUploading = true;
+                          currentIndex = 0;
+                          totalFiles = selectedFiles.length;
+                        });
 
-                      final repo = ref.read(aiRepositoryProvider);
-                      int successCount = 0;
-                      final List<String> failedFiles = [];
+                        final repo = ref.read(aiRepositoryProvider);
+                        int successCount = 0;
+                        final List<String> failedFiles = [];
 
-                      for (int i = 0; i < selectedFiles.length; i++) {
-                        setDialogState(() => currentIndex = i);
-                        final file = selectedFiles[i];
-                        final result = await repo.uploadKnowledgeDocument(
-                          file.path!,
-                          file.name,
-                        );
-                        result.fold((failure) {
-                          debugPrint(
-                            'Knowledge document upload error (${file.name}): ${failure.message}',
+                        for (int i = 0; i < selectedFiles.length; i++) {
+                          setDialogState(() => currentIndex = i);
+                          final file = selectedFiles[i];
+                          final result = await repo.uploadKnowledgeDocument(
+                            file.path!,
+                            file.name,
                           );
-                          failedFiles.add(file.name);
-                        }, (_) => successCount++);
-                      }
+                          result.fold((failure) {
+                            debugPrint(
+                              'Knowledge document upload error (${file.name}): ${failure.message}',
+                            );
+                            failedFiles.add(file.name);
+                          }, (_) => successCount++);
+                        }
 
-                      setDialogState(() => currentIndex = totalFiles);
+                        setDialogState(() => currentIndex = totalFiles);
 
-                      if (ctx.mounted) Navigator.pop(ctx);
+                        if (ctx.mounted) Navigator.pop(ctx);
 
-                      final String msg;
-                      if (failedFiles.isEmpty) {
-                        msg = "$successCount ta hujjat yuklandi";
-                      } else if (successCount == 0) {
-                        msg = "Barcha fayllarda xatolik yuz berdi";
-                      } else {
-                        msg =
-                            "$successCount ta hujjat yuklandi, ${failedFiles.length} ta xato: ${failedFiles.join(', ')}";
-                      }
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(msg),
-                          duration: const Duration(seconds: 5),
-                        ),
-                      );
-                    },
-              child: isUploading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      selectedFiles.isEmpty
-                          ? "Yuklash"
-                          : "${selectedFiles.length} ta yuklash",
-                    ),
-            ),
-          ],
+                        final String msg;
+                        if (failedFiles.isEmpty) {
+                          msg = "$successCount ta hujjat yuklandi";
+                        } else if (successCount == 0) {
+                          msg = "Barcha fayllarda xatolik yuz berdi";
+                        } else {
+                          msg =
+                              "$successCount ta hujjat yuklandi, ${failedFiles.length} ta xato: ${failedFiles.join(', ')}";
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(msg),
+                            duration: const Duration(seconds: 5),
+                          ),
+                        );
+                      },
+                child: isUploading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        selectedFiles.isEmpty
+                            ? "Yuklash"
+                            : "${selectedFiles.length} ta yuklash",
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

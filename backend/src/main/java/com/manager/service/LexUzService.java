@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -30,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,6 +60,16 @@ public class LexUzService {
     private static final int MAX_SNIPPET_CHARS = 6_000;
     private static final int MAX_CACHE_ENTRIES = 200;
     private static final int MAX_QUERY_TERMS = 16;
+
+    /**
+     * Wall-clock ceiling for one whole {@link #query} call. It is kept below the
+     * caller's own Lex.uz timeout (18s in AiController), leaving headroom for the
+     * upstream LLM query planner, so this method returns whatever evidence has
+     * already been extracted instead of being force-killed and yielding nothing.
+     * Search time counts against it, shrinking the budget left for document
+     * fetches.
+     */
+    private static final long QUERY_BUDGET_MILLIS = 14_000;
 
     /**
      * Legal concepts must outrank names and addresses in long case narratives.
@@ -114,7 +126,7 @@ public class LexUzService {
     public LexUzService(
             @Value("${lexuz.enabled:true}") boolean enabled,
             @Value("${lexuz.base-url:https://lex.uz}") String baseUrl,
-            @Value("${lexuz.max-documents:6}") int maxDocuments,
+            @Value("${lexuz.max-documents:4}") int maxDocuments,
             @Value("${lexuz.max-snippets-per-document:6}") int maxSnippetsPerDocument,
             @Value("${lexuz.cache-ttl-seconds:3600}") long cacheTtlSeconds,
             @Qualifier("lexUzExecutor") Executor executor) {
@@ -130,26 +142,49 @@ public class LexUzService {
         this.executor = executor;
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(3, TimeUnit.SECONDS)
-                .readTimeout(6, TimeUnit.SECONDS)
+                // Lex.uz document pages are large (2+ MB); a legitimate download
+                // can take ~5s, so the read/call ceilings must not cut it off
+                // prematurely. The global query budget caps total wall time.
+                .readTimeout(9, TimeUnit.SECONDS)
                 .writeTimeout(3, TimeUnit.SECONDS)
-                .callTimeout(8, TimeUnit.SECONDS)
+                .callTimeout(11, TimeUnit.SECONDS)
                 .build();
     }
 
     public List<RagSource> query(String question, int requestedTopK) {
+        return query(question, List.of(), requestedTopK);
+    }
+
+    /**
+     * Retrieves evidence using explicit search queries produced by the LLM
+     * query planner. Each planned query becomes its own search group, so a
+     * multi-issue question fans out to the right documents. When
+     * {@code plannedQueries} is empty (or yields no usable terms) the method
+     * falls back to keyword extraction from the raw question.
+     */
+    public List<RagSource> query(String question, List<String> plannedQueries, int requestedTopK) {
         if (!enabled || question == null || question.isBlank()) return List.of();
+        if (plannedQueries == null) plannedQueries = List.of();
 
         int topK = Math.max(1, Math.min(requestedTopK > 0 ? requestedTopK : 6, MAX_RESULTS));
-        String cacheKey = normalizeWhitespace(question).toLowerCase(Locale.ROOT) + "|" + topK;
+        String planKey = plannedQueries.isEmpty() ? "kw" : String.join(",", plannedQueries);
+        String cacheKey = normalizeWhitespace(question).toLowerCase(Locale.ROOT)
+                + "|" + topK + "|" + planKey.toLowerCase(Locale.ROOT);
         CacheEntry cached = cache.get(cacheKey);
         if (cached != null && cached.expiresAt.isAfter(Instant.now())) {
             return cached.sources;
         }
 
-        List<String> terms = extractQueryTerms(question);
-        if (terms.isEmpty()) return List.of();
+        List<List<String>> queryGroups = plannedQueries.isEmpty()
+                ? List.of()
+                : buildPlannedGroups(plannedQueries);
+        if (queryGroups.isEmpty()) {
+            List<String> terms = extractQueryTerms(question);
+            if (terms.isEmpty()) return List.of();
+            queryGroups = buildQueryGroups(terms);
+        }
 
-        List<List<String>> queryGroups = buildQueryGroups(terms);
+        Instant deadline = Instant.now().plusMillis(QUERY_BUDGET_MILLIS);
         List<CompletableFuture<SearchSelection>> searchFutures = queryGroups.stream()
                 .map(group -> CompletableFuture.supplyAsync(() -> findDocuments(group), executor)
                         .completeOnTimeout(new SearchSelection("", List.of()), 8, TimeUnit.SECONDS)
@@ -193,7 +228,7 @@ public class LexUzService {
             futures.add(CompletableFuture.supplyAsync(
                             () -> fetchEvidence(
                                     request.document, request.query, question, rank), executor)
-                    .completeOnTimeout(List.of(), 8, TimeUnit.SECONDS)
+                    .completeOnTimeout(List.of(), 9, TimeUnit.SECONDS)
                     .exceptionally(error -> {
                         log.warn("Lex.uz document fetch failed: documentId={} error={}",
                                 request.document.documentId, rootMessage(error));
@@ -201,9 +236,33 @@ public class LexUzService {
                     }));
         }
 
+        // Collect against the global deadline instead of blocking on the slowest
+        // fetch. When the budget runs out we keep the evidence already gathered
+        // and cancel the rest, so a single slow document no longer forces an
+        // empty result (which would suppress the AI answer entirely).
         List<RagSource> allSources = new ArrayList<>();
+        boolean budgetExhausted = false;
         for (CompletableFuture<List<RagSource>> future : futures) {
-            allSources.addAll(future.join());
+            if (budgetExhausted) {
+                future.cancel(true);
+                continue;
+            }
+            long remainingMs = Duration.between(Instant.now(), deadline).toMillis();
+            if (remainingMs <= 0) {
+                future.cancel(true);
+                budgetExhausted = true;
+                continue;
+            }
+            try {
+                allSources.addAll(future.get(remainingMs, TimeUnit.MILLISECONDS));
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                budgetExhausted = true;
+                log.warn("Lex.uz fetch budget exhausted after {} source(s); returning partial evidence",
+                        allSources.size());
+            } catch (Exception e) {
+                log.warn("Lex.uz fetch join failed: {}", rootMessage(e));
+            }
         }
 
         // Lex.uz search ordering is not a relevance guarantee (newer broad
@@ -274,6 +333,35 @@ public class LexUzService {
 
         if (groups.isEmpty()) groups.add(terms);
         return groups.stream().distinct().toList();
+    }
+
+    private List<List<String>> buildPlannedGroups(List<String> plannedQueries) {
+        List<List<String>> groups = new ArrayList<>();
+        Set<List<String>> seen = new LinkedHashSet<>();
+        for (String plannedQuery : plannedQueries) {
+            if (plannedQuery == null || plannedQuery.isBlank()) continue;
+            List<String> tokens = tokenizePlannedQuery(plannedQuery);
+            if (!tokens.isEmpty() && seen.add(tokens)) groups.add(tokens);
+            if (groups.size() >= MAX_RESULTS) break;
+        }
+        return groups;
+    }
+
+    private List<String> tokenizePlannedQuery(String plannedQuery) {
+        String normalized = plannedQuery
+                .replace('’', '\'').replace('‘', '\'')
+                .replace('ʻ', '\'').replace('ʼ', '\'')
+                .toLowerCase(Locale.ROOT);
+        Matcher matcher = TOKEN_PATTERN.matcher(normalized);
+        List<String> tokens = new ArrayList<>();
+        while (matcher.find()) {
+            String token = canonicalLegalTerm(matcher.group());
+            if (token.length() >= 3 && !STOP_WORDS.contains(token) && !tokens.contains(token)) {
+                tokens.add(token);
+            }
+            if (tokens.size() >= 6) break;
+        }
+        return tokens;
     }
 
     private void addGroup(List<List<String>> groups, Set<String> available, String... orderedTerms) {
