@@ -105,6 +105,7 @@ public class LexUzService {
             "men", "menda", "meni", "mening", "biz", "bizda", "bizning",
             "u", "uning", "ular", "bu", "shu", "o'sha", "ushbu",
             "qanday", "qanaqa", "qaysi", "nima", "nega", "nechta", "qancha",
+            "kim", "kimga", "kimning", "kimni", "kimdan",
             "bor", "yo'q", "kerak", "mumkin", "olish", "olinadi", "olaman",
             "ber", "berish", "bering", "ko'rsating", "yozing",
             "ayting", "tushuntiring", "haqida", "bo'yicha", "uchun", "bilan",
@@ -175,30 +176,21 @@ public class LexUzService {
             return cached.sources;
         }
 
-        List<List<String>> queryGroups = plannedQueries.isEmpty()
-                ? List.of()
-                : buildPlannedGroups(plannedQueries);
-        if (queryGroups.isEmpty()) {
-            List<String> terms = extractQueryTerms(question);
-            if (terms.isEmpty()) return List.of();
-            queryGroups = buildQueryGroups(terms);
-        }
-
         Instant deadline = Instant.now().plusMillis(QUERY_BUDGET_MILLIS);
-        List<CompletableFuture<SearchSelection>> searchFutures = queryGroups.stream()
-                .map(group -> CompletableFuture.supplyAsync(() -> findDocuments(group), executor)
-                        .completeOnTimeout(new SearchSelection("", List.of()), 8, TimeUnit.SECONDS)
-                        .exceptionally(error -> {
-                            log.warn("Lex.uz grouped search failed: terms={} error={}",
-                                    group, rootMessage(error));
-                            return new SearchSelection("", List.of());
-                        }))
-                .toList();
 
-        List<SearchSelection> selections = searchFutures.stream()
-                .map(CompletableFuture::join)
-                .filter(selection -> !selection.documents.isEmpty())
-                .toList();
+        // Prefer the LLM planner's focused queries, but never let a weak plan
+        // suppress retrieval: if the planned queries match no active documents,
+        // fall back to keyword extraction (which also carries the domain-specific
+        // query expansions) before giving up.
+        List<SearchSelection> selections = List.of();
+        if (!plannedQueries.isEmpty()) {
+            List<List<String>> plannedGroups = buildPlannedGroups(plannedQueries);
+            if (!plannedGroups.isEmpty()) selections = runSearches(plannedGroups);
+        }
+        if (selections.isEmpty()) {
+            List<String> terms = extractQueryTerms(question);
+            if (!terms.isEmpty()) selections = runSearches(buildQueryGroups(terms));
+        }
         if (selections.isEmpty()) {
             return List.of();
         }
@@ -276,6 +268,29 @@ public class LexUzService {
         List<RagSource> result = List.copyOf(sources);
         if (!result.isEmpty()) putCache(cacheKey, result);
         return result;
+    }
+
+    /**
+     * Runs each query group as its own Lex.uz search concurrently and returns
+     * only the selections that actually matched documents. A per-group timeout
+     * and exception guard keep one slow or failing search from starving the
+     * others or aborting the whole retrieval.
+     */
+    private List<SearchSelection> runSearches(List<List<String>> queryGroups) {
+        List<CompletableFuture<SearchSelection>> searchFutures = queryGroups.stream()
+                .map(group -> CompletableFuture.supplyAsync(() -> findDocuments(group), executor)
+                        .completeOnTimeout(new SearchSelection("", List.of()), 8, TimeUnit.SECONDS)
+                        .exceptionally(error -> {
+                            log.warn("Lex.uz grouped search failed: terms={} error={}",
+                                    group, rootMessage(error));
+                            return new SearchSelection("", List.of());
+                        }))
+                .toList();
+
+        return searchFutures.stream()
+                .map(CompletableFuture::join)
+                .filter(selection -> !selection.documents.isEmpty())
+                .toList();
     }
 
     private SearchSelection findDocuments(List<String> terms) {
