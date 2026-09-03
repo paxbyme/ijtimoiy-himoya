@@ -64,6 +64,7 @@ public class LexUzService {
      * Equal-priority terms retain the order in which the user wrote them.
      */
     private static final Map<String, Integer> QUERY_TERM_PRIORITY = Map.ofEntries(
+            Map.entry("ptpk", 130),
             Map.entry("nogironligi", 120),
             Map.entry("kunduzgi", 120),
             Map.entry("bola", 115),
@@ -83,6 +84,7 @@ public class LexUzService {
             Map.entry("kompensatsiya", 80),
             Map.entry("kompleks", 75),
             Map.entry("daraja", 70),
+            Map.entry("yosh", 70),
             Map.entry("ariza", 65),
             Map.entry("transport", 65)
     );
@@ -238,6 +240,17 @@ public class LexUzService {
     private List<List<String>> buildQueryGroups(List<String> terms) {
         Set<String> available = new LinkedHashSet<>(terms);
         List<List<String>> groups = new ArrayList<>();
+
+        if (hasAny(available, "nogironligi")
+                && hasAny(available, "bola", "farzandi")
+                && hasAny(available,
+                        "ijtimoiy", "xizmat", "reabilitatsiya", "aqliy", "zaiflik",
+                        "kunduzgi", "parvarish", "ptpk")) {
+            // A child-disability case can imply a day-care need even when the
+            // family describes it only as "complex social services". These
+            // formal terms reliably surface VMQ-126 and its PTPK provisions.
+            groups.add(List.of("kunduzgi", "parvarish", "nogironligi", "bola"));
+        }
 
         if (hasAny(available, "nafaqa", "pensiya", "tayinlash")
                 && hasAny(available, "nogironligi", "bola", "farzandi")) {
@@ -526,6 +539,24 @@ public class LexUzService {
                     "transport", "amalga oshiriladi") ? 18 : 0;
         }
 
+        boolean childDayCareQuestion = containsAny(normalizeForComparison(query),
+                "kunduzgi", "parvarish")
+                && containsAny(normalizedQuestion, "bola", "farzand", "yosh");
+        if (childDayCareQuestion) {
+            if (containsAny(normalizedTitle,
+                    "nogironligi bo'lgan bolalar uchun kunduzgi parvarish")) {
+                score += 60;
+            }
+            if (containsAny(text,
+                    "psixologik-tibbiy-pedagogik komissiya", "ptpk")) {
+                score += 50;
+            }
+            if (containsAny(normalizedQuestion, "aqliy", "zaiflik", "f71")
+                    && containsAny(text, "mo'tadil aqliy zaiflik", "f71")) {
+                score += 45;
+            }
+        }
+
         if (text.matches("^\\d+[.-]?.*")) score += 6;
         if (containsAny(text, "tasdiqlansin", "xulosa berildi", "maqsadga muvofiq")) score -= 8;
 
@@ -647,6 +678,7 @@ public class LexUzService {
         if (token.startsWith("zaif")) return "zaiflik";
         if (token.startsWith("daraja")) return "daraja";
         if (token.startsWith("yosh")) return "yosh";
+        if (token.equals("ptpk")) return "ptpk";
 
         String[] suffixes = {"laringiz", "larining", "larning", "lardan", "larga",
                 "larini", "lari", "larni", "ning", "ingiz", "imiz", "lar"};

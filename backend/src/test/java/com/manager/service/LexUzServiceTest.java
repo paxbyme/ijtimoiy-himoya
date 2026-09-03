@@ -160,6 +160,8 @@ class LexUzServiceTest {
 
     @Test
     void complexFamilyCaseSearchesLegalNeedsInsteadOfNamesAndAddress() throws Exception {
+        server.enqueue(searchResult("-7410361", "Nogironligi bo'lgan bolalar uchun kunduzgi parvarish",
+                "Vazirlar Mahkamasining 2025-yil 27-fevraldagi 126-son qarori"));
         server.enqueue(searchResult("-101", "Nogironligi bo'lgan bolaga nafaqa",
                 "Vazirlar Mahkamasining 101-son qarori"));
         server.enqueue(searchResult("-202", "Kompleks ijtimoiy xizmatlar",
@@ -169,14 +171,15 @@ class LexUzServiceTest {
 
         server.enqueue(htmlResponse("""
                 <html><body><div id="divCont">
-                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Nogironligi bo'lgan bolaga nafaqa tayinlash tartibi</div></div>
-                  <div class="ACT_TEXT lx_elem"><div name="-11" id="-11">17-band. <span class="show_context">Nogironligi</span> bo'lgan bolaga belgilangan shartlarda nafaqa tayinlanadi.</div></div>
+                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish chora-tadbirlari to'g'risida</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-26" id="-26">26-band. <span class="show_context">Psixologik-tibbiy-pedagogik komissiya</span> ko'rigi natijasida bolaga kunduzgi parvarish xizmatiga yo'naltirish xulosasi beriladi.</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-27" id="-27">3a-ilova. Mo'tadil aqliy zaiflik (F71) kunduzgi parvarish xizmatiga PTPK xulosasini berish uchun tibbiy ko'rsatma hisoblanadi.</div></div>
                 </div></body></html>
                 """));
         server.enqueue(htmlResponse("""
                 <html><body><div id="divCont">
-                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Kompleks ijtimoiy xizmatlarni ko'rsatish tartibi</div></div>
-                  <div class="ACT_TEXT lx_elem"><div name="-21" id="-21">5-band. Nogironligi bo'lgan bola uchun <span class="show_context">ijtimoiy xizmat</span>lar individual ehtiyoj asosida belgilanadi.</div></div>
+                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Nogironligi bo'lgan bolaga nafaqa tayinlash tartibi</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-11" id="-11">17-band. <span class="show_context">Nogironligi</span> bo'lgan bolaga belgilangan shartlarda nafaqa tayinlanadi.</div></div>
                 </div></body></html>
                 """));
 
@@ -189,11 +192,21 @@ class LexUzServiceTest {
 
         assertThat(result)
                 .extracting(RagSource::documentId)
-                .containsExactlyInAnyOrder("-101", "-202");
+                .containsExactlyInAnyOrder("-7410361", "-101");
+        assertThat(result.stream()
+                .filter(source -> "-7410361".equals(source.documentId()))
+                .findFirst()
+                .orElseThrow()
+                .content())
+                .contains("Psixologik-tibbiy-pedagogik komissiya")
+                .contains("Mo'tadil aqliy zaiflik (F71)");
 
+        RecordedRequest dayCareSearch = server.takeRequest();
         RecordedRequest benefitSearch = server.takeRequest();
         RecordedRequest serviceSearch = server.takeRequest();
         RecordedRequest employmentSearch = server.takeRequest();
+        assertThat(dayCareSearch.getRequestUrl().queryParameter("query"))
+                .isEqualTo("kunduzgi parvarish nogironligi bola");
         assertThat(benefitSearch.getRequestUrl().queryParameter("query"))
                 .isEqualTo("nogironligi bola nafaqa tayinlash");
         assertThat(serviceSearch.getRequestUrl().queryParameter("query"))
@@ -201,11 +214,58 @@ class LexUzServiceTest {
         assertThat(employmentSearch.getRequestUrl().queryParameter("query"))
                 .isEqualTo("ishsiz bandlik");
         assertThat(List.of(
+                dayCareSearch.getRequestUrl().queryParameter("query"),
                 benefitSearch.getRequestUrl().queryParameter("query"),
                 serviceSearch.getRequestUrl().queryParameter("query"),
                 employmentSearch.getRequestUrl().queryParameter("query")))
                 .allSatisfy(query -> assertThat(query)
                         .doesNotContainIgnoringCase("Uchqo'rg'on", "Yorqin", "Sotvoldiyev", "Jahongir"));
+    }
+
+    @Test
+    void sevenYearOldDayCarePrefers126AndPtpkOverAmendmentDocument() throws Exception {
+        server.enqueue(htmlResponse("""
+                <html><body><table>
+                  <tr class="dd-table__main-item">
+                    <td><span class="lx_act_state"><i class="status_code_y"></i></span></td>
+                    <td><div class="dd-table__main-left-desc"><a class="lx_link" href="/uz/docs/-271">Hukumatning ayrim qarorlariga o'zgartirishlar kiritish to'g'risida</a></div><span class="badge-nine">2026-yildagi 271-son qaror</span></td>
+                  </tr>
+                  <tr class="dd-table__main-item">
+                    <td><span class="lx_act_state"><i class="status_code_y"></i></span></td>
+                    <td><div class="dd-table__main-left-desc"><a class="lx_link" href="/uz/docs/-7410361">Nogironligi bo'lgan bolalar uchun kunduzgi parvarish</a></div><span class="badge-nine">2025-yil 27-fevraldagi 126-son qaror</span></td>
+                  </tr>
+                </table></body></html>
+                """));
+        server.enqueue(htmlResponse("""
+                <html><body><div id="divCont">
+                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Hukumatning ayrim qarorlariga o'zgartirishlar kiritish to'g'risida</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-2" id="-2">1-band. <span class="show_context">Nogironligi bo'lgan bolalar uchun kunduzgi parvarish</span> hujjatining ayrim bandlariga o'zgartirish kiritilsin.</div></div>
+                </div></body></html>
+                """));
+        server.enqueue(htmlResponse("""
+                <html><body><div id="divCont">
+                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish chora-tadbirlari to'g'risida</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-26" id="-26">26-band. “Inson” markazi <span class="show_context">Psixologik-tibbiy-pedagogik komissiya</span> ko'rigi natijasida xulosa berilgan bolaga kunduzgi parvarish xizmatidan foydalanishni taklif qiladi.</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-3a" id="-3a">3a-ilova. Mo'tadil aqliy zaiflik (F71) PTPK xulosasini berish uchun tibbiy ko'rsatmalar ro'yxatiga kiritilgan.</div></div>
+                </div></body></html>
+                """));
+
+        List<RagSource> result = service.query(
+                "7 yoshli nogironligi bo'lgan bolada o'rta darajali aqliy zaiflik bor, kunduzgi parvarishga qanday yo'naltiriladi?",
+                10);
+
+        assertThat(result).isNotEmpty();
+        assertThat(result.get(0).documentId()).isEqualTo("-7410361");
+        assertThat(result.get(0).documentTitle())
+                .contains("126-son qaror")
+                .doesNotContain("271-son qaror");
+        assertThat(result.get(0).content())
+                .contains("Psixologik-tibbiy-pedagogik komissiya")
+                .contains("Mo'tadil aqliy zaiflik (F71)");
+
+        RecordedRequest search = server.takeRequest();
+        assertThat(search.getRequestUrl().queryParameter("query"))
+                .isEqualTo("kunduzgi parvarish nogironligi bola");
     }
 
     private MockResponse searchResult(String documentId, String title, String metadata) {
