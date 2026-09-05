@@ -2,22 +2,41 @@ package com.manager.service;
 
 import com.manager.dto.RagSource;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Central prompt and response contract for grounded social-protection answers. */
 public final class LegalAssistantPrompt {
 
     private LegalAssistantPrompt() {}
 
-    public static final String NO_NORMATIVE_BASIS =
-            "Ushbu holat boʻyicha Lex.uz bazasidan aniq amaldagi normativ hujjat topilmadi. "
-            + "Iltimos, savolingizni aniqroq va batafsilroq yozing: qaysi masala "
-            + "(masalan, nafaqa, ijtimoiy xizmat, bandlik), shaxs toifasi (bola, "
-            + "nogironligi boʻlgan shaxs, ishsiz va hokazo) va kerak boʻlsa hududni "
-            + "koʻrsating. Shunda tegishli hujjatni topishga harakat qilaman.";
+    /** Section headers every answer must carry, in this order. */
+    public static final List<String> REQUIRED_SECTIONS = List.of(
+            "Qisqa javob:",
+            "Holat va qoida tahlili:",
+            "Amaliy yechim:",
+            "Huquqiy asoslar:");
+
+    private static final Pattern EVIDENCE_MARKER = Pattern.compile("\\[Asos\\s*\\d+\\]");
+    private static final Pattern LEX_URL = Pattern.compile("https?://(?:www\\.)?lex\\.uz/[^\\s\\]\\)<>\"']+");
 
     public static final String SYSTEM_INSTRUCTION = """
             Siz Ijtimoiy himoya milliy agentligining Bosh AI yordamchisisiz. Faqat berilgan Lex.uz kontekstidagi amaldagi qonunchilik hujjatlariga tayangan holda javob bering. Modelning umumiy yoki oldindan o‘rgatilgan bilimini huquqiy dalil sifatida ishlatmang. Agar Lex.uz kontekstida javob boʻlmasa, "Ushbu holat boʻyicha Lex.uz bazasidan aniq amaldagi normativ hujjat topilmadi" deb yozing va foydalanuvchidan savolini aniqroq va batafsilroq berishini — qaysi masala, shaxs toifasi va kerak boʻlsa hududni koʻrsatishini — soʻrang. Har bir xulosa, imtiyoz va tavsiya uchun qaysi qaror yoki boshqa normativ hujjatga asoslanayotganingizni, norma hujjatning qayerida keltirilganini va Lex.uz havolasini to‘liq ko‘rsating.
+
+            MAJBURIY JAVOB FORMATI
+            Har bir javob — savol qanchalik qisqa, umumiy yoki noaniq boʻlishidan qatʼi nazar — quyidagi toʻrt boʻlimdan iborat boʻlishi SHART va aynan shu tartibda yozilishi kerak:
+            "Qisqa javob:", "Holat va qoida tahlili:", "Amaliy yechim:", "Huquqiy asoslar:".
+            - Bo‘lim sarlavhalarini aynan shu ko‘rinishda, o‘zgartirmasdan yozing; birortasini tashlab ketmang va tartibini almashtirmang.
+            - Javobni to‘g‘ridan-to‘g‘ri "Qisqa javob:" bilan boshlang. Salomlashish, uzr, "men sun'iy intellektman", "quyida javob" kabi kirish yoki yakuniy izohlar yozmang.
+            - "Aniqlashtirish uchun:" bo‘limi ixtiyoriy va faqat oxirida, faqat zarur savol bo‘lsa yoziladi.
+            - Har bir xulosa va amaliy qadam oxirida [Asos N] belgisi bo‘lishi shart; har bir ishlatilgan [Asos N] "Huquqiy asoslar:" bo‘limida to‘liq ochib berilishi shart.
+            - N sifatida faqat kontekstdagi <manba id="N"> raqamlarini ishlating. Mavjud bo‘lmagan raqamga havola qilmang.
+            - "Lex.uz:" qatoriga faqat kontekstda aynan berilgan havolani ko‘chiring; havolani o‘zingizdan yasamang, qisqartirmang yoki o‘zgartirmang.
+            Bu format buzilgan javob yaroqsiz hisoblanadi.
 
             ASOSIY VAZIFA
             Vazifangiz faqat qoidani ko‘chirish yoki qayta aytish emas. Foydalanuvchi tasvirlagan ijtimoiy muammoni tushuning, kontekstdagi tegishli qoidani toping va aynan shu qoidadan kelib chiqib holatga mos javob hamda amaliy yechim bering. Buning uchun:
@@ -106,5 +125,110 @@ public final class LegalAssistantPrompt {
                     .append("</manba>\n");
         }
         return prompt.toString();
+    }
+
+    /**
+     * The "no normative basis" reply, written in the same mandatory structure as
+     * every other answer. Retrieval can come back empty, but the user must never
+     * see a differently shaped response — only one without legal grounds.
+     */
+    public static String noBasisAnswer() {
+        return """
+                Qisqa javob: Ushbu savol boʻyicha Lex.uz bazasidan aniq amaldagi normativ hujjat topilmadi, shuning uchun huquqiy xulosa berilmaydi. Savolni aniqlashtirsangiz, tegishli hujjatni topishga harakat qilaman.
+
+                Holat va qoida tahlili:
+                1. [Normativ asosning yoʻqligi]: savolingiz boʻyicha Lex.uz'dan tegishli amaldagi hujjat topilmadi. Sabab savolning juda qisqa yoki umumiy boʻlishi, atamaning boshqacha yozilishi yoxud masala boshqa soha hujjatida tartibga solingani boʻlishi mumkin. Tasdiqlangan norma boʻlmagani uchun bu holatga qoida qoʻllanmaydi.
+
+                Amaliy yechim:
+                1. [Savolni aniqlashtiring]: qaysi masala (masalan, nafaqa, ijtimoiy xizmat, bandlik, nogironlik, vasiylik), shaxs toifasi (bola, nogironligi boʻlgan shaxs, keksa, ishsiz va hokazo) va kerak boʻlsa hududni koʻrsating.
+                2. [Holat faktlarini yozing]: yosh, oila tarkibi, daromad, mavjud hujjatlar va murojaat qilingan tashkilot kabi faktlarni qoʻshing — shunda tegishli normani aniq topib, asoslangan javob beraman.
+
+                Huquqiy asoslar: ushbu savol boʻyicha kontekstda tasdiqlangan normativ hujjat topilmadi, shuning uchun huquqiy asos keltirilmaydi.
+
+                Aniqlashtirish uchun: savolingiz aynan qaysi masala va qaysi shaxs toifasiga tegishli?""";
+    }
+
+    /**
+     * Structural check applied to every generated answer before it is shown.
+     * Verifies the mandatory sections are present in order, that conclusions
+     * carry [Asos N] markers, and that every cited lex.uz link actually came
+     * from the retrieved context rather than from the model.
+     */
+    public static boolean isWellFormed(String answer, List<RagSource> sources) {
+        if (answer == null || answer.isBlank()) return false;
+
+        int cursor = -1;
+        for (String section : REQUIRED_SECTIONS) {
+            int index = answer.indexOf(section, cursor + 1);
+            if (index <= cursor) return false;
+            cursor = index;
+        }
+
+        if (!EVIDENCE_MARKER.matcher(answer).find()) return false;
+
+        return citedLinksComeFromContext(answer, sources);
+    }
+
+    private static boolean citedLinksComeFromContext(String answer, List<RagSource> sources) {
+        Set<String> allowed = new LinkedHashSet<>();
+        if (sources != null) {
+            for (RagSource source : sources) {
+                collectLexLinks(source.sourceUrl(), allowed);
+                collectLexLinks(source.content(), allowed);
+            }
+        }
+
+        Matcher matcher = LEX_URL.matcher(answer);
+        while (matcher.find()) {
+            String cited = normalizeLink(matcher.group());
+            boolean known = allowed.stream()
+                    .anyMatch(candidate -> candidate.startsWith(cited) || cited.startsWith(candidate));
+            if (!known) return false;
+        }
+        return true;
+    }
+
+    private static void collectLexLinks(String text, Set<String> into) {
+        if (text == null || text.isBlank()) return;
+        Matcher matcher = LEX_URL.matcher(text);
+        while (matcher.find()) {
+            into.add(normalizeLink(matcher.group()));
+        }
+    }
+
+    private static String normalizeLink(String url) {
+        String trimmed = url.trim();
+        while (trimmed.endsWith(".") || trimmed.endsWith(",") || trimmed.endsWith(";")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    /**
+     * System prompt for the single repair pass run when {@link #isWellFormed}
+     * rejects a draft. It keeps the full evidence context so the rewrite stays
+     * grounded instead of merely re-shaping unverified text.
+     */
+    public static String buildRepairPrompt(List<RagSource> sources, String departmentRules) {
+        return buildGroundedPrompt(sources, departmentRules)
+                + """
+
+
+                QAYTA FORMATLASH VAZIFASI
+                Foydalanuvchi savoli va unga tayyorlangan qoralama javob beriladi. Qoralama MAJBURIY JAVOB FORMATIga to‘liq mos emas.
+                Qoralamadagi faqat yuqoridagi kontekst bilan tasdiqlangan mazmunni saqlab, javobni to‘liq qayta yozing:
+                - "Qisqa javob:", "Holat va qoida tahlili:", "Amaliy yechim:", "Huquqiy asoslar:" bo‘limlarini shu tartibda yozing;
+                - har bir xulosa va qadamga [Asos N] biriktiring va har bir asosni "Huquqiy asoslar:" bo‘limida to‘liq oching;
+                - kontekstda tasdiqlanmagan hujjat, band, summa va havolani olib tashlang;
+                - qoralama haqida izoh bermang, kechirim so‘ramang — faqat tayyor javobni yozing.""";
+    }
+
+    /** User-turn payload for the repair pass. */
+    public static String buildRepairRequest(String question, String draft) {
+        List<String> parts = new ArrayList<>();
+        parts.add("Foydalanuvchi savoli:\n" + (question == null ? "" : question.trim()));
+        parts.add("Qoralama javob:\n" + (draft == null ? "" : draft.trim()));
+        parts.add("Yuqoridagi qoralamani majburiy formatga moslashtirib qayta yozing.");
+        return String.join("\n\n", parts);
     }
 }

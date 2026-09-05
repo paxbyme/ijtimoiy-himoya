@@ -90,6 +90,21 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
 
     bool addedAiMessage = false;
 
+    void renderAssistant(String content) {
+      _statusMessage = '';
+      if (!addedAiMessage) {
+        addedAiMessage = true;
+        state = [...state, AiChatMessage(content: content, isUser: false)];
+      } else {
+        final messages = [...state];
+        messages[messages.length - 1] = AiChatMessage(
+          content: content,
+          isUser: false,
+        );
+        state = messages;
+      }
+    }
+
     try {
       final stream = _repo.sendMessageStream(message, _conversationId);
 
@@ -106,23 +121,15 @@ class AiChatNotifier extends Notifier<List<AiChatMessage>> {
           _statusMessage = event['message']?.toString() ?? '';
           state = [...state];
         } else if (type == 'token') {
+          fullResponse += event['text'] as String? ?? '';
+          renderAssistant(fullResponse);
+        } else if (type == 'replace') {
+          // The backend re-formatted the answer after streaming it. Swap the
+          // rendered draft for the corrected text instead of appending.
           final text = event['text'] as String? ?? '';
-          fullResponse += text;
-          _statusMessage = '';
-
-          if (!addedAiMessage) {
-            addedAiMessage = true;
-            state = [
-              ...state,
-              AiChatMessage(content: fullResponse, isUser: false),
-            ];
-          } else {
-            final messages = [...state];
-            messages[messages.length - 1] = AiChatMessage(
-              content: fullResponse,
-              isUser: false,
-            );
-            state = messages;
+          if (text.isNotEmpty) {
+            fullResponse = text;
+            renderAssistant(fullResponse);
           }
         } else if (type == 'error') {
           throw Exception(event['message'] ?? 'Unknown error');

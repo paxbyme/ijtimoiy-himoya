@@ -8,6 +8,8 @@ import com.manager.repository.AiFeedbackRepository;
 import com.manager.service.AiConversationPersistenceService;
 import com.manager.service.AiRulesService;
 import com.manager.service.AiService;
+import com.manager.service.ConversationContext;
+import com.manager.service.ConversationEvidenceCache;
 import com.manager.service.LegalAssistantPrompt;
 import com.manager.service.LegalQueryPlanner;
 import com.manager.service.LexUzService;
@@ -54,6 +56,7 @@ public class AiController {
     private final AiFeedbackRepository aiFeedbackRepository;
     private final RateLimiterService rateLimiterService;
     private final AiConversationPersistenceService conversationPersistenceService;
+    private final ConversationEvidenceCache conversationEvidenceCache;
     private final Executor aiPipelineExecutor;
     private final Executor aiStreamExecutor;
     private final ObjectMapper objectMapper;
@@ -66,6 +69,7 @@ public class AiController {
                         AiFeedbackRepository aiFeedbackRepository,
                         RateLimiterService rateLimiterService,
                         AiConversationPersistenceService conversationPersistenceService,
+                        ConversationEvidenceCache conversationEvidenceCache,
                         @Qualifier("aiPipelineExecutor") Executor aiPipelineExecutor,
                         @Qualifier("aiStreamExecutor") Executor aiStreamExecutor) {
         this.aiService = aiService;
@@ -77,6 +81,7 @@ public class AiController {
         this.aiFeedbackRepository = aiFeedbackRepository;
         this.rateLimiterService = rateLimiterService;
         this.conversationPersistenceService = conversationPersistenceService;
+        this.conversationEvidenceCache = conversationEvidenceCache;
         this.aiPipelineExecutor = aiPipelineExecutor;
         this.aiStreamExecutor = aiStreamExecutor;
         this.objectMapper = new ObjectMapper();
@@ -99,9 +104,13 @@ public class AiController {
 
             ChatContext ctx = buildChatContext(uid, departmentId, request.getMessage(), request.getConversationId());
 
-            String aiResponse = ctx.evidence.isEmpty()
-                    ? LegalAssistantPrompt.NO_NORMATIVE_BASIS
-                    : aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
+            String aiResponse;
+            if (ctx.evidence.isEmpty()) {
+                aiResponse = LegalAssistantPrompt.noBasisAnswer();
+            } else {
+                String draft = aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
+                aiResponse = repairIfMalformed(ctx, request.getMessage(), draft);
+            }
 
             // Save conversation
             String conversationId = saveConversation(ctx, request.getMessage(), aiResponse);
@@ -180,7 +189,7 @@ public class AiController {
 
                 String fullResponse;
                 if (ctx.evidence.isEmpty()) {
-                    fullResponse = LegalAssistantPrompt.NO_NORMATIVE_BASIS;
+                    fullResponse = LegalAssistantPrompt.noBasisAnswer();
                     tokenSink.accept(fullResponse);
                 } else {
                     emitter.send(SseEmitter.event().data(
@@ -189,6 +198,24 @@ public class AiController {
                                     "message", "Asoslangan javob tayyorlanmoqda..."))));
                     fullResponse = aiService.chatStream(
                             ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
+
+                    // A streamed draft is already on screen, so a contract
+                    // violation is repaired and pushed as a full replacement
+                    // rather than as more tokens.
+                    if (!LegalAssistantPrompt.isWellFormed(fullResponse, ctx.evidence)) {
+                        emitter.send(SseEmitter.event().data(
+                                objectMapper.writeValueAsString(Map.of(
+                                        "type", "status",
+                                        "message", "Javob tuzilmasi tekshirilmoqda..."))));
+                        String repaired = repairIfMalformed(ctx, request.getMessage(), fullResponse);
+                        if (!repaired.equals(fullResponse)) {
+                            fullResponse = repaired;
+                            emitter.send(SseEmitter.event().data(
+                                    objectMapper.writeValueAsString(Map.of(
+                                            "type", "replace",
+                                            "text", fullResponse))));
+                        }
+                    }
                 }
 
                 // Send done
@@ -387,9 +414,8 @@ public class AiController {
                                          String message, String conversationId) throws Exception {
         ChatContext ctx = new ChatContext();
 
-        // Rules, documentary evidence, and conversation history are independent
-        // remote reads. Starting all three together removes their cumulative
-        // latency from the critical path.
+        // Department rules do not steer retrieval, so they are read alongside
+        // everything else and never add to the critical path.
         CompletableFuture<List<AiRuleDto>> rulesFuture = CompletableFuture.supplyAsync(() -> {
             try {
                 return aiRulesService.getActiveRulesForDepartment(departmentId);
@@ -398,28 +424,6 @@ public class AiController {
                 return List.<AiRuleDto>of();
             }
         }, aiPipelineExecutor).completeOnTimeout(List.of(), 1500, TimeUnit.MILLISECONDS);
-
-        // The LLM planner analyses the question and produces focused Lex.uz
-        // search queries before retrieval. It runs in parallel with the other
-        // preflight reads; only the Lex.uz search waits on it. A planner
-        // timeout or failure yields an empty plan, and the search then falls
-        // back to keyword extraction — retrieval never blocks on the planner.
-        CompletableFuture<List<String>> plannerFuture = CompletableFuture.supplyAsync(
-                        () -> legalQueryPlanner.plan(message), aiPipelineExecutor)
-                .completeOnTimeout(List.of(), 3_500, TimeUnit.MILLISECONDS)
-                .exceptionally(e -> {
-                    log.warn("Legal query planner unavailable: {}", e.getMessage());
-                    return List.of();
-                });
-
-        CompletableFuture<List<RagSource>> ragFuture = plannerFuture.thenApplyAsync(plannedQueries -> {
-            try {
-                return lexUzService.query(message, plannedQueries, RAG_TOP_K);
-            } catch (Exception e) {
-                log.warn("Lex.uz search unavailable: {}", e.getMessage());
-                return List.<RagSource>of();
-            }
-        }, aiPipelineExecutor).completeOnTimeout(List.of(), 18_000, TimeUnit.MILLISECONDS);
 
         final String requestedConversationId = conversationId;
         CompletableFuture<ConversationState> conversationFuture = CompletableFuture.supplyAsync(() -> {
@@ -431,6 +435,40 @@ public class AiController {
             }
         }, aiPipelineExecutor);
 
+        // Retrieval is chained onto the conversation read rather than run beside
+        // it: a follow-up turn ("ha, malakam bor") only names its legal subject
+        // through the turns before it, and searching it literally finds nothing.
+        // The conversation is a single Firestore read, so the added wait is
+        // small next to the search it steers.
+        //
+        // The LLM planner turns the resolved question into focused Lex.uz
+        // queries. A planner timeout or failure yields an empty plan, and the
+        // search then falls back to keyword extraction over the same resolved
+        // text — retrieval never blocks on the planner.
+        CompletableFuture<List<String>> plannerFuture = conversationFuture
+                .thenApplyAsync(conversation -> legalQueryPlanner.plan(message, conversation.history()),
+                        aiPipelineExecutor)
+                .completeOnTimeout(List.of(), 5_000, TimeUnit.MILLISECONDS)
+                .exceptionally(e -> {
+                    log.warn("Legal query planner unavailable: {}", e.getMessage());
+                    return List.of();
+                });
+
+        CompletableFuture<List<RagSource>> ragFuture = plannerFuture
+                .thenCombineAsync(conversationFuture.exceptionally(e -> null),
+                        (plannedQueries, conversation) -> {
+                            String searchText = conversation == null
+                                    ? message
+                                    : ConversationContext.retrievalQuestion(message, conversation.history());
+                            try {
+                                return lexUzService.query(searchText, plannedQueries, RAG_TOP_K);
+                            } catch (Exception e) {
+                                log.warn("Lex.uz search unavailable: {}", e.getMessage());
+                                return List.<RagSource>of();
+                            }
+                        }, aiPipelineExecutor)
+                .completeOnTimeout(List.of(), 18_000, TimeUnit.MILLISECONDS);
+
         CompletableFuture.allOf(rulesFuture, ragFuture, conversationFuture)
                 .get(19, TimeUnit.SECONDS);
 
@@ -438,23 +476,40 @@ public class AiController {
         List<AiRuleDto> deptRules = rulesFuture.join();
         List<RagSource> evidence = ragFuture.join();
 
+        String retrievalQuestion = ConversationContext.retrievalQuestion(message, conversation.history());
+
         // Live Lex.uz scraping is the primary source but can come back empty on
         // a slow/timed-out fetch even when the law exists. Fall back to the
         // pre-indexed department RAG so a transient Lex.uz failure no longer
         // forces a blanket "no normative basis" reply with the model unused.
         if (evidence.isEmpty()) {
-            evidence = fallbackRagSearch(message, departmentId);
+            evidence = fallbackRagSearch(retrievalQuestion, departmentId);
         }
+
+        // Last resort inside an ongoing conversation: answer from the documents
+        // the previous turn was grounded in. A user who answers the assistant's
+        // own clarifying question must never be told the basis just cited to
+        // them no longer exists.
+        if (evidence.isEmpty()) {
+            List<RagSource> carried = conversationEvidenceCache.get(conversation.id());
+            if (!carried.isEmpty()) {
+                log.info("Retrieval returned nothing; reusing previous turn's evidence: conversationId={} sources={}",
+                        conversation.id(), carried.size());
+                evidence = carried;
+            }
+        }
+
+        conversationEvidenceCache.put(conversation.id(), evidence);
 
         String deptRulesText = buildDepartmentRulesPrompt(deptRules, departmentId);
 
-        List<Map<String, Object>> history = new ArrayList<>(conversation.history);
+        List<Map<String, Object>> history = new ArrayList<>(conversation.history());
         if (history.size() > MAX_HISTORY_MESSAGES) {
             history = new ArrayList<>(history.subList(history.size() - MAX_HISTORY_MESSAGES, history.size()));
         }
 
-        ctx.conversationId = conversation.id;
-        ctx.isNew = conversation.isNew;
+        ctx.conversationId = conversation.id();
+        ctx.isNew = conversation.isNew();
         ctx.history = history;
         ctx.uid = uid;
         ctx.departmentId = departmentId;
@@ -463,9 +518,36 @@ public class AiController {
                 .map(RagSource::citationReference)
                 .distinct()
                 .toList();
+        ctx.departmentRules = deptRulesText;
         ctx.systemPrompt = LegalAssistantPrompt.buildGroundedPrompt(evidence, deptRulesText);
 
         return ctx;
+    }
+
+    /**
+     * Every answer must reach the user in the same shape. When a draft breaks
+     * the response contract — a missing section, no [Asos N] marker, or a
+     * lex.uz link that is not in the retrieved context — one repair pass
+     * rewrites it against the same evidence. A failed repair serves the draft:
+     * a shape violation must never cost the user their answer.
+     */
+    private String repairIfMalformed(ChatContext ctx, String message, String draft) {
+        if (LegalAssistantPrompt.isWellFormed(draft, ctx.evidence)) {
+            return draft;
+        }
+        log.warn("AI answer broke the response contract; repairing: conversationId={}", ctx.conversationId);
+        try {
+            String repaired = aiService.chat(
+                    LegalAssistantPrompt.buildRepairPrompt(ctx.evidence, ctx.departmentRules),
+                    List.of(),
+                    LegalAssistantPrompt.buildRepairRequest(message, draft));
+            if (repaired != null && !repaired.isBlank()) {
+                return repaired;
+            }
+        } catch (Exception e) {
+            log.warn("Answer repair pass failed, serving original draft: {}", e.getMessage());
+        }
+        return draft;
     }
 
     private List<RagSource> fallbackRagSearch(String message, String departmentId) {
@@ -591,6 +673,7 @@ public class AiController {
         String departmentId;
         String conversationId;
         String systemPrompt;
+        String departmentRules;
         List<Map<String, Object>> history;
         List<RagSource> evidence;
         List<String> citations;

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -47,6 +48,16 @@ public class LegalQueryPlanner {
             - Ism, manzil, sana kabi shaxsiy tafsilotlarni so'rovga qo'shmang.
             - Eng ko'pi 5 ta so'rov. Ortiqcha izoh yozmang.
 
+            SUHBAT TARIXI BILAN ISHLASH:
+            - Yangi xabar oldingi savolning davomi bo'lsa (masalan "ha", "menda bor",
+              "batafsil ayting", aniqlashtiruvchi savolga javob), uni mustaqil savolga
+              aylantiring: mavzuni suhbat tarixidan oling va so'rovlarni o'sha mavzu
+              bo'yicha yozing.
+            - Yangi xabar aniqlik kiritsa (toifa, hudud, yosh, hujjat), uni oldingi
+              mavzu bilan birlashtirib aniqroq so'rov tuzing.
+            - Hech qachon bo'sh massiv qaytarmang: suhbatda mavzu mavjud bo'lsa,
+              hech bo'lmaganda o'sha mavzu bo'yicha bitta so'rov yozing.
+
             Javobni FAQAT JSON massiv ko'rinishida bering, boshqa hech narsa yozmang:
             ["birinchi so'rov", "ikkinchi so'rov"]
             """;
@@ -63,9 +74,20 @@ public class LegalQueryPlanner {
      * planning is unavailable so the caller can fall back to keyword search.
      */
     public List<String> plan(String question) {
+        return plan(question, List.of());
+    }
+
+    /**
+     * Plans searches for a question that may only make sense as a continuation
+     * of the conversation. The recent turns are handed to the model so a reply
+     * like "ha, malakam bor" is resolved back to the legal topic it answers
+     * instead of being searched literally — a literal search finds nothing and
+     * would make the assistant deny a basis it cited a turn earlier.
+     */
+    public List<String> plan(String question, List<Map<String, Object>> history) {
         if (question == null || question.isBlank()) return List.of();
         try {
-            String raw = aiService.chat(PLANNER_INSTRUCTION, List.of(), question.trim());
+            String raw = aiService.chat(PLANNER_INSTRUCTION, List.of(), buildPlannerRequest(question, history));
             List<String> queries = parseQueries(raw);
             if (!queries.isEmpty()) {
                 log.info("Legal query planner produced {} search quer(ies)", queries.size());
@@ -75,6 +97,16 @@ public class LegalQueryPlanner {
             log.warn("Legal query planning failed; falling back to keyword search: {}", e.getMessage());
             return List.of();
         }
+    }
+
+    /** Presents the new message together with the turns it depends on. */
+    private String buildPlannerRequest(String question, List<Map<String, Object>> history) {
+        String transcript = ConversationContext.transcript(history);
+        if (transcript.isBlank()) {
+            return question.trim();
+        }
+        return "Suhbat tarixi (eng yangisi oxirida):\n" + transcript
+                + "\n\nFuqaroning yangi xabari:\n" + question.trim();
     }
 
     private List<String> parseQueries(String raw) {

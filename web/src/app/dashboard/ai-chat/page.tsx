@@ -28,7 +28,7 @@ interface ChatMessage {
 }
 
 interface AiStreamEvent {
-  type?: "status" | "meta" | "token" | "done" | "error";
+  type?: "status" | "meta" | "token" | "replace" | "done" | "error";
   text?: string;
   message?: string;
   conversationId?: string;
@@ -248,6 +248,14 @@ export default function AiChatPage() {
                 const chunk = event.text || "";
                 if (!chunk) continue;
                 fullResponse += chunk;
+                setStreamStatus("");
+                renderAssistant(fullResponse);
+              } else if (event.type === "replace") {
+                // The backend re-formatted the answer after streaming it.
+                // Swap the rendered draft for the corrected text.
+                const corrected = event.text || "";
+                if (!corrected) continue;
+                fullResponse = corrected;
                 setStreamStatus("");
                 renderAssistant(fullResponse);
               } else if (event.type === "done") {
