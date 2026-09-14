@@ -6,7 +6,9 @@ import '../../models/auth/user_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class DevManagersScreen extends ConsumerWidget {
   const DevManagersScreen({super.key});
@@ -33,143 +35,177 @@ class DevManagersScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddManagerSheet(
-          context,
-          ref,
-          deptsAsync.value ?? [],
-        ),
+        onPressed: () =>
+            _showAddManagerSheet(context, ref, deptsAsync.value ?? []),
         child: const Icon(Icons.person_add),
       ),
-      body: AppBackground(child: managersAsync.when(
-        loading: () => const LoadingWidget(),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline, color: theme.colorScheme.error, size: 40),
-              const SizedBox(height: 12),
-              Text('Failed to load managers',
+      body: AppBackground(
+        child: managersAsync.when(
+          loading: () => const LoadingWidget(),
+          error: (e, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  color: theme.colorScheme.error,
+                  size: 40,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Failed to load managers',
                   style: TextStyle(
-                      color: theme.colorScheme.error,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(e.toString(),
+                    color: theme.colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    e.toString(),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        fontSize: 12,
-                        color: theme.colorScheme.onSurfaceVariant)),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => ref.invalidate(adminManagersProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => ref.invalidate(adminManagersProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
-        ),
-        data: (managers) {
-          if (managers.isEmpty) {
-            return const EmptyStateWidget(
-              icon: Icons.manage_accounts_outlined,
-              message: 'No managers yet. Tap + to create one.',
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(adminManagersProvider),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: managers.length,
-              itemBuilder: (context, index) {
-                final m = managers[index];
-                final deptName = m.departmentId != null &&
-                        m.departmentId!.isNotEmpty
-                    ? deptMap[m.departmentId!]
-                    : null;
-                return Card(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => _showStats(context, ref, m),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 4),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: m.isActive
-                              ? theme.colorScheme.primaryContainer
-                              : theme.colorScheme.surfaceContainerHighest,
-                          child: Text(
-                            m.displayName.isNotEmpty
-                                ? m.displayName[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: m.isActive
-                                  ? theme.colorScheme.onPrimaryContainer
-                                  : theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.bold,
+          data: (managers) {
+            if (managers.isEmpty) {
+              return const EmptyStateWidget(
+                icon: Icons.manage_accounts_outlined,
+                message: 'No managers yet. Tap + to create one.',
+              );
+            }
+            return RefreshIndicator(
+              onRefresh: () async => ref.invalidate(adminManagersProvider),
+              child: ResponsiveCenter(
+                child: ListView.builder(
+                  padding: context.pagePadding,
+                  itemCount: managers.length,
+                  itemBuilder: (context, index) {
+                    final m = managers[index];
+                    final deptName =
+                        m.departmentId != null && m.departmentId!.isNotEmpty
+                        ? deptMap[m.departmentId!]
+                        : null;
+                    return Card(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => _showStats(context, ref, m),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 4,
+                          ),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: m.isActive
+                                  ? theme.colorScheme.primaryContainer
+                                  : theme.colorScheme.surfaceContainerHighest,
+                              child: Text(
+                                m.displayName.isNotEmpty
+                                    ? m.displayName[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  color: m.isActive
+                                      ? theme.colorScheme.onPrimaryContainer
+                                      : theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    m.displayName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (!m.isActive)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Text(
+                                      'Inactive',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            subtitle: Text(
+                              '${m.phone}${deptName != null ? '  ·  $deptName' : ''}',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.bar_chart_outlined),
+                                  tooltip: 'Analytics',
+                                  onPressed: () => _showStats(context, ref, m),
+                                ),
+                                if (m.isActive)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.person_off_outlined,
+                                      color: Colors.orange,
+                                    ),
+                                    tooltip: 'Deactivate',
+                                    onPressed: () => _confirmDeactivate(
+                                      context,
+                                      ref,
+                                      m.id,
+                                      m.displayName,
+                                    ),
+                                  ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.delete_forever_outlined,
+                                    color: theme.colorScheme.error,
+                                  ),
+                                  tooltip: 'Delete permanently',
+                                  onPressed: () => _confirmHardDelete(
+                                    context,
+                                    ref,
+                                    m.id,
+                                    m.displayName,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(m.displayName,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600)),
-                            ),
-                            if (!m.isActive)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Text('Inactive',
-                                    style: TextStyle(
-                                        fontSize: 10, color: Colors.red)),
-                              ),
-                          ],
-                        ),
-                        subtitle: Text(
-                          '${m.phone}${deptName != null ? '  ·  $deptName' : ''}',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.bar_chart_outlined),
-                              tooltip: 'Analytics',
-                              onPressed: () => _showStats(context, ref, m),
-                            ),
-                            if (m.isActive)
-                              IconButton(
-                                icon: const Icon(Icons.person_off_outlined,
-                                    color: Colors.orange),
-                                tooltip: 'Deactivate',
-                                onPressed: () => _confirmDeactivate(
-                                    context, ref, m.id, m.displayName),
-                              ),
-                            IconButton(
-                              icon: Icon(Icons.delete_forever_outlined,
-                                  color: theme.colorScheme.error),
-                              tooltip: 'Delete permanently',
-                              onPressed: () => _confirmHardDelete(
-                                  context, ref, m.id, m.displayName),
-                            ),
-                          ],
-                        ),
                       ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      )),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -177,6 +213,8 @@ class DevManagersScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 640),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -185,13 +223,18 @@ class DevManagersScreen extends ConsumerWidget {
   }
 
   void _confirmDeactivate(
-      BuildContext context, WidgetRef ref, String id, String name) {
+    BuildContext context,
+    WidgetRef ref,
+    String id,
+    String name,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Deactivate Manager'),
-        content:
-            Text('Deactivate $name? They will no longer be able to sign in.'),
+        content: Text(
+          'Deactivate $name? They will no longer be able to sign in.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -207,10 +250,12 @@ class DevManagersScreen extends ConsumerWidget {
               result.fold(
                 (failure) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('Failed: ${failure.message}'),
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed: ${failure.message}'),
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                      ),
+                    );
                   }
                 },
                 (_) {
@@ -231,7 +276,11 @@ class DevManagersScreen extends ConsumerWidget {
   }
 
   void _confirmHardDelete(
-      BuildContext context, WidgetRef ref, String id, String name) {
+    BuildContext context,
+    WidgetRef ref,
+    String id,
+    String name,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -266,10 +315,12 @@ class DevManagersScreen extends ConsumerWidget {
               result.fold(
                 (failure) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('Failed: ${failure.message}'),
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed: ${failure.message}'),
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                      ),
+                    );
                   }
                 },
                 (_) {
@@ -278,7 +329,8 @@ class DevManagersScreen extends ConsumerWidget {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                          content: Text('Manager permanently deleted')),
+                        content: Text('Manager permanently deleted'),
+                      ),
                     );
                   }
                 },
@@ -292,7 +344,10 @@ class DevManagersScreen extends ConsumerWidget {
   }
 
   void _showAddManagerSheet(
-      BuildContext context, WidgetRef ref, List<Department> depts) {
+    BuildContext context,
+    WidgetRef ref,
+    List<Department> depts,
+  ) {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
@@ -302,13 +357,19 @@ class DevManagersScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => Padding(
+        builder: (ctx, setState) => SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-              24, 24, 24, 24 + MediaQuery.of(ctx).viewInsets.bottom),
+            24,
+            24,
+            24,
+            24 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
           child: Form(
             key: formKey,
             child: Column(
@@ -317,10 +378,9 @@ class DevManagersScreen extends ConsumerWidget {
               children: [
                 Text(
                   'Add Manager',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(
+                    ctx,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
@@ -366,10 +426,14 @@ class DevManagersScreen extends ConsumerWidget {
                   ),
                   items: [
                     const DropdownMenuItem<String>(
-                        value: null, child: Text('— Assign later —')),
+                      value: null,
+                      child: Text('— Assign later —'),
+                    ),
                     ...depts.map(
                       (d) => DropdownMenuItem<String>(
-                          value: d.id, child: Text(d.name)),
+                        value: d.id,
+                        child: Text(d.name),
+                      ),
                     ),
                   ],
                   onChanged: (v) => setState(() => selectedDeptId = v),
@@ -378,21 +442,24 @@ class DevManagersScreen extends ConsumerWidget {
                 ElevatedButton(
                   onPressed: () async {
                     if (!formKey.currentState!.validate()) return;
-                    final result =
-                        await ref.read(adminRepositoryProvider).createManager({
-                      'displayName': nameController.text.trim(),
-                      'phone': phoneController.text.trim(),
-                      'password': passwordController.text,
-                      if (selectedDeptId != null)
-                        'departmentId': selectedDeptId,
-                    });
+                    final result = await ref
+                        .read(adminRepositoryProvider)
+                        .createManager({
+                          'displayName': nameController.text.trim(),
+                          'phone': phoneController.text.trim(),
+                          'password': passwordController.text,
+                          if (selectedDeptId != null)
+                            'departmentId': selectedDeptId,
+                        });
                     result.fold(
                       (failure) {
                         if (ctx.mounted) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text('Failed: ${failure.message}'),
-                            backgroundColor: Theme.of(ctx).colorScheme.error,
-                          ));
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed: ${failure.message}'),
+                              backgroundColor: Theme.of(ctx).colorScheme.error,
+                            ),
+                          );
                         }
                       },
                       (_) {
@@ -401,7 +468,8 @@ class DevManagersScreen extends ConsumerWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('Manager created successfully')),
+                              content: Text('Manager created successfully'),
+                            ),
                           );
                         }
                       },
@@ -508,19 +576,27 @@ class _StatsSheetState extends State<_StatsSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(m.displayName,
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold)),
-                      Text(m.phone,
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: theme.colorScheme.onSurfaceVariant)),
+                      Text(
+                        m.displayName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        m.phone,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: m.isActive
                         ? Colors.green.withValues(alpha: 0.12)
@@ -532,8 +608,7 @@ class _StatsSheetState extends State<_StatsSheet> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color:
-                          m.isActive ? Colors.green.shade700 : Colors.red,
+                      color: m.isActive ? Colors.green.shade700 : Colors.red,
                     ),
                   ),
                 ),
@@ -541,31 +616,35 @@ class _StatsSheetState extends State<_StatsSheet> {
             ),
             const SizedBox(height: 20),
             if (_loading)
-              const Expanded(
-                  child: Center(child: CircularProgressIndicator()))
+              const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (_error != null)
               Expanded(
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.error_outline,
-                          color: theme.colorScheme.error, size: 36),
+                      Icon(
+                        Icons.error_outline,
+                        color: theme.colorScheme.error,
+                        size: 36,
+                      ),
                       const SizedBox(height: 8),
-                      Text(_error!,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: theme.colorScheme.error)),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
                       const SizedBox(height: 12),
                       TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _loading = true;
-                              _error = null;
-                            });
-                            _load();
-                          },
-                          child: const Text('Retry')),
+                        onPressed: () {
+                          setState(() {
+                            _loading = true;
+                            _error = null;
+                          });
+                          _load();
+                        },
+                        child: const Text('Retry'),
+                      ),
                     ],
                   ),
                 ),
@@ -577,81 +656,107 @@ class _StatsSheetState extends State<_StatsSheet> {
                   children: [
                     if (_stats!.departmentName != null)
                       _InfoRow(
-                          icon: Icons.business_outlined,
-                          label: 'Department',
-                          value: _stats!.departmentName!),
+                        icon: Icons.business_outlined,
+                        label: 'Department',
+                        value: _stats!.departmentName!,
+                      ),
                     if (_stats!.currentPeriod != null)
                       _InfoRow(
-                          icon: Icons.calendar_month_outlined,
-                          label: 'Period',
-                          value: _stats!.currentPeriod!),
+                        icon: Icons.calendar_month_outlined,
+                        label: 'Period',
+                        value: _stats!.currentPeriod!,
+                      ),
                     const SizedBox(height: 16),
                     _SectionTitle('Staff'),
                     const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(
+                    Row(
+                      children: [
+                        Expanded(
                           child: _StatCard(
-                              label: 'Total',
-                              value: '${_stats!.staffTotal}',
-                              color: theme.colorScheme.primary)),
-                      const SizedBox(width: 10),
-                      Expanded(
+                            label: 'Total',
+                            value: '${_stats!.staffTotal}',
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _StatCard(
-                              label: 'Active',
-                              value: '${_stats!.staffActive}',
-                              color: Colors.green)),
-                      const SizedBox(width: 10),
-                      Expanded(
+                            label: 'Active',
+                            value: '${_stats!.staffActive}',
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _StatCard(
-                              label: 'Inactive',
-                              value:
-                                  '${_stats!.staffTotal - _stats!.staffActive}',
-                              color: Colors.grey)),
-                    ]),
+                            label: 'Inactive',
+                            value:
+                                '${_stats!.staffTotal - _stats!.staffActive}',
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     _SectionTitle('Tasks (Department)'),
                     const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(
+                    Row(
+                      children: [
+                        Expanded(
                           child: _StatCard(
-                              label: 'Total',
-                              value: '${_stats!.taskTotal}',
-                              color: theme.colorScheme.secondary)),
-                      const SizedBox(width: 10),
-                      Expanded(
+                            label: 'Total',
+                            value: '${_stats!.taskTotal}',
+                            color: theme.colorScheme.secondary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _StatCard(
-                              label: 'Done',
-                              value: '${_stats!.taskCompleted}',
-                              color: Colors.green)),
-                      const SizedBox(width: 10),
-                      Expanded(
+                            label: 'Done',
+                            value: '${_stats!.taskCompleted}',
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _StatCard(
-                              label: 'Active',
-                              value: '${_stats!.taskInProgress}',
-                              color: Colors.blue)),
-                    ]),
+                            label: 'Active',
+                            value: '${_stats!.taskInProgress}',
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(
+                    Row(
+                      children: [
+                        Expanded(
                           child: _StatCard(
-                              label: 'Pending',
-                              value: '${_stats!.taskPending}',
-                              color: Colors.orange)),
-                      const SizedBox(width: 10),
-                      Expanded(
+                            label: 'Pending',
+                            value: '${_stats!.taskPending}',
+                            color: Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _StatCard(
-                              label: 'Cancelled',
-                              value: '${_stats!.taskCancelled}',
-                              color: Colors.red)),
-                      const SizedBox(width: 10),
-                      Expanded(
+                            label: 'Cancelled',
+                            value: '${_stats!.taskCancelled}',
+                            color: Colors.red,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _StatCard(
-                              label: 'Rate',
-                              value: _stats!.taskTotal > 0
-                                  ? '${(_stats!.taskCompleted * 100 / _stats!.taskTotal).round()}%'
-                                  : '—',
-                              color: Colors.teal)),
-                    ]),
+                            label: 'Rate',
+                            value: _stats!.taskTotal > 0
+                                ? '${(_stats!.taskCompleted * 100 / _stats!.taskTotal).round()}%'
+                                : '—',
+                            color: Colors.teal,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     _SectionTitle('KPI (avg this month)'),
                     const SizedBox(height: 8),
@@ -664,11 +769,12 @@ class _StatsSheetState extends State<_StatsSheet> {
                       child: Row(
                         children: [
                           Icon(
-                              Icons.emoji_events_outlined,
-                              color: _stats!.avgKpiScore != null
-                                  ? Colors.amber
-                                  : theme.colorScheme.outlineVariant,
-                              size: 32),
+                            Icons.emoji_events_outlined,
+                            color: _stats!.avgKpiScore != null
+                                ? Colors.amber
+                                : theme.colorScheme.outlineVariant,
+                            size: 32,
+                          ),
                           const SizedBox(width: 12),
                           Text(
                             _stats!.avgKpiScore != null
@@ -699,17 +805,23 @@ class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);
   @override
-  Widget build(BuildContext context) => Text(text,
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant));
+  Widget build(BuildContext context) => Text(
+    text,
+    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
+  );
 }
 
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow(
-      {required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -719,14 +831,18 @@ class _InfoRow extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 8),
-          Text('$label: ',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: theme.colorScheme.onSurfaceVariant)),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600)),
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -738,30 +854,35 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _StatCard(
-      {required this.label, required this.value, required this.color});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
   @override
   Widget build(BuildContext context) => Container(
-        padding:
-            const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withValues(alpha: 0.25)),
+    ),
+    child: Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
         ),
-        child: Column(
-          children: [
-            Text(value,
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: color)),
-            const SizedBox(height: 2),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: color.withValues(alpha: 0.8))),
-          ],
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.8)),
         ),
-      );
+      ],
+    ),
+  );
 }

@@ -5,7 +5,9 @@ import '../../providers/chat_provider.dart';
 import '../../widgets/chat/chat_bubble.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class StaffChatScreen extends ConsumerStatefulWidget {
   const StaffChatScreen({super.key});
@@ -64,9 +66,7 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Menejerim'),
-      ),
+      appBar: AppBar(title: const Text('Menejerim')),
       body: AppBackground(
         child: userProfile.when(
           loading: () => const LoadingWidget(),
@@ -100,91 +100,97 @@ class _StaffChatScreenState extends ConsumerState<StaffChatScreen> {
             final conversationId = _getConversationId(user.id, managerId);
             final messagesAsync = ref.watch(messagesProvider(conversationId));
 
-            return Column(
-              children: [
-                Expanded(
-                  child: messagesAsync.when(
-                    loading: () => const LoadingWidget(),
-                    error: (_, __) => const Center(
-                        child: Text('Xabarlarni yuklashda xatolik')),
-                    data: (messages) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _scrollToBottom();
-                        _resetUnread(user.id, managerId);
-                      });
-
-                      if (messages.isEmpty) {
-                        return const EmptyStateWidget(
-                          icon: Icons.chat_bubble_outline,
-                          message:
-                              'Hali xabarlar yo\'q. Menejeringizga xabar yuboring!',
-                        );
-                      }
-
-                      return ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) {
-                          final msg = messages[index];
-                          return ChatBubble(
-                            message: msg.content,
-                            isMe: msg.senderId == user.id,
-                            timestamp: msg.createdAt,
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, -2),
+            return ResponsiveCenter(
+              maxWidth: 900,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: messagesAsync.when(
+                      loading: () => const LoadingWidget(),
+                      error: (_, __) => const Center(
+                        child: Text('Xabarlarni yuklashda xatolik'),
                       ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _messageController,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _sendMessage(managerId),
-                            decoration: InputDecoration(
-                              hintText: 'Xabar yozing...',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide.none,
-                              ),
-                              filled: true,
-                              fillColor:
-                                  theme.colorScheme.surfaceContainerHighest,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
-                            ),
-                            maxLines: null,
+                      data: (messages) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _scrollToBottom();
+                          _resetUnread(user.id, managerId);
+                        });
+
+                        if (messages.isEmpty) {
+                          return const EmptyStateWidget(
+                            icon: Icons.chat_bubble_outline,
+                            message:
+                                'Hali xabarlar yo\'q. Menejeringizga xabar yuboring!',
+                          );
+                        }
+
+                        return ListView.builder(
+                          controller: _scrollController,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: context.pageGutter,
+                            vertical: 8,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                          onPressed: () => _sendMessage(managerId),
-                          icon: const Icon(Icons.send),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            final msg = messages[index];
+                            return ChatBubble(
+                              message: msg.content,
+                              isMe: msg.senderId == user.id,
+                              timestamp: msg.createdAt,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, -2),
                         ),
                       ],
                     ),
+                    child: SafeArea(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _messageController,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => _sendMessage(managerId),
+                              decoration: InputDecoration(
+                                hintText: 'Xabar yozing...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                              ),
+                              maxLines: null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: () => _sendMessage(managerId),
+                            icon: const Icon(Icons.send),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),

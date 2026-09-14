@@ -9,7 +9,9 @@ import '../../models/task/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/common/loading_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class TaskDetailScreen extends ConsumerStatefulWidget {
   final String taskId;
@@ -29,6 +31,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   void _showUploadBottomSheet(Task task) {
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -86,7 +90,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 
   Future<void> _pickFromGallery(Task task) async {
-    final List<XFile> images = await _imagePicker.pickMultiImage(imageQuality: 85);
+    final List<XFile> images = await _imagePicker.pickMultiImage(
+      imageQuality: 85,
+    );
     if (images.isEmpty) return;
 
     setState(() => _isUploading = true);
@@ -101,9 +107,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       setState(() => _isUploading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(errors == 0
-              ? '${images.length} ta rasm muvaffaqiyatli yuklandi'
-              : '$errors ta yuklashda xatolik yuz berdi'),
+          content: Text(
+            errors == 0
+                ? '${images.length} ta rasm muvaffaqiyatli yuklandi'
+                : '$errors ta yuklashda xatolik yuz berdi',
+          ),
           backgroundColor: errors == 0 ? null : Colors.red,
           duration: Duration(seconds: errors == 0 ? 3 : 6),
         ),
@@ -131,9 +139,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(error == null
-                ? 'Fayl muvaffaqiyatli yuklandi'
-                : 'Xatolik: $error'),
+            content: Text(
+              error == null
+                  ? 'Fayl muvaffaqiyatli yuklandi'
+                  : 'Xatolik: $error',
+            ),
             backgroundColor: error != null ? Colors.red : null,
             duration: Duration(seconds: error != null ? 6 : 3),
           ),
@@ -168,143 +178,168 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 error: (error, _) => Center(child: Text('Xatolik: $error')),
                 data: (tasks) {
                   final task = tasks.cast<Task?>().firstWhere(
-                        (t) => t!.id == widget.taskId,
-                        orElse: () => null,
-                      );
+                    (t) => t!.id == widget.taskId,
+                    orElse: () => null,
+                  );
 
                   if (task == null) {
                     return const Center(child: Text('Topshiriq topilmadi'));
                   }
 
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task.title,
-                          style: theme.textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-
-                        Row(
-                          children: [
-                            _buildStatusChip(context, task),
-                            const SizedBox(width: 8),
-                            _buildPriorityChip(context, task.priority),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        Text(
-                          'Tavsif',
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          task.description.isNotEmpty
-                              ? task.description
-                              : "Tavsif yo'q",
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                _buildDetailRow(
-                                  context,
-                                  'Tayinlagan',
-                                  userProfile.maybeWhen(
-                                    data: (u) =>
-                                        u?.managerId == task.assignedBy
-                                            ? 'Menejer'
-                                            : task.assignedBy,
-                                    orElse: () => task.assignedBy,
-                                  ),
-                                  Icons.person_outline,
-                                ),
-                                if (task.deadline != null) ...[
-                                  const Divider(),
-                                  _buildDetailRow(
-                                    context,
-                                    'Muddat',
-                                    DateFormat('dd.MM.yyyy').format(task.deadline!),
-                                    Icons.calendar_today,
-                                  ),
-                                ],
-                                if (task.completedAt != null) ...[
-                                  const Divider(),
-                                  _buildDetailRow(
-                                    context,
-                                    'Bajarilgan sana',
-                                    DateFormat('dd.MM.yyyy').format(task.completedAt!),
-                                    Icons.check_circle_outline,
-                                  ),
-                                ],
-                              ],
+                    padding: context.pagePadding,
+                    child: ResponsiveCenter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task.title,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
+                          const SizedBox(height: 12),
 
-                        // Attachments section
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.attach_file,
-                                        size: 20,
-                                        color: theme.colorScheme.primary),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Fayllar',
-                                      style: theme.textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                          Row(
+                            children: [
+                              _buildStatusChip(context, task),
+                              const SizedBox(width: 8),
+                              _buildPriorityChip(context, task.priority),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          Text(
+                            'Tavsif',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            task.description.isNotEmpty
+                                ? task.description
+                                : "Tavsif yo'q",
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  _buildDetailRow(
+                                    context,
+                                    'Tayinlagan',
+                                    userProfile.maybeWhen(
+                                      data: (u) =>
+                                          u?.managerId == task.assignedBy
+                                          ? 'Menejer'
+                                          : task.assignedBy,
+                                      orElse: () => task.assignedBy,
                                     ),
-                                    if (task.attachments.isNotEmpty) ...[
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 7, vertical: 1),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.primaryContainer,
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Text(
-                                          '${task.attachments.length}',
-                                          style: theme.textTheme.labelSmall?.copyWith(
-                                            color: theme.colorScheme.onPrimaryContainer,
-                                            fontWeight: FontWeight.bold,
+                                    Icons.person_outline,
+                                  ),
+                                  if (task.deadline != null) ...[
+                                    const Divider(),
+                                    _buildDetailRow(
+                                      context,
+                                      'Muddat',
+                                      DateFormat(
+                                        'dd.MM.yyyy',
+                                      ).format(task.deadline!),
+                                      Icons.calendar_today,
+                                    ),
+                                  ],
+                                  if (task.completedAt != null) ...[
+                                    const Divider(),
+                                    _buildDetailRow(
+                                      context,
+                                      'Bajarilgan sana',
+                                      DateFormat(
+                                        'dd.MM.yyyy',
+                                      ).format(task.completedAt!),
+                                      Icons.check_circle_outline,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Attachments section
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.attach_file,
+                                        size: 20,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Fayllar',
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      if (task.attachments.isNotEmpty) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 7,
+                                            vertical: 1,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: theme
+                                                .colorScheme
+                                                .primaryContainer,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${task.attachments.length}',
+                                            style: theme.textTheme.labelSmall
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onPrimaryContainer,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                           ),
                                         ),
-                                      ),
+                                      ],
                                     ],
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
+                                  ),
+                                  const SizedBox(height: 12),
 
-                                if (task.attachments.isEmpty)
-                                  Text(
-                                    'Hali fayl yuklanmagan',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  )
-                                else
-                                  ...task.attachments.map((att) => Padding(
-                                        padding: const EdgeInsets.only(bottom: 8),
+                                  if (task.attachments.isEmpty)
+                                    Text(
+                                      'Hali fayl yuklanmagan',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    )
+                                  else
+                                    ...task.attachments.map(
+                                      (att) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
                                         child: Row(
                                           children: [
                                             Icon(
@@ -318,116 +353,147 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                                             Expanded(
                                               child: Text(
                                                 att.name,
-                                                style: theme.textTheme.bodyMedium
+                                                style: theme
+                                                    .textTheme
+                                                    .bodyMedium
                                                     ?.copyWith(
-                                                  color: theme.colorScheme.primary,
-                                                ),
+                                                      color: theme
+                                                          .colorScheme
+                                                          .primary,
+                                                    ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                             IconButton(
-                                              icon: const Icon(Icons.open_in_new,
-                                                  size: 18),
+                                              icon: const Icon(
+                                                Icons.open_in_new,
+                                                size: 18,
+                                              ),
                                               color: theme.colorScheme.primary,
                                               tooltip: 'Ochish',
                                               padding: EdgeInsets.zero,
-                                              constraints: const BoxConstraints(),
+                                              constraints:
+                                                  const BoxConstraints(),
                                               onPressed: () => _openAttachment(
-                                                  context, att.url, att.name),
+                                                context,
+                                                att.url,
+                                                att.name,
+                                              ),
                                             ),
                                           ],
                                         ),
-                                      )),
-
-                                if (task.managerAccepted) ...[
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.verified,
-                                          size: 16, color: Colors.green),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Menejer tomonidan qabul qilingan',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(color: Colors.green),
                                       ),
-                                    ],
-                                  ),
-                                ],
-
-                                const SizedBox(height: 12),
-                                if (task.status != 'COMPLETED')
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _isUploading
-                                          ? null
-                                          : () => _showUploadBottomSheet(task),
-                                      icon: _isUploading
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                  strokeWidth: 2),
-                                            )
-                                          : const Icon(Icons.add_photo_alternate,
-                                              size: 18),
-                                      label: Text(_isUploading
-                                          ? 'Yuklanmoqda...'
-                                          : task.attachments.isNotEmpty
-                                              ? "Yana fayl qo'shish"
-                                              : 'Fayl / rasm yuklash'),
                                     ),
-                                  ),
-                              ],
+
+                                  if (task.managerAccepted) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.verified,
+                                          size: 16,
+                                          color: Colors.green,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Menejer tomonidan qabul qilingan',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(color: Colors.green),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+
+                                  const SizedBox(height: 12),
+                                  if (task.status != 'COMPLETED')
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: _isUploading
+                                            ? null
+                                            : () =>
+                                                  _showUploadBottomSheet(task),
+                                        icon: _isUploading
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.add_photo_alternate,
+                                                size: 18,
+                                              ),
+                                        label: Text(
+                                          _isUploading
+                                              ? 'Yuklanmoqda...'
+                                              : task.attachments.isNotEmpty
+                                              ? "Yana fayl qo'shish"
+                                              : 'Fayl / rasm yuklash',
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                        if (task.status != 'COMPLETED') ...[
-                          if (task.status != 'IN_PROGRESS')
+                          if (task.status != 'COMPLETED') ...[
+                            if (task.status != 'IN_PROGRESS')
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed:
+                                      (_isUpdatingStatus || _isCompleting)
+                                      ? null
+                                      : () =>
+                                            _updateStatus(task, 'IN_PROGRESS'),
+                                  icon: _isUpdatingStatus
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.play_arrow),
+                                  label: Text(
+                                    _isUpdatingStatus
+                                        ? 'Saqlanmoqda...'
+                                        : 'Ish boshlandı',
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 8),
                             SizedBox(
                               width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: (_isUpdatingStatus || _isCompleting)
+                              child: ElevatedButton.icon(
+                                onPressed: _isCompleting
                                     ? null
-                                    : () => _updateStatus(task, 'IN_PROGRESS'),
-                                icon: _isUpdatingStatus
+                                    : () =>
+                                          _confirmComplete(context, ref, task),
+                                icon: _isCompleting
                                     ? const SizedBox(
                                         width: 18,
                                         height: 18,
                                         child: CircularProgressIndicator(
-                                            strokeWidth: 2),
+                                          strokeWidth: 2,
+                                        ),
                                       )
-                                    : const Icon(Icons.play_arrow),
-                                label: Text(_isUpdatingStatus
-                                    ? 'Saqlanmoqda...'
-                                    : 'Ish boshlandı'),
+                                    : const Icon(Icons.check_circle),
+                                label: Text(
+                                  _isCompleting
+                                      ? 'Saqlanmoqda...'
+                                      : 'Bajarildi deb belgilash',
+                                ),
                               ),
                             ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _isCompleting
-                                  ? null
-                                  : () => _confirmComplete(context, ref, task),
-                              icon: _isCompleting
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
-                                  : const Icon(Icons.check_circle),
-                              label: Text(_isCompleting
-                                  ? 'Saqlanmoqda...'
-                                  : 'Bajarildi deb belgilash'),
-                            ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   );
                 },
@@ -451,7 +517,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 
   Future<void> _openAttachment(
-      BuildContext context, String url, String? name) async {
+    BuildContext context,
+    String url,
+    String? name,
+  ) async {
     if (_isImageName(name)) {
       if (!context.mounted) return;
       await showDialog(
@@ -459,6 +528,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         builder: (ctx) => Dialog(
           backgroundColor: Colors.black,
           insetPadding: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
               InteractiveViewer(
@@ -470,8 +540,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                         ? child
                         : const Center(child: CircularProgressIndicator()),
                     errorBuilder: (c, e, s) => const Center(
-                      child: Text('Rasm yuklanmadi',
-                          style: TextStyle(color: Colors.white)),
+                      child: Text(
+                        'Rasm yuklanmadi',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ),
                 ),
@@ -504,14 +576,16 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
 
   Future<void> _updateStatus(Task task, String status) async {
     setState(() => _isUpdatingStatus = true);
-    final success =
-        await ref.read(taskNotifierProvider.notifier).updateStatus(task.id, status);
+    final success = await ref
+        .read(taskNotifierProvider.notifier)
+        .updateStatus(task.id, status);
     if (!mounted) return;
     setState(() => _isUpdatingStatus = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-            success ? 'Holat yangilandi!' : 'Holatni yangilashda xatolik'),
+          success ? 'Holat yangilandi!' : 'Holatni yangilashda xatolik',
+        ),
       ),
     );
   }
@@ -538,9 +612,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 setState(() => _isCompleting = false);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success
-                        ? 'Topshiriq bajarildi!'
-                        : 'Yakunlashda xatolik'),
+                    content: Text(
+                      success ? 'Topshiriq bajarildi!' : 'Yakunlashda xatolik',
+                    ),
                   ),
                 );
               }
@@ -618,7 +692,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 
   Widget _buildDetailRow(
-      BuildContext context, String label, String value, IconData icon) {
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+  ) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -631,8 +709,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
             children: [
               Text(
                 label,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
               Text(value, style: theme.textTheme.bodyMedium),
             ],

@@ -7,7 +7,9 @@ import '../../models/task/task_model.dart';
 import '../../providers/task_provider.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class TaskManagementScreen extends ConsumerStatefulWidget {
   const TaskManagementScreen({super.key});
@@ -21,12 +23,7 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final _tabs = const [
-    'Hammasi',
-    'Jarayonda',
-    "Muddati o'tgan",
-    'Bajarildi',
-  ];
+  final _tabs = const ['Hammasi', 'Jarayonda', "Muddati o'tgan", 'Bajarildi'];
 
   @override
   void initState() {
@@ -74,60 +71,67 @@ class _TaskManagementScreenState extends ConsumerState<TaskManagementScreen>
         onPressed: () => context.push(Routes.managerCreateTask),
         child: const Icon(Icons.add),
       ),
-      body: AppBackground(child: tasksAsync.when(
-        loading: () => const LoadingWidget(),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Topshiriqlar yuklanmadi',
-                  style: TextStyle(color: theme.colorScheme.error)),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => ref.invalidate(allTasksProvider),
-                child: const Text('Qayta urinish'),
-              ),
-            ],
+      body: AppBackground(
+        child: tasksAsync.when(
+          loading: () => const LoadingWidget(),
+          error: (error, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Topshiriqlar yuklanmadi',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.invalidate(allTasksProvider),
+                  child: const Text('Qayta urinish'),
+                ),
+              ],
+            ),
+          ),
+          data: (tasks) => TabBarView(
+            controller: _tabController,
+            children: List.generate(_tabs.length, (index) {
+              final filtered = _filterTasks(tasks, index);
+
+              if (filtered.isEmpty) {
+                return EmptyStateWidget(
+                  icon: Icons.task_alt,
+                  message: index == 2
+                      ? "Muddati o'tgan topshiriqlar yo'q"
+                      : 'Topshiriqlar topilmadi',
+                );
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(allTasksProvider);
+                  await ref.read(allTasksProvider.future);
+                },
+                child: ResponsiveCenter(
+                  child: ListView.builder(
+                    padding: context.pagePadding,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final task = filtered[i];
+                      return _TaskManagerCard(
+                        task: task,
+                        onAccept:
+                            task.status == 'COMPLETED' &&
+                                task.attachments.isNotEmpty &&
+                                !task.managerAccepted
+                            ? () => _acceptTask(task)
+                            : null,
+                      );
+                    },
+                  ),
+                ),
+              );
+            }),
           ),
         ),
-        data: (tasks) => TabBarView(
-          controller: _tabController,
-          children: List.generate(_tabs.length, (index) {
-            final filtered = _filterTasks(tasks, index);
-
-            if (filtered.isEmpty) {
-              return EmptyStateWidget(
-                icon: Icons.task_alt,
-                message: index == 2
-                    ? "Muddati o'tgan topshiriqlar yo'q"
-                    : 'Topshiriqlar topilmadi',
-              );
-            }
-
-            return RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(allTasksProvider);
-                await ref.read(allTasksProvider.future);
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: filtered.length,
-                itemBuilder: (context, i) {
-                  final task = filtered[i];
-                  return _TaskManagerCard(
-                    task: task,
-                    onAccept: task.status == 'COMPLETED' &&
-                            task.attachments.isNotEmpty &&
-                            !task.managerAccepted
-                        ? () => _acceptTask(task)
-                        : null,
-                  );
-                },
-              ),
-            );
-          }),
-        ),
-      )),
+      ),
     );
   }
 
@@ -150,13 +154,18 @@ bool _isImage(String? name) {
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
 }
 
-Future<void> _openAttachment(BuildContext context, String url, String? name) async {
+Future<void> _openAttachment(
+  BuildContext context,
+  String url,
+  String? name,
+) async {
   if (_isImage(name)) {
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.black,
         insetPadding: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
             InteractiveViewer(
@@ -168,8 +177,10 @@ Future<void> _openAttachment(BuildContext context, String url, String? name) asy
                       ? child
                       : const Center(child: CircularProgressIndicator()),
                   errorBuilder: (c, e, s) => const Center(
-                    child: Text('Rasm yuklanmadi',
-                        style: TextStyle(color: Colors.white)),
+                    child: Text(
+                      'Rasm yuklanmadi',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ),
@@ -253,24 +264,30 @@ class _TaskManagerCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     task.title,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     statusLabel,
                     style: TextStyle(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500),
+                      color: statusColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -286,34 +303,41 @@ class _TaskManagerCard extends StatelessWidget {
             ],
             if (task.attachments.isNotEmpty) ...[
               const SizedBox(height: 8),
-              ...task.attachments.map((att) => Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: GestureDetector(
-                  onTap: () => _openAttachment(context, att.url, att.name),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _isImage(att.name) ? Icons.image_outlined : Icons.attach_file,
-                        size: 14,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          att.name,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            decoration: TextDecoration.underline,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+              ...task.attachments.map(
+                (att) => Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: GestureDetector(
+                    onTap: () => _openAttachment(context, att.url, att.name),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isImage(att.name)
+                              ? Icons.image_outlined
+                              : Icons.attach_file,
+                          size: 14,
+                          color: theme.colorScheme.primary,
                         ),
-                      ),
-                      Icon(Icons.open_in_new,
-                          size: 12, color: theme.colorScheme.primary),
-                    ],
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            att.name,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              decoration: TextDecoration.underline,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(
+                          Icons.open_in_new,
+                          size: 12,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              )),
+              ),
             ],
             if (onAccept != null) ...[
               const SizedBox(height: 8),
@@ -338,8 +362,9 @@ class _TaskManagerCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     'Qabul qilingan',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.green),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.green,
+                    ),
                   ),
                 ],
               ),

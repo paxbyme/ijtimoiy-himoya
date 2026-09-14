@@ -7,7 +7,9 @@ import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 import 'employee_list_screen.dart' show staffListProvider;
 
 class ManagerChatListScreen extends ConsumerWidget {
@@ -19,116 +21,121 @@ class ManagerChatListScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Xabarlar'),
-      ),
-      body: AppBackground(child: userProfile.when(
-        loading: () => const LoadingWidget(),
-        error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
-        data: (user) {
-          if (user == null) {
-            return const Center(child: Text('Tizimga kirilmagan'));
-          }
+      appBar: AppBar(title: const Text('Xabarlar')),
+      body: AppBackground(
+        child: userProfile.when(
+          loading: () => const LoadingWidget(),
+          error: (_, __) =>
+              const Center(child: Text('Profilni yuklashda xatolik')),
+          data: (user) {
+            if (user == null) {
+              return const Center(child: Text('Tizimga kirilmagan'));
+            }
 
-          final conversationsAsync =
-              ref.watch(conversationsProvider(user.id));
-          final staffAsync = ref.watch(staffListProvider);
-          final staffMap = staffAsync.maybeWhen(
-            data: (list) => {for (final s in list) s.id: s.displayName},
-            orElse: () => <String, String>{},
-          );
+            final conversationsAsync = ref.watch(
+              conversationsProvider(user.id),
+            );
+            final staffAsync = ref.watch(staffListProvider);
+            final staffMap = staffAsync.maybeWhen(
+              data: (list) => {for (final s in list) s.id: s.displayName},
+              orElse: () => <String, String>{},
+            );
 
-          return conversationsAsync.when(
-            loading: () => const LoadingWidget(),
-            error: (_, __) =>
-                const Center(child: Text('Suhbatlarni yuklashda xatolik')),
-            data: (conversations) {
-              if (conversations.isEmpty) {
-                return const EmptyStateWidget(
-                  icon: Icons.chat_outlined,
-                  message: 'Hali suhbatlar yo\'q.',
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: conversations.length,
-                itemBuilder: (context, index) {
-                  final conv = conversations[index];
-                  final otherParticipant = conv.participants.firstWhere(
-                    (p) => p != user.id,
-                    orElse: () => 'Unknown',
+            return conversationsAsync.when(
+              loading: () => const LoadingWidget(),
+              error: (_, __) =>
+                  const Center(child: Text('Suhbatlarni yuklashda xatolik')),
+              data: (conversations) {
+                if (conversations.isEmpty) {
+                  return const EmptyStateWidget(
+                    icon: Icons.chat_outlined,
+                    message: 'Hali suhbatlar yo\'q.',
                   );
-                  final displayName =
-                      staffMap[otherParticipant] ?? otherParticipant;
-                  final unread = conv.unreadCount[user.id] ?? 0;
+                }
 
-                  return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Icon(
-                          Icons.person,
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                      title: Text(
-                        displayName,
-                        style: TextStyle(
-                          fontWeight: unread > 0
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                      subtitle: conv.lastMessage != null
-                          ? Text(
-                              conv.lastMessage!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: unread > 0
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                              ),
-                            )
-                          : null,
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (conv.lastMessageAt != null)
-                            Text(
-                              _formatTime(conv.lastMessageAt!),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
+                return ResponsiveCenter(
+                  child: ListView.builder(
+                    padding: EdgeInsets.all(context.pageGutter / 2),
+                    itemCount: conversations.length,
+                    itemBuilder: (context, index) {
+                      final conv = conversations[index];
+                      final otherParticipant = conv.participants.firstWhere(
+                        (p) => p != user.id,
+                        orElse: () => 'Unknown',
+                      );
+                      final displayName =
+                          staffMap[otherParticipant] ?? otherParticipant;
+                      final unread = conv.unreadCount[user.id] ?? 0;
+
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.person,
+                              color: theme.colorScheme.onPrimaryContainer,
                             ),
-                          if (unread > 0) ...[
-                            const SizedBox(height: 4),
-                            CircleAvatar(
-                              radius: 10,
-                              backgroundColor: theme.colorScheme.primary,
-                              child: Text(
-                                '$unread',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: theme.colorScheme.onPrimary,
+                          ),
+                          title: Text(
+                            displayName,
+                            style: TextStyle(
+                              fontWeight: unread > 0
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: conv.lastMessage != null
+                              ? Text(
+                                  conv.lastMessage!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontWeight: unread > 0
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                )
+                              : null,
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              if (conv.lastMessageAt != null)
+                                Text(
+                                  _formatTime(conv.lastMessageAt!),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      onTap: () =>
-                          context.push(Routes.managerChatWithStaff(otherParticipant)),
-                    ),
-                  );
-                },
-              );
-            },
-          );
-        },
-      )),
+                              if (unread > 0) ...[
+                                const SizedBox(height: 4),
+                                CircleAvatar(
+                                  radius: 10,
+                                  backgroundColor: theme.colorScheme.primary,
+                                  child: Text(
+                                    '$unread',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: theme.colorScheme.onPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          onTap: () => context.push(
+                            Routes.managerChatWithStaff(otherParticipant),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
     );
   }
 

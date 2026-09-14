@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/route_names.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class StaffProfileScreen extends ConsumerWidget {
   const StaffProfileScreen({super.key});
@@ -15,101 +17,111 @@ class StaffProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profil')),
-      body: AppBackground(child: userProfile.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(child: Text('Profilni yuklashda xatolik')),
-        data: (user) {
-          if (user == null) return const Center(child: Text('Profil topilmadi'));
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const SizedBox(height: 16),
-              // Avatar
-              Center(
-                child: CircleAvatar(
-                  radius: 48,
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  child: Text(
-                    user.displayName.isNotEmpty
-                        ? user.displayName[0].toUpperCase()
-                        : '?',
-                    style: theme.textTheme.headlineLarge?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: Text(
-                  user.displayName,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Info card
-              Card(
-                child: Column(
-                  children: [
-                    _infoTile(
-                      icon: Icons.phone,
-                      label: 'Telefon',
-                      value: user.phone,
-                    ),
-                    const Divider(height: 1, indent: 56),
-                    _infoTile(
-                      icon: Icons.badge,
-                      label: 'Xodim ID',
-                      value: user.id,
-                    ),
-                    if (user.departmentId != null) ...[
-                      const Divider(height: 1, indent: 56),
-                      _infoTile(
-                        icon: Icons.business,
-                        label: 'Bo\'lim',
-                        value: user.departmentId!,
+      body: AppBackground(
+        child: userProfile.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) =>
+              const Center(child: Text('Profilni yuklashda xatolik')),
+          data: (user) {
+            if (user == null) {
+              return const Center(child: Text('Profil topilmadi'));
+            }
+            return ResponsiveCenter(
+              maxWidth: context.isCompact ? double.infinity : 560,
+              child: ListView(
+                padding: context.pagePadding,
+                children: [
+                  const SizedBox(height: 16),
+                  // Avatar
+                  Center(
+                    child: CircleAvatar(
+                      radius: 48,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Text(
+                        user.displayName.isNotEmpty
+                            ? user.displayName[0].toUpperCase()
+                            : '?',
+                        style: theme.textTheme.headlineLarge?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ],
-                    const Divider(height: 1, indent: 56),
-                    _infoTile(
-                      icon: Icons.circle,
-                      label: 'Holat',
-                      value: user.isActive ? 'Faol' : 'Faol emas',
-                      valueColor: user.isActive ? Colors.green : Colors.grey,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      user.displayName,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
 
-              // Sign out
-              FilledButton.tonal(
-                onPressed: () async {
-                  await ref.read(authRepositoryProvider).signOut();
-                  if (context.mounted) context.go(Routes.login);
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.errorContainer,
-                  foregroundColor: theme.colorScheme.onErrorContainer,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.logout),
-                    SizedBox(width: 8),
-                    Text('Chiqish'),
-                  ],
-                ),
+                  // Info card
+                  Card(
+                    child: Column(
+                      children: [
+                        _infoTile(
+                          icon: Icons.phone,
+                          label: 'Telefon',
+                          value: user.phone,
+                        ),
+                        const Divider(height: 1, indent: 56),
+                        _infoTile(
+                          icon: Icons.badge,
+                          label: 'Xodim ID',
+                          value: user.id,
+                        ),
+                        if (user.departmentId != null) ...[
+                          const Divider(height: 1, indent: 56),
+                          _infoTile(
+                            icon: Icons.business,
+                            label: 'Bo\'lim',
+                            value: user.departmentId!,
+                          ),
+                        ],
+                        const Divider(height: 1, indent: 56),
+                        _infoTile(
+                          icon: Icons.circle,
+                          label: 'Holat',
+                          value: user.isActive ? 'Faol' : 'Faol emas',
+                          valueColor: user.isActive
+                              ? Colors.green
+                              : Colors.grey,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Sign out
+                  FilledButton.tonal(
+                    onPressed: () async {
+                      await ref.read(authRepositoryProvider).signOut();
+                      if (context.mounted) context.go(Routes.login);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: theme.colorScheme.errorContainer,
+                      foregroundColor: theme.colorScheme.onErrorContainer,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.logout),
+                        SizedBox(width: 8),
+                        Text('Chiqish'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          );
-        },
-      )),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -121,7 +133,10 @@ class StaffProfileScreen extends ConsumerWidget {
   }) {
     return ListTile(
       leading: Icon(icon, size: 20),
-      title: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      title: Text(
+        label,
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      ),
       subtitle: Text(
         value,
         style: TextStyle(

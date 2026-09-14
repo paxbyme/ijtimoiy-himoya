@@ -10,7 +10,9 @@ import '../../providers/task_provider.dart';
 import '../../widgets/task/task_card.dart';
 import '../../widgets/kpi/kpi_gauge.dart';
 import '../../widgets/common/loading_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class EmployeeDetailScreen extends ConsumerWidget {
   final String employeeId;
@@ -28,172 +30,193 @@ class EmployeeDetailScreen extends ConsumerWidget {
         if (!didPop) context.pop();
       },
       child: Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: () => context.pop()),
-        title: const Text('Xodim tafsilotlari'),
-      ),
-      body: AppBackground(child: staffAsync.when(
-        loading: () => const LoadingWidget(),
-        error: (error, _) => Center(child: Text('Xatolik: $error')),
-        data: (data) {
-          final employee = data['employee'] as User?;
-          final tasks = data['tasks'] as List<Task>;
-          final kpi = data['kpi'] as KpiScore?;
+        appBar: AppBar(
+          leading: BackButton(onPressed: () => context.pop()),
+          title: const Text('Xodim tafsilotlari'),
+        ),
+        body: AppBackground(
+          child: staffAsync.when(
+            loading: () => const LoadingWidget(),
+            error: (error, _) => Center(child: Text('Xatolik: $error')),
+            data: (data) {
+              final employee = data['employee'] as User?;
+              final tasks = data['tasks'] as List<Task>;
+              final kpi = data['kpi'] as KpiScore?;
 
-          if (employee == null) {
-            return const Center(child: Text('Xodim topilmadi'));
-          }
+              if (employee == null) {
+                return const Center(child: Text('Xodim topilmadi'));
+              }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Profile card
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 32,
-                          backgroundColor: theme.colorScheme.primaryContainer,
-                          child: Text(
-                            employee.displayName.isNotEmpty
-                                ? employee.displayName[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+              return SingleChildScrollView(
+                padding: context.pagePadding,
+                child: ResponsiveCenter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Profile card
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
                             children: [
-                              Text(
-                                employee.displayName,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                employee.phone,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: employee.isActive
-                                      ? Colors.green.withValues(alpha: 0.1)
-                                      : Colors.red.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundColor:
+                                    theme.colorScheme.primaryContainer,
                                 child: Text(
-                                  employee.isActive ? 'Faol' : 'Faol emas',
+                                  employee.displayName.isNotEmpty
+                                      ? employee.displayName[0].toUpperCase()
+                                      : '?',
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    color: employee.isActive
-                                        ? Colors.green
-                                        : Colors.red,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onPrimaryContainer,
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      employee.displayName,
+                                      style: theme.textTheme.titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      employee.phone,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: employee.isActive
+                                            ? Colors.green.withValues(
+                                                alpha: 0.1,
+                                              )
+                                            : Colors.red.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        employee.isActive
+                                            ? 'Faol'
+                                            : 'Faol emas',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: employee.isActive
+                                              ? Colors.green
+                                              : Colors.red,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // KPI Summary
-                if (kpi != null) ...[
-                  Text(
-                    'KPI Xulosasi',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 80,
-                            height: 80,
-                            child: KpiGauge(score: kpi.score),
-                          ),
-                          const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Ball: ${kpi.score.toStringAsFixed(1)}',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (kpi.rank != null)
-                                Text(
-                                  'O\'rin: #${kpi.rank}',
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                              Text(
-                                'Davr: ${kpi.period}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                      const SizedBox(height: 20),
 
-                // Tasks
-                Text(
-                  'Berilgan topshiriqlar (${tasks.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                      // KPI Summary
+                      if (kpi != null) ...[
+                        Text(
+                          'KPI Xulosasi',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 80,
+                                  height: 80,
+                                  child: KpiGauge(score: kpi.score),
+                                ),
+                                const SizedBox(width: 16),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Ball: ${kpi.score.toStringAsFixed(1)}',
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    if (kpi.rank != null)
+                                      Text(
+                                        'O\'rin: #${kpi.rank}',
+                                        style: theme.textTheme.bodyMedium,
+                                      ),
+                                    Text(
+                                      'Davr: ${kpi.period}',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // Tasks
+                      Text(
+                        'Berilgan topshiriqlar (${tasks.length})',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (tasks.isEmpty)
+                        const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: Text('Topshiriqlar yo\'q')),
+                          ),
+                        )
+                      else
+                        ...tasks.map((task) => TaskCard(task: task)),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (tasks.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(child: Text('Topshiriqlar yo\'q')),
-                    ),
-                  )
-                else
-                  ...tasks.map((task) => TaskCard(task: task)),
-              ],
-            ),
-          );
-        },
-      )),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 }
 
-final _employeeProvider =
-    FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
+final _employeeProvider = FutureProvider.family<Map<String, dynamic>, String>((
+  ref,
+  id,
+) async {
   final admin = ref.read(adminRepositoryProvider);
   final tasks = ref.read(taskRepositoryProvider);
   final kpiRepo = ref.read(kpiRepositoryProvider);
@@ -201,10 +224,8 @@ final _employeeProvider =
   final staffResult = await admin.getStaffList();
   final employee = staffResult.fold<User?>(
     (_) => null,
-    (list) => list.cast<User?>().firstWhere(
-          (s) => s!.id == id,
-          orElse: () => null,
-        ),
+    (list) =>
+        list.cast<User?>().firstWhere((s) => s!.id == id, orElse: () => null),
   );
 
   final tasksResult = await tasks.getAllTasks();
@@ -217,14 +238,10 @@ final _employeeProvider =
   final kpi = rankingsResult.fold<KpiScore?>(
     (_) => null,
     (rankings) => rankings.cast<KpiScore?>().firstWhere(
-          (k) => k!.staffId == id,
-          orElse: () => null,
-        ),
+      (k) => k!.staffId == id,
+      orElse: () => null,
+    ),
   );
 
-  return {
-    'employee': employee,
-    'tasks': employeeTasks,
-    'kpi': kpi,
-  };
+  return {'employee': employee, 'tasks': employeeTasks, 'kpi': kpi};
 });

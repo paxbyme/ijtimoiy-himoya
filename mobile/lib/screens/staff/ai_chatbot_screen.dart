@@ -6,7 +6,9 @@ import 'package:record/record.dart';
 import '../../core/constants/route_names.dart';
 import '../../providers/ai_provider.dart';
 import '../../widgets/chat/chat_bubble.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class AiChatbotScreen extends ConsumerStatefulWidget {
   const AiChatbotScreen({super.key});
@@ -183,6 +185,8 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 640),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.6,
         minChildSize: 0.3,
@@ -249,126 +253,132 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
         ],
       ),
       body: AppBackground(
-        child: Column(
-          children: [
-            Expanded(
-              child: messages.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+        child: ResponsiveCenter(
+          maxWidth: 900,
+          child: Column(
+            children: [
+              Expanded(
+                child: messages.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Opacity(
+                                opacity: 0.5,
+                                child: Image.asset(
+                                  'assets/images/logo.png',
+                                  width: 80,
+                                  height: 80,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'IHMA Bosh AI yordamchisi',
+                                style: theme.textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Fuqaro holatini yozing. Yordamchi Lex.uz\'dagi amaldagi normativ hujjatlarga tayangan holda kompleks yo\'l xaritasini tuzadi.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: context.pageGutter,
+                          vertical: 8,
+                        ),
+                        itemCount: messages.length + (isLoading ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == messages.length && isLoading) {
+                            return _buildThinkingIndicator(
+                              theme,
+                              statusMessage,
+                            );
+                          }
+
+                          final msg = messages[index];
+
+                          return Column(
+                            crossAxisAlignment: msg.isUser
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            children: [
+                              ChatBubble(
+                                message: msg.content,
+                                isMe: msg.isUser,
+                                timestamp: msg.timestamp,
+                              ),
+                              // Feedback buttons for AI messages
+                              if (!msg.isUser &&
+                                  !isLoading &&
+                                  msg.content.isNotEmpty &&
+                                  msg.messageIndex != null)
+                                _buildFeedbackRow(msg.messageIndex!, theme),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: _isRecording
+                      ? _buildRecordingBar(theme)
+                      : Row(
                           children: [
-                            Opacity(
-                              opacity: 0.5,
-                              child: Image.asset(
-                                'assets/images/logo.png',
-                                width: 80,
-                                height: 80,
+                            Expanded(
+                              child: TextField(
+                                controller: _messageController,
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (_) => _sendMessage(),
+                                enabled: !_isTranscribing && !isLoading,
+                                decoration: InputDecoration(
+                                  hintText: _isTranscribing
+                                      ? 'Ovoz matnga o\'girilmoqda...'
+                                      : 'Xabar yozing...',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  filled: true,
+                                  fillColor:
+                                      theme.colorScheme.surfaceContainerHighest,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
+                                ),
+                                maxLines: null,
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'IHMA Bosh AI yordamchisi',
-                              style: theme.textTheme.headlineSmall,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Fuqaro holatini yozing. Yordamchi Lex.uz\'dagi amaldagi normativ hujjatlarga tayangan holda kompleks yo\'l xaritasini tuzadi.',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+                            const SizedBox(width: 8),
+                            _buildMicOrSendButton(theme, isLoading),
                           ],
                         ),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      itemCount: messages.length + (isLoading ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index == messages.length && isLoading) {
-                          return _buildThinkingIndicator(theme, statusMessage);
-                        }
-
-                        final msg = messages[index];
-
-                        return Column(
-                          crossAxisAlignment: msg.isUser
-                              ? CrossAxisAlignment.end
-                              : CrossAxisAlignment.start,
-                          children: [
-                            ChatBubble(
-                              message: msg.content,
-                              isMe: msg.isUser,
-                              timestamp: msg.timestamp,
-                            ),
-                            // Feedback buttons for AI messages
-                            if (!msg.isUser &&
-                                !isLoading &&
-                                msg.content.isNotEmpty &&
-                                msg.messageIndex != null)
-                              _buildFeedbackRow(msg.messageIndex!, theme),
-                          ],
-                        );
-                      },
-                    ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
+                ),
               ),
-              child: SafeArea(
-                bottom: false,
-                child: _isRecording
-                    ? _buildRecordingBar(theme)
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              textInputAction: TextInputAction.send,
-                              onSubmitted: (_) => _sendMessage(),
-                              enabled: !_isTranscribing && !isLoading,
-                              decoration: InputDecoration(
-                                hintText: _isTranscribing
-                                    ? 'Ovoz matnga o\'girilmoqda...'
-                                    : 'Xabar yozing...',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 10,
-                                ),
-                              ),
-                              maxLines: null,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _buildMicOrSendButton(theme, isLoading),
-                        ],
-                      ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -449,9 +459,7 @@ class _AiChatbotScreenState extends ConsumerState<AiChatbotScreen> {
           color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.85,
-        ),
+        constraints: BoxConstraints(maxWidth: context.bubbleMaxWidth),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

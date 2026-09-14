@@ -8,7 +8,9 @@ import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 final staffListProvider = StreamProvider<List<User>>((ref) {
   final userAsync = ref.watch(userProfileProvider);
@@ -49,82 +51,93 @@ class EmployeeListScreen extends ConsumerWidget {
         onPressed: () => _showAddEmployeeSheet(context, ref),
         child: const Icon(Icons.person_add),
       ),
-      body: AppBackground(child: staffAsync.when(
-        loading: () => const LoadingWidget(),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Xodimlarni yuklashda xatolik',
-                  style: TextStyle(color: theme.colorScheme.error)),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => ref.invalidate(staffListProvider),
-                child: const Text('Qayta urinish'),
-              ),
-            ],
-          ),
-        ),
-        data: (staff) {
-          if (staff.isEmpty) {
-            return const EmptyStateWidget(
-              icon: Icons.people_outline,
-              message: 'Hali xodimlar yo\'q. + tugmasini bosing.',
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {},
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: staff.length,
-              itemBuilder: (context, index) {
-                final employee = staff[index];
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Text(
-                        employee.displayName.isNotEmpty
-                            ? employee.displayName[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          color: theme.colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      employee.displayName,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(employee.phone),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: employee.isActive
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : Colors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        employee.isActive ? 'Faol' : 'Faol emas',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: employee.isActive ? Colors.green : Colors.red,
-                        ),
-                      ),
-                    ),
-                    onTap: () =>
-                        context.push(Routes.managerEmployeeDetail(employee.id)),
-                  ),
-                );
-              },
+      body: AppBackground(
+        child: staffAsync.when(
+          loading: () => const LoadingWidget(),
+          error: (error, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Xodimlarni yuklashda xatolik',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.invalidate(staffListProvider),
+                  child: const Text('Qayta urinish'),
+                ),
+              ],
             ),
-          );
-        },
-      )),
+          ),
+          data: (staff) {
+            if (staff.isEmpty) {
+              return const EmptyStateWidget(
+                icon: Icons.people_outline,
+                message: 'Hali xodimlar yo\'q. + tugmasini bosing.',
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {},
+              child: ResponsiveCenter(
+                child: ListView.builder(
+                  padding: context.pagePadding,
+                  itemCount: staff.length,
+                  itemBuilder: (context, index) {
+                    final employee = staff[index];
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: theme.colorScheme.primaryContainer,
+                          child: Text(
+                            employee.displayName.isNotEmpty
+                                ? employee.displayName[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          employee.displayName,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(employee.phone),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: employee.isActive
+                                ? Colors.green.withValues(alpha: 0.1)
+                                : Colors.red.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            employee.isActive ? 'Faol' : 'Faol emas',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: employee.isActive
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          ),
+                        ),
+                        onTap: () => context.push(
+                          Routes.managerEmployeeDetail(employee.id),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -137,10 +150,12 @@ class EmployeeListScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
+      builder: (ctx) => SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           24,
           24,
@@ -155,9 +170,9 @@ class EmployeeListScreen extends ConsumerWidget {
             children: [
               Text(
                 'Xodim qo\'shish',
-                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  ctx,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
               TextFormField(
@@ -200,21 +215,24 @@ class EmployeeListScreen extends ConsumerWidget {
                 onPressed: () async {
                   if (!formKey.currentState!.validate()) return;
 
-                  final result =
-                      await ref.read(adminRepositoryProvider).createStaff({
-                    'displayName': nameController.text.trim(),
-                    'phone': phoneController.text.trim(),
-                    'password': passwordController.text,
-                  });
+                  final result = await ref
+                      .read(adminRepositoryProvider)
+                      .createStaff({
+                        'displayName': nameController.text.trim(),
+                        'phone': phoneController.text.trim(),
+                        'password': passwordController.text,
+                      });
                   result.fold(
                     (failure) {
                       if (ctx.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                                'Xodim qo\'shishda xatolik: ${failure.message}'),
-                            backgroundColor:
-                                Theme.of(context).colorScheme.error,
+                              'Xodim qo\'shishda xatolik: ${failure.message}',
+                            ),
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
                           ),
                         );
                       }

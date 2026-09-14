@@ -1,9 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Planshet va katta ekranlarda ilova to'liq o'lchamda ochilsin
+         (aks holda tizim uni telefon o'lchamiga qisib, chetlarini qora
+         qoldiradi). -->
+    <supports-screens
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true"
+        android:anyDensity="true"
+        android:resizeable="true"/>
     <application
         android:label="Ijtimoiy Yordamchi"
         android:name="${applicationName}"
+        android:resizeableActivity="true"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

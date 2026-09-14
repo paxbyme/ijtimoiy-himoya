@@ -7,7 +7,9 @@ import '../../providers/auth_provider.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/kpi_provider.dart';
 import '../../widgets/kpi/stat_card.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class ManagerHomeScreen extends ConsumerWidget {
   const ManagerHomeScreen({super.key});
@@ -34,173 +36,178 @@ class ManagerHomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: AppBackground(child: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(allTasksProvider);
-          ref.invalidate(kpiRankingsProvider);
-          ref.invalidate(_staffListProvider);
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Salomlashish
-              userProfile.when(
-                data: (user) => Text(
-                  'Salom, ${user?.displayName ?? "Menejer"}',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Jamoangiz haqida umumiy ma\'lumot',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Statistika
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.3,
+      body: AppBackground(
+        child: ResponsiveCenter.wide(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(allTasksProvider);
+              ref.invalidate(kpiRankingsProvider);
+              ref.invalidate(_staffListProvider);
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: context.pagePadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  staffAsync.when(
-                    data: (staff) => StatCard(
-                      icon: Icons.people,
-                      title: 'Xodimlar',
-                      value: '${staff.length}',
-                      color: Colors.blue,
+                  // Salomlashish
+                  userProfile.when(
+                    data: (user) => Text(
+                      'Salom, ${user?.displayName ?? "Menejer"}',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    loading: () => const StatCard(
-                      icon: Icons.people,
-                      title: 'Xodimlar',
-                      value: '...',
-                      color: Colors.blue,
-                    ),
-                    error: (_, __) => const StatCard(
-                      icon: Icons.people,
-                      title: 'Xodimlar',
-                      value: '-',
-                      color: Colors.blue,
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Jamoangiz haqida umumiy ma\'lumot',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  tasksAsync.when(
-                    data: (tasks) => StatCard(
-                      icon: Icons.task_alt,
-                      title: 'Jami topshiriqlar',
-                      value: '${tasks.length}',
-                      color: Colors.green,
-                    ),
-                    loading: () => const StatCard(
-                      icon: Icons.task_alt,
-                      title: 'Jami topshiriqlar',
-                      value: '...',
-                      color: Colors.green,
-                    ),
-                    error: (_, __) => const StatCard(
-                      icon: Icons.task_alt,
-                      title: 'Jami topshiriqlar',
-                      value: '-',
-                      color: Colors.green,
+                  const SizedBox(height: 24),
+
+                  // Statistika
+                  GridView.count(
+                    crossAxisCount: context.statGridColumns,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: context.isCompact ? 1.3 : 1.5,
+                    children: [
+                      staffAsync.when(
+                        data: (staff) => StatCard(
+                          icon: Icons.people,
+                          title: 'Xodimlar',
+                          value: '${staff.length}',
+                          color: Colors.blue,
+                        ),
+                        loading: () => const StatCard(
+                          icon: Icons.people,
+                          title: 'Xodimlar',
+                          value: '...',
+                          color: Colors.blue,
+                        ),
+                        error: (_, __) => const StatCard(
+                          icon: Icons.people,
+                          title: 'Xodimlar',
+                          value: '-',
+                          color: Colors.blue,
+                        ),
+                      ),
+                      tasksAsync.when(
+                        data: (tasks) => StatCard(
+                          icon: Icons.task_alt,
+                          title: 'Jami topshiriqlar',
+                          value: '${tasks.length}',
+                          color: Colors.green,
+                        ),
+                        loading: () => const StatCard(
+                          icon: Icons.task_alt,
+                          title: 'Jami topshiriqlar',
+                          value: '...',
+                          color: Colors.green,
+                        ),
+                        error: (_, __) => const StatCard(
+                          icon: Icons.task_alt,
+                          title: 'Jami topshiriqlar',
+                          value: '-',
+                          color: Colors.green,
+                        ),
+                      ),
+                      tasksAsync.when(
+                        data: (tasks) {
+                          final newTasks = tasks
+                              .where((t) => t.status == 'NEW')
+                              .length;
+                          return StatCard(
+                            icon: Icons.pending_actions,
+                            title: 'Yangi',
+                            value: '$newTasks',
+                            color: Colors.orange,
+                          );
+                        },
+                        loading: () => const StatCard(
+                          icon: Icons.pending_actions,
+                          title: 'Yangi',
+                          value: '...',
+                          color: Colors.orange,
+                        ),
+                        error: (_, __) => const StatCard(
+                          icon: Icons.pending_actions,
+                          title: 'Yangi',
+                          value: '-',
+                          color: Colors.orange,
+                        ),
+                      ),
+                      kpiAsync.when(
+                        data: (rankings) {
+                          final avg = rankings.isEmpty
+                              ? 0.0
+                              : rankings
+                                        .map((k) => k.score)
+                                        .reduce((a, b) => a + b) /
+                                    rankings.length;
+                          return StatCard(
+                            icon: Icons.bar_chart,
+                            title: "O'rt. KPI",
+                            value: avg.toStringAsFixed(1),
+                            color: Colors.purple,
+                          );
+                        },
+                        loading: () => const StatCard(
+                          icon: Icons.bar_chart,
+                          title: "O'rt. KPI",
+                          value: '...',
+                          color: Colors.purple,
+                        ),
+                        error: (_, __) => const StatCard(
+                          icon: Icons.bar_chart,
+                          title: "O'rt. KPI",
+                          value: '-',
+                          color: Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Tezkor amallar
+                  Text(
+                    'Tezkor amallar',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  tasksAsync.when(
-                    data: (tasks) {
-                      final newTasks =
-                          tasks.where((t) => t.status == 'NEW').length;
-                      return StatCard(
-                        icon: Icons.pending_actions,
-                        title: 'Yangi',
-                        value: '$newTasks',
-                        color: Colors.orange,
-                      );
-                    },
-                    loading: () => const StatCard(
-                      icon: Icons.pending_actions,
-                      title: 'Yangi',
-                      value: '...',
-                      color: Colors.orange,
-                    ),
-                    error: (_, __) => const StatCard(
-                      icon: Icons.pending_actions,
-                      title: 'Yangi',
-                      value: '-',
-                      color: Colors.orange,
-                    ),
+                  const SizedBox(height: 12),
+                  _buildQuickAction(
+                    context,
+                    icon: Icons.person_add,
+                    title: 'Xodim qo\'shish',
+                    onTap: () => context.go(Routes.managerEmployees),
                   ),
-                  kpiAsync.when(
-                    data: (rankings) {
-                      final avg = rankings.isEmpty
-                          ? 0.0
-                          : rankings
-                                  .map((k) => k.score)
-                                  .reduce((a, b) => a + b) /
-                              rankings.length;
-                      return StatCard(
-                        icon: Icons.bar_chart,
-                        title: "O'rt. KPI",
-                        value: avg.toStringAsFixed(1),
-                        color: Colors.purple,
-                      );
-                    },
-                    loading: () => const StatCard(
-                      icon: Icons.bar_chart,
-                      title: "O'rt. KPI",
-                      value: '...',
-                      color: Colors.purple,
-                    ),
-                    error: (_, __) => const StatCard(
-                      icon: Icons.bar_chart,
-                      title: "O'rt. KPI",
-                      value: '-',
-                      color: Colors.purple,
-                    ),
+                  _buildQuickAction(
+                    context,
+                    icon: Icons.add_task,
+                    title: 'Topshiriq yaratish',
+                    onTap: () => context.push(Routes.managerCreateTask),
+                  ),
+                  _buildQuickAction(
+                    context,
+                    icon: Icons.psychology,
+                    title: 'AI Qoidalarini boshqarish',
+                    onTap: () => context.go(Routes.managerAiRules),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-
-              // Tezkor amallar
-              Text(
-                'Tezkor amallar',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildQuickAction(
-                context,
-                icon: Icons.person_add,
-                title: 'Xodim qo\'shish',
-                onTap: () => context.go(Routes.managerEmployees),
-              ),
-              _buildQuickAction(
-                context,
-                icon: Icons.add_task,
-                title: 'Topshiriq yaratish',
-                onTap: () => context.push(Routes.managerCreateTask),
-              ),
-              _buildQuickAction(
-                context,
-                icon: Icons.psychology,
-                title: 'AI Qoidalarini boshqarish',
-                onTap: () => context.go(Routes.managerAiRules),
-              ),
-            ],
+            ),
           ),
         ),
-      )),
+      ),
     );
   }
 

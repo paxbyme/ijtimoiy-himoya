@@ -2,87 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/route_names.dart';
+import '../../widgets/common/adaptive_nav_scaffold.dart';
 
 class StaffShell extends StatelessWidget {
   final Widget child;
 
   const StaffShell({super.key, required this.child});
 
+  static const _routes = [
+    Routes.staffHome,
+    Routes.staffTasks,
+    Routes.staffKpi,
+    Routes.staffProfile,
+  ];
+
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith(Routes.staffHome)) return 0;
-    if (location.startsWith(Routes.staffTasks)) return 1;
-    if (location.startsWith(Routes.staffKpi)) return 2;
-    if (location.startsWith(Routes.staffProfile)) return 3;
-    return 0;
-  }
-
-  void _onTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go(Routes.staffHome);
-        break;
-      case 1:
-        context.go(Routes.staffTasks);
-        break;
-      case 2:
-        context.go(Routes.staffKpi);
-        break;
-      case 3:
-        context.go(Routes.staffProfile);
-        break;
+    for (var i = 0; i < _routes.length; i++) {
+      if (location.startsWith(_routes[i])) return i;
     }
+    return 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // SJMA watermark
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Center(
-                child: Opacity(
-                  opacity: 0.22,
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    width: 320,
-                    height: 320,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          child,
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex(context),
-        onDestinationSelected: (index) => _onTap(context, index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Bosh sahifa',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.task_alt_outlined),
-            selectedIcon: Icon(Icons.task_alt),
-            label: 'Topshiriqlar',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'KPI',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
-      ),
+    return AdaptiveNavScaffold(
+      selectedIndex: _currentIndex(context),
+      onDestinationSelected: (index) => context.go(_routes[index]),
+      destinations: const [
+        AdaptiveNavDestination(
+          icon: Icons.home_outlined,
+          selectedIcon: Icons.home,
+          label: 'Bosh sahifa',
+        ),
+        AdaptiveNavDestination(
+          icon: Icons.task_alt_outlined,
+          selectedIcon: Icons.task_alt,
+          label: 'Topshiriqlar',
+        ),
+        AdaptiveNavDestination(
+          icon: Icons.bar_chart_outlined,
+          selectedIcon: Icons.bar_chart,
+          label: 'KPI',
+        ),
+        AdaptiveNavDestination(
+          icon: Icons.person_outline,
+          selectedIcon: Icons.person,
+          label: 'Profil',
+        ),
+      ],
+      child: child,
     );
   }
 }

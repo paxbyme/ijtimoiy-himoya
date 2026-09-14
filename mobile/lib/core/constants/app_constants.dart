@@ -28,6 +28,10 @@ abstract class AppConstants {
   static const Duration shortAnimation = Duration(milliseconds: 200);
   static const Duration mediumAnimation = Duration(milliseconds: 400);
 
+  // Tasks
+  /// How long after creation a NEW task shows in the "Yangi qo'shilganlar" tab.
+  static const Duration newTaskWindow = Duration(days: 3);
+
   // Locale defaults
   static const String defaultLocale = 'uz';
   static const String fallbackLocale = 'ru';

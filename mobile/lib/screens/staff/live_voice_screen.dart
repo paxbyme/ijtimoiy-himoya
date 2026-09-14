@@ -5,6 +5,9 @@ import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
+
+import '../../core/utils/responsive.dart';
+import '../../widgets/common/responsive_layout.dart';
 import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:record/record.dart';
@@ -288,8 +291,10 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: IntrinsicHeight(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
+                  child: ResponsiveCenter(
+                    maxWidth: 560,
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.all(context.pageGutter + 8),
                     child: Column(
                       children: [
                         Padding(
@@ -370,8 +375,8 @@ class _LiveVoiceScreenState extends ConsumerState<LiveVoiceScreen>
           return Transform.scale(
             scale: scale,
             child: Container(
-              width: 180,
-              height: 180,
+              width: context.isCompact ? 180 : 220,
+              height: context.isCompact ? 180 : 220,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _isMuted ? theme.colorScheme.outline : color,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/utils/responsive.dart';
+
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
@@ -14,8 +16,9 @@ class SplashScreen extends StatelessWidget {
           children: [
             Image.asset(
               'assets/images/logo.png',
-              width: 120,
-              height: 120,
+              width: context.isCompact ? 120 : 160,
+              height: context.isCompact ? 120 : 160,
+              fit: BoxFit.contain,
             ),
             const SizedBox(height: 32),
             SizedBox(

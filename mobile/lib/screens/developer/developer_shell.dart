@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/route_names.dart';
+import '../../widgets/common/adaptive_nav_scaffold.dart';
 
 class DeveloperShell extends StatelessWidget {
   final Widget child;
 
   const DeveloperShell({super.key, required this.child});
+
+  static const _routes = [
+    Routes.developerHome,
+    Routes.developerManagers,
+    Routes.developerDepartments,
+  ];
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
@@ -15,63 +22,29 @@ class DeveloperShell extends StatelessWidget {
     return 0;
   }
 
-  void _onTap(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go(Routes.developerHome);
-        break;
-      case 1:
-        context.go(Routes.developerManagers);
-        break;
-      case 2:
-        context.go(Routes.developerDepartments);
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Center(
-                child: Opacity(
-                  opacity: 0.22,
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    width: 320,
-                    height: 320,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          child,
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex(context),
-        onDestinationSelected: (index) => _onTap(context, index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.manage_accounts_outlined),
-            selectedIcon: Icon(Icons.manage_accounts),
-            label: 'Managers',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.business_outlined),
-            selectedIcon: Icon(Icons.business),
-            label: 'Departments',
-          ),
-        ],
-      ),
+    return AdaptiveNavScaffold(
+      selectedIndex: _currentIndex(context),
+      onDestinationSelected: (index) => context.go(_routes[index]),
+      destinations: const [
+        AdaptiveNavDestination(
+          icon: Icons.home_outlined,
+          selectedIcon: Icons.home,
+          label: 'Home',
+        ),
+        AdaptiveNavDestination(
+          icon: Icons.manage_accounts_outlined,
+          selectedIcon: Icons.manage_accounts,
+          label: 'Managers',
+        ),
+        AdaptiveNavDestination(
+          icon: Icons.business_outlined,
+          selectedIcon: Icons.business,
+          label: 'Departments',
+        ),
+      ],
+      child: child,
     );
   }
 }

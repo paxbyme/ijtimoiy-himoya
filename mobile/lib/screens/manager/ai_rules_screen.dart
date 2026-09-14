@@ -5,7 +5,9 @@ import '../../models/chat/ai_rule_model.dart';
 import '../../providers/ai_provider.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class AiRulesScreen extends ConsumerStatefulWidget {
   const AiRulesScreen({super.key});
@@ -69,153 +71,156 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
                 ref.invalidate(aiRulesProvider);
                 await ref.read(aiRulesProvider.future);
               },
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: rules.length,
-                itemBuilder: (context, index) {
-                  final rule = rules[index];
-                  return Dismissible(
-                    key: Key(rule.id),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 20),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.error,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.delete,
-                        color: theme.colorScheme.onError,
-                      ),
-                    ),
-                    confirmDismiss: (direction) async {
-                      return await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text("Qoidani o'chirish"),
-                          content: Text(
-                            '"${rule.title}" qoidasini o\'chirasizmi?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Bekor'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: theme.colorScheme.error,
-                              ),
-                              child: const Text("O'chirish"),
-                            ),
-                          ],
+              child: ResponsiveCenter(
+                child: ListView.builder(
+                  padding: context.pagePadding,
+                  itemCount: rules.length,
+                  itemBuilder: (context, index) {
+                    final rule = rules[index];
+                    return Dismissible(
+                      key: Key(rule.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      );
-                    },
-                    onDismissed: (_) async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      final success = await ref
-                          .read(aiRulesNotifierProvider.notifier)
-                          .deleteRule(rule.id);
-                      if (!success) {
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text("O'chirishda xatolik yuz berdi"),
+                        child: Icon(
+                          Icons.delete,
+                          color: theme.colorScheme.onError,
+                        ),
+                      ),
+                      confirmDismiss: (direction) async {
+                        return await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text("Qoidani o'chirish"),
+                            content: Text(
+                              '"${rule.title}" qoidasini o\'chirasizmi?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Bekor'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: theme.colorScheme.error,
+                                ),
+                                child: const Text("O'chirish"),
+                              ),
+                            ],
                           ),
                         );
-                      }
-                    },
-                    child: Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: rule.isActive
-                              ? theme.colorScheme.primaryContainer
-                              : theme.colorScheme.surfaceContainerHighest,
-                          child: Icon(
-                            Icons.rule,
-                            color: rule.isActive
-                                ? theme.colorScheme.onPrimaryContainer
-                                : theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        title: Text(
-                          rule.title,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              rule.content,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                      },
+                      onDismissed: (_) async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final success = await ref
+                            .read(aiRulesNotifierProvider.notifier)
+                            .deleteRule(rule.id);
+                        if (!success) {
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text("O'chirishda xatolik yuz berdi"),
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.secondaryContainer,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    rule.category,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: theme
-                                          .colorScheme
-                                          .onSecondaryContainer,
+                          );
+                        }
+                      },
+                      child: Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: rule.isActive
+                                ? theme.colorScheme.primaryContainer
+                                : theme.colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.rule,
+                              color: rule.isActive
+                                  ? theme.colorScheme.onPrimaryContainer
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          title: Text(
+                            rule.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                rule.content,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          theme.colorScheme.secondaryContainer,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      rule.category,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: theme
+                                            .colorScheme
+                                            .onSecondaryContainer,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: rule.isActive
-                                        ? Colors.green.shade100
-                                        : Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    rule.isActive ? 'Faol' : 'Nofaol',
-                                    style: TextStyle(
-                                      fontSize: 10,
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
                                       color: rule.isActive
-                                          ? Colors.green.shade800
-                                          : Colors.grey.shade700,
+                                          ? Colors.green.shade100
+                                          : Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      rule.isActive ? 'Faol' : 'Nofaol',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: rule.isActive
+                                            ? Colors.green.shade800
+                                            : Colors.grey.shade700,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        isThreeLine: true,
-                        trailing: IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: theme.colorScheme.error,
+                                ],
+                              ),
+                            ],
                           ),
-                          tooltip: "O'chirish",
-                          onPressed: () =>
-                              _confirmDelete(context, rule.id, rule.title),
+                          isThreeLine: true,
+                          trailing: IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: theme.colorScheme.error,
+                            ),
+                            tooltip: "O'chirish",
+                            onPressed: () =>
+                                _confirmDelete(context, rule.id, rule.title),
+                          ),
+                          onTap: () => _showRuleDialog(context, rule: rule),
                         ),
-                        onTap: () => _showRuleDialog(context, rule: rule),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             );
           },
@@ -279,38 +284,41 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: Text(isEditing ? 'Qoidani tahrirlash' : 'Yangi qoida'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Sarlavha'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: contentController,
-                  maxLength: _maxRuleContentChars,
-                  decoration: const InputDecoration(
-                    labelText: 'Kontent',
-                    helperText:
-                        'Katta hujjatlar uchun yuqoridagi hujjat yuklash tugmasidan foydalaning.',
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(labelText: 'Sarlavha'),
                   ),
-                  maxLines: 4,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: categoryController,
-                  decoration: const InputDecoration(labelText: 'Kategoriya'),
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  title: const Text('Faol'),
-                  value: isActive,
-                  onChanged: (v) => setDialogState(() => isActive = v),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: contentController,
+                    maxLength: _maxRuleContentChars,
+                    decoration: const InputDecoration(
+                      labelText: 'Kontent',
+                      helperText:
+                          'Katta hujjatlar uchun yuqoridagi hujjat yuklash tugmasidan foydalaning.',
+                    ),
+                    maxLines: 4,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: categoryController,
+                    decoration: const InputDecoration(labelText: 'Kategoriya'),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    title: const Text('Faol'),
+                    value: isActive,
+                    onChanged: (v) => setDialogState(() => isActive = v),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -399,177 +407,186 @@ class _AiRulesScreenState extends ConsumerState<AiRulesScreen> {
           canPop: !isUploading,
           child: AlertDialog(
             title: const Text('Hujjatlarni knowledge base\'ga yuklash'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    "Bir nechta fayl tanlang — ular AI qoidaga aylantirilmaydi, RAG knowledge base'ga indekslanadi.",
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: isUploading
-                        ? null
-                        : () async {
-                            final result = await FilePicker.platform.pickFiles(
-                              type: FileType.custom,
-                              allowMultiple: true,
-                              allowedExtensions: [
-                                'pdf',
-                                'docx',
-                                'doc',
-                                'txt',
-                                'md',
-                              ],
-                            );
-                            if (result != null && result.files.isNotEmpty) {
-                              setDialogState(() {
-                                for (final f in result.files) {
-                                  if (f.path != null &&
-                                      !selectedFiles.any(
-                                        (s) => s.path == f.path,
-                                      )) {
-                                    selectedFiles.add(f);
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      "Bir nechta fayl tanlang — ular AI qoidaga aylantirilmaydi, RAG knowledge base'ga indekslanadi.",
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: isUploading
+                          ? null
+                          : () async {
+                              final result = await FilePicker.platform
+                                  .pickFiles(
+                                    type: FileType.custom,
+                                    allowMultiple: true,
+                                    allowedExtensions: [
+                                      'pdf',
+                                      'docx',
+                                      'doc',
+                                      'txt',
+                                      'md',
+                                    ],
+                                  );
+                              if (result != null && result.files.isNotEmpty) {
+                                setDialogState(() {
+                                  for (final f in result.files) {
+                                    if (f.path != null &&
+                                        !selectedFiles.any(
+                                          (s) => s.path == f.path,
+                                        )) {
+                                      selectedFiles.add(f);
+                                    }
                                   }
-                                }
-                              });
-                            }
-                          },
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: selectedFiles.isNotEmpty
-                              ? Colors.blue
-                              : Colors.grey.shade400,
-                          width: 2,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        color: selectedFiles.isNotEmpty
-                            ? Colors.blue.shade50
-                            : Colors.grey.shade50,
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(
-                            selectedFiles.isNotEmpty
-                                ? Icons.library_add
-                                : Icons.upload_file,
-                            size: 40,
+                                });
+                              }
+                            },
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          border: Border.all(
                             color: selectedFiles.isNotEmpty
                                 ? Colors.blue
-                                : Colors.grey,
+                                : Colors.grey.shade400,
+                            width: 2,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            selectedFiles.isEmpty
-                                ? "Fayllarni tanlash uchun bosing"
-                                : "Yana fayl qo'shish uchun bosing",
-                            style: TextStyle(
+                          borderRadius: BorderRadius.circular(12),
+                          color: selectedFiles.isNotEmpty
+                              ? Colors.blue.shade50
+                              : Colors.grey.shade50,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              selectedFiles.isNotEmpty
+                                  ? Icons.library_add
+                                  : Icons.upload_file,
+                              size: 40,
                               color: selectedFiles.isNotEmpty
-                                  ? Colors.blue.shade700
-                                  : Colors.grey.shade600,
-                              fontWeight: selectedFiles.isNotEmpty
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
+                                  ? Colors.blue
+                                  : Colors.grey,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                          if (selectedFiles.isEmpty)
+                            const SizedBox(height: 8),
                             Text(
-                              'PDF, DOCX, TXT, DOC, MD',
+                              selectedFiles.isEmpty
+                                  ? "Fayllarni tanlash uchun bosing"
+                                  : "Yana fayl qo'shish uchun bosing",
                               style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade500,
+                                color: selectedFiles.isNotEmpty
+                                    ? Colors.blue.shade700
+                                    : Colors.grey.shade600,
+                                fontWeight: selectedFiles.isNotEmpty
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
                               ),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (selectedFiles.isEmpty)
+                              Text(
+                                'PDF, DOCX, TXT, DOC, MD',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (selectedFiles.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Tanlangan: ${selectedFiles.length} ta fayl',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (int i = 0; i < selectedFiles.length; i++)
+                            Builder(
+                              builder: (_) {
+                                final f = selectedFiles[i];
+                                final isCurrent =
+                                    isUploading && i == currentIndex;
+                                final isDone = isUploading && i < currentIndex;
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  leading: isDone
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green,
+                                          size: 20,
+                                        )
+                                      : isCurrent
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.description,
+                                          size: 20,
+                                          color: Colors.blueGrey,
+                                        ),
+                                  title: Text(
+                                    f.name,
+                                    style: const TextStyle(fontSize: 13),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    '${(f.size / 1024).toStringAsFixed(1)} KB',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  trailing: isUploading
+                                      ? null
+                                      : IconButton(
+                                          icon: const Icon(
+                                            Icons.close,
+                                            size: 18,
+                                          ),
+                                          onPressed: () => setDialogState(
+                                            () => selectedFiles.removeAt(i),
+                                          ),
+                                        ),
+                                );
+                              },
                             ),
                         ],
                       ),
-                    ),
-                  ),
-                  if (selectedFiles.isNotEmpty) ...[
+                    ],
                     const SizedBox(height: 12),
-                    Text(
-                      'Tanlangan: ${selectedFiles.length} ta fayl',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    if (isUploading && totalFiles > 0) ...[
+                      const SizedBox(height: 16),
+                      LinearProgressIndicator(
+                        value: totalFiles == 0
+                            ? null
+                            : currentIndex / totalFiles,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (int i = 0; i < selectedFiles.length; i++)
-                          Builder(
-                            builder: (_) {
-                              final f = selectedFiles[i];
-                              final isCurrent =
-                                  isUploading && i == currentIndex;
-                              final isDone = isUploading && i < currentIndex;
-                              return ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                leading: isDone
-                                    ? const Icon(
-                                        Icons.check_circle,
-                                        color: Colors.green,
-                                        size: 20,
-                                      )
-                                    : isCurrent
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.description,
-                                        size: 20,
-                                        color: Colors.blueGrey,
-                                      ),
-                                title: Text(
-                                  f.name,
-                                  style: const TextStyle(fontSize: 13),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(
-                                  '${(f.size / 1024).toStringAsFixed(1)} KB',
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                                trailing: isUploading
-                                    ? null
-                                    : IconButton(
-                                        icon: const Icon(Icons.close, size: 18),
-                                        onPressed: () => setDialogState(
-                                          () => selectedFiles.removeAt(i),
-                                        ),
-                                      ),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Yuklanmoqda: $currentIndex / $totalFiles',
+                        style: const TextStyle(fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ],
-                  const SizedBox(height: 12),
-                  if (isUploading && totalFiles > 0) ...[
-                    const SizedBox(height: 16),
-                    LinearProgressIndicator(
-                      value: totalFiles == 0 ? null : currentIndex / totalFiles,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Yuklanmoqda: $currentIndex / $totalFiles',
-                      style: const TextStyle(fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
             actions: [

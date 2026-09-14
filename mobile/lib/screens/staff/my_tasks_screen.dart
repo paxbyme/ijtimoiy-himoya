@@ -7,7 +7,9 @@ import '../../providers/task_provider.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
 import '../../widgets/task/task_card.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class MyTasksScreen extends ConsumerStatefulWidget {
   const MyTasksScreen({super.key});
@@ -21,10 +23,11 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
   late TabController _tabController;
 
   final _tabs = const [
-    'Hammasi',
-    'Jarayonda',
+    "Hammasi",
+    "Yangi qo'shilganlar",
+    "Jarayonda",
     "Muddati o'tgan",
-    'Bajarildi',
+    "Bajarildi",
   ];
 
   @override
@@ -44,10 +47,12 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
       case 0:
         return tasks;
       case 1:
-        return tasks.where((t) => t.status == 'IN_PROGRESS').toList();
+        return tasks.where((t) => t.isRecentlyAdded).toList();
       case 2:
-        return tasks.where((t) => t.isOverdue).toList();
+        return tasks.where((t) => t.status == 'IN_PROGRESS').toList();
       case 3:
+        return tasks.where((t) => t.isOverdue).toList();
+      case 4:
         return tasks.where((t) => t.status == 'COMPLETED').toList();
       default:
         return tasks;
@@ -69,56 +74,65 @@ class _MyTasksScreenState extends ConsumerState<MyTasksScreen>
           tabAlignment: TabAlignment.start,
         ),
       ),
-      body: AppBackground(child: tasksAsync.when(
-        loading: () => const LoadingWidget(),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Topshiriqlar yuklanmadi',
-                  style: TextStyle(color: theme.colorScheme.error)),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => ref.invalidate(myTasksProvider),
-                child: const Text('Qayta urinish'),
-              ),
-            ],
+      body: AppBackground(
+        child: tasksAsync.when(
+          loading: () => const LoadingWidget(),
+          error: (error, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Topshiriqlar yuklanmadi",
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.invalidate(myTasksProvider),
+                  child: const Text('Qayta urinish'),
+                ),
+              ],
+            ),
+          ),
+          data: (tasks) => TabBarView(
+            controller: _tabController,
+            children: List.generate(_tabs.length, (index) {
+              final filtered = _filterTasks(tasks, index);
+
+              if (filtered.isEmpty) {
+                return EmptyStateWidget(
+                  icon: Icons.task_alt,
+                  message: switch (index) {
+                    1 => "Yangi topshiriqlar yo'q",
+                    3 => "Muddati o'tgan topshiriqlar yo'q",
+                    _ => "Topshiriqlar topilmadi",
+                  },
+                );
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(myTasksProvider);
+                  await ref.read(myTasksProvider.future);
+                },
+                child: ResponsiveCenter(
+                  child: ListView.builder(
+                    padding: context.pagePadding,
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final task = filtered[i];
+                      return TaskCard(
+                        task: task,
+                        onTap: () =>
+                            context.push(Routes.staffTaskDetail(task.id)),
+                      );
+                    },
+                  ),
+                ),
+              );
+            }),
           ),
         ),
-        data: (tasks) => TabBarView(
-          controller: _tabController,
-          children: List.generate(_tabs.length, (index) {
-            final filtered = _filterTasks(tasks, index);
-
-            if (filtered.isEmpty) {
-              return EmptyStateWidget(
-                icon: Icons.task_alt,
-                message: index == 2
-                    ? "Muddati o'tgan topshiriqlar yo'q"
-                    : 'Topshiriqlar topilmadi',
-              );
-            }
-
-            return RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(myTasksProvider);
-                await ref.read(myTasksProvider.future);
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: filtered.length,
-                itemBuilder: (context, i) {
-                  final task = filtered[i];
-                  return TaskCard(
-                    task: task,
-                    onTap: () => context.push(Routes.staffTaskDetail(task.id)),
-                  );
-                },
-              ),
-            );
-          }),
-        ),
-      )),
+      ),
     );
   }
 }

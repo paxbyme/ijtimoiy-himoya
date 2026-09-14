@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Reusable background widget that shows the app logo as a watermark.
-/// Used by screens that are outside the shell routes.
+import '../../core/utils/responsive.dart';
+
+/// Logotipni suv belgisi sifatida ko'rsatuvchi fon.
+/// Belgining o'lchami ekranga qarab moslashadi — planshetda ham,
+/// telefonda ham mutanosib ko'rinadi.
 class AppBackground extends StatelessWidget {
   final Widget child;
 
@@ -9,6 +12,8 @@ class AppBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = context.watermarkSize;
+
     return Stack(
       children: [
         Positioned.fill(
@@ -18,8 +23,9 @@ class AppBackground extends StatelessWidget {
                 opacity: 0.22,
                 child: Image.asset(
                   'assets/images/logo.png',
-                  width: 320,
-                  height: 320,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.contain,
                 ),
               ),
             ),

@@ -1,3 +1,5 @@
+import '../../core/constants/app_constants.dart';
+
 class TaskAttachment {
   final String url;
   final String name;
@@ -55,6 +57,12 @@ class Task {
     if (deadline == null) return false;
     if (status == 'COMPLETED' || status == 'CANCELLED') return false;
     return deadline!.isBefore(DateTime.now());
+  }
+
+  /// Not yet started and created within [AppConstants.newTaskWindow].
+  bool get isRecentlyAdded {
+    if (status != 'NEW' || createdAt == null) return false;
+    return DateTime.now().difference(createdAt!) <= AppConstants.newTaskWindow;
   }
 
   factory Task.fromJson(Map<String, dynamic> json) {

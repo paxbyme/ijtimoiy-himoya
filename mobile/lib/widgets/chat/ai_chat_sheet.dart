@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/utils/responsive.dart';
 import '../../providers/ai_provider.dart';
 import 'chat_bubble.dart';
 
@@ -9,6 +10,7 @@ void showAiChatSheet(BuildContext context, {String? initialMessage}) {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    constraints: const BoxConstraints(maxWidth: 720),
     backgroundColor: Colors.transparent,
     builder: (_) => AiChatSheet(initialMessage: initialMessage),
   );
@@ -70,7 +72,9 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
   Future<void> _submitFeedback(int messageIndex, String rating) async {
     final conversationId = ref.read(aiChatProvider.notifier).conversationId;
     if (conversationId == null) return;
-    final result = await ref.read(aiRepositoryProvider).submitFeedback(
+    final result = await ref
+        .read(aiRepositoryProvider)
+        .submitFeedback(
           conversationId: conversationId,
           messageIndex: messageIndex,
           rating: rating,
@@ -127,22 +131,29 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
                       CircleAvatar(
                         radius: 18,
                         backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Icon(Icons.smart_toy,
-                            size: 20, color: theme.colorScheme.primary),
+                        child: Icon(
+                          Icons.smart_toy,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('AI Assistant',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                )),
-                            Text('Connected to company knowledge base',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                )),
+                            Text(
+                              'AI Assistant',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Connected to company knowledge base',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -167,8 +178,10 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
                   ? _buildEmptyState(theme)
                   : ListView.builder(
                       controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: context.pageGutter,
+                        vertical: 8,
+                      ),
                       itemCount: messages.length + (isLoading ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index == messages.length && isLoading) {
@@ -227,7 +240,9 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
                           filled: true,
                           fillColor: theme.colorScheme.surfaceContainerHighest,
                           contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 10),
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                         ),
                         maxLines: null,
                       ),
@@ -253,13 +268,18 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.smart_toy_outlined,
-              size: 56,
-              color: theme.colorScheme.primary.withValues(alpha: 0.5)),
+          Icon(
+            Icons.smart_toy_outlined,
+            size: 56,
+            color: theme.colorScheme.primary.withValues(alpha: 0.5),
+          ),
           const SizedBox(height: 16),
-          Text('What can I help you with?',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            'What can I help you with?',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             'Ask me about staff roles, contact info, department structures, or company policies.',
@@ -286,12 +306,12 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
               _SuggestionChip(
                 label: 'Show department structure',
                 onTap: () => _sendSuggestion(
-                    'Can you explain our department structure?'),
+                  'Can you explain our department structure?',
+                ),
               ),
               _SuggestionChip(
                 label: 'Team contact info',
-                onTap: () =>
-                    _sendSuggestion('Who can I contact on my team?'),
+                onTap: () => _sendSuggestion('Who can I contact on my team?'),
               ),
             ],
           ),
@@ -327,9 +347,10 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
               ),
             ),
             const SizedBox(width: 8),
-            Text('Thinking...',
-                style:
-                    TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            Text(
+              'Thinking...',
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
           ],
         ),
       ),
@@ -348,25 +369,30 @@ class _AiChatSheetState extends ConsumerState<AiChatSheet> {
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(4),
-              child: Icon(Icons.thumb_up_outlined,
-                  size: 16,
-                  color: hasGiven
-                      ? theme.colorScheme.outline
-                      : theme.colorScheme.onSurfaceVariant),
+              child: Icon(
+                Icons.thumb_up_outlined,
+                size: 16,
+                color: hasGiven
+                    ? theme.colorScheme.outline
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(width: 4),
           InkWell(
-            onTap:
-                hasGiven ? null : () => _submitFeedback(messageIndex, 'down'),
+            onTap: hasGiven
+                ? null
+                : () => _submitFeedback(messageIndex, 'down'),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(4),
-              child: Icon(Icons.thumb_down_outlined,
-                  size: 16,
-                  color: hasGiven
-                      ? theme.colorScheme.outline
-                      : theme.colorScheme.onSurfaceVariant),
+              child: Icon(
+                Icons.thumb_down_outlined,
+                size: 16,
+                color: hasGiven
+                    ? theme.colorScheme.outline
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -388,8 +414,7 @@ class _SuggestionChip extends StatelessWidget {
       label: Text(label, style: const TextStyle(fontSize: 13)),
       onPressed: onTap,
       backgroundColor: theme.colorScheme.secondaryContainer,
-      labelStyle:
-          TextStyle(color: theme.colorScheme.onSecondaryContainer),
+      labelStyle: TextStyle(color: theme.colorScheme.onSecondaryContainer),
       side: BorderSide.none,
     );
   }

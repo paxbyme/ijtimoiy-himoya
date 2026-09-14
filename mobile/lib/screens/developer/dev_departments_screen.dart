@@ -5,7 +5,9 @@ import '../../models/auth/user_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 class DevDepartmentsScreen extends ConsumerWidget {
   const DevDepartmentsScreen({super.key});
@@ -36,97 +38,118 @@ class DevDepartmentsScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            _showDeptSheet(context, ref, activeManagers, null),
+        onPressed: () => _showDeptSheet(context, ref, activeManagers, null),
         child: const Icon(Icons.add_business),
       ),
-      body: AppBackground(child: deptsAsync.when(
-        loading: () => const LoadingWidget(),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Failed to load departments',
-                  style: TextStyle(color: theme.colorScheme.error)),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => ref.invalidate(adminDepartmentsProvider),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-        data: (depts) {
-          if (depts.isEmpty) {
-            return const EmptyStateWidget(
-              icon: Icons.business_outlined,
-              message: 'No departments yet. Tap + to create one.',
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(adminDepartmentsProvider),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: depts.length,
-              itemBuilder: (context, index) {
-                final dept = depts[index];
-                final managerName = dept.managerId != null &&
-                        dept.managerId!.isNotEmpty
-                    ? managerMap[dept.managerId!]
-                    : null;
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor:
-                          theme.colorScheme.secondaryContainer,
-                      child: Icon(Icons.business,
-                          color: theme.colorScheme.onSecondaryContainer,
-                          size: 20),
-                    ),
-                    title: Text(dept.name,
-                        style:
-                            const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(
-                      managerName != null
-                          ? 'Manager: $managerName'
-                          : 'No manager assigned',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: managerName != null
-                            ? null
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          tooltip: 'Edit',
-                          onPressed: () => _showDeptSheet(
-                              context, ref, activeManagers, dept),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.delete_outline,
-                              color: theme.colorScheme.error),
-                          tooltip: 'Delete',
-                          onPressed: () => _confirmDelete(
-                              context, ref, dept.id, dept.name),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+      body: AppBackground(
+        child: deptsAsync.when(
+          loading: () => const LoadingWidget(),
+          error: (e, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Failed to load departments',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.invalidate(adminDepartmentsProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
             ),
-          );
-        },
-      )),
+          ),
+          data: (depts) {
+            if (depts.isEmpty) {
+              return const EmptyStateWidget(
+                icon: Icons.business_outlined,
+                message: 'No departments yet. Tap + to create one.',
+              );
+            }
+            return RefreshIndicator(
+              onRefresh: () async => ref.invalidate(adminDepartmentsProvider),
+              child: ResponsiveCenter(
+                child: ListView.builder(
+                  padding: context.pagePadding,
+                  itemCount: depts.length,
+                  itemBuilder: (context, index) {
+                    final dept = depts[index];
+                    final managerName =
+                        dept.managerId != null && dept.managerId!.isNotEmpty
+                        ? managerMap[dept.managerId!]
+                        : null;
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: theme.colorScheme.secondaryContainer,
+                          child: Icon(
+                            Icons.business,
+                            color: theme.colorScheme.onSecondaryContainer,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          dept.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          managerName != null
+                              ? 'Manager: $managerName'
+                              : 'No manager assigned',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: managerName != null
+                                ? null
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              tooltip: 'Edit',
+                              onPressed: () => _showDeptSheet(
+                                context,
+                                ref,
+                                activeManagers,
+                                dept,
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.delete_outline,
+                                color: theme.colorScheme.error,
+                              ),
+                              tooltip: 'Delete',
+                              onPressed: () => _confirmDelete(
+                                context,
+                                ref,
+                                dept.id,
+                                dept.name,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
   void _confirmDelete(
-      BuildContext context, WidgetRef ref, String id, String name) {
+    BuildContext context,
+    WidgetRef ref,
+    String id,
+    String name,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -172,11 +195,14 @@ class DevDepartmentsScreen extends ConsumerWidget {
     );
   }
 
-  void _showDeptSheet(BuildContext context, WidgetRef ref,
-      List<User> managers, Department? existing) {
+  void _showDeptSheet(
+    BuildContext context,
+    WidgetRef ref,
+    List<User> managers,
+    Department? existing,
+  ) {
     final formKey = GlobalKey<FormState>();
-    final nameController =
-        TextEditingController(text: existing?.name ?? '');
+    final nameController = TextEditingController(text: existing?.name ?? '');
     String? selectedManagerId = existing?.managerId?.isNotEmpty == true
         ? existing!.managerId
         : null;
@@ -184,13 +210,19 @@ class DevDepartmentsScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => Padding(
+        builder: (ctx, setState) => SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-              24, 24, 24, 24 + MediaQuery.of(ctx).viewInsets.bottom),
+            24,
+            24,
+            24,
+            24 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
           child: Form(
             key: formKey,
             child: Column(
@@ -198,13 +230,10 @@ class DevDepartmentsScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  existing == null
-                      ? 'Add Department'
-                      : 'Edit Department',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  existing == null ? 'Add Department' : 'Edit Department',
+                  style: Theme.of(
+                    ctx,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
@@ -224,10 +253,14 @@ class DevDepartmentsScreen extends ConsumerWidget {
                   ),
                   items: [
                     const DropdownMenuItem<String>(
-                        value: null, child: Text('— None —')),
+                      value: null,
+                      child: Text('— None —'),
+                    ),
                     ...managers.map(
                       (m) => DropdownMenuItem<String>(
-                          value: m.id, child: Text(m.displayName)),
+                        value: m.id,
+                        child: Text(m.displayName),
+                      ),
                     ),
                   ],
                   onChanged: (v) => setState(() => selectedManagerId = v),
@@ -251,8 +284,7 @@ class DevDepartmentsScreen extends ConsumerWidget {
                           ScaffoldMessenger.of(ctx).showSnackBar(
                             SnackBar(
                               content: Text('Failed: ${failure.message}'),
-                              backgroundColor:
-                                  Theme.of(ctx).colorScheme.error,
+                              backgroundColor: Theme.of(ctx).colorScheme.error,
                             ),
                           );
                         }
@@ -264,9 +296,11 @@ class DevDepartmentsScreen extends ConsumerWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(existing == null
-                                  ? 'Department created'
-                                  : 'Department updated'),
+                              content: Text(
+                                existing == null
+                                    ? 'Department created'
+                                    : 'Department updated',
+                              ),
                             ),
                           );
                         }

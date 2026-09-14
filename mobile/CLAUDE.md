@@ -35,7 +35,7 @@ Layered MVVM with a strict one-way dependency flow:
 Screen (ConsumerWidget) → providers/ (Riverpod) → data/repositories/ → data/datasources/ → Dio | Firestore
 ```
 
-- **`core/`** — cross-cutting primitives: `constants/` (`EnvConfig`, `AppConstants`, `Routes`), `network/` (`DioClient`, `NetworkInfo`), `error/` (`Failure` sealed class + `FailureMapper`, custom exceptions), `utils/`
+- **`core/`** — cross-cutting primitives: `constants/` (`EnvConfig`, `AppConstants`, `Routes`), `network/` (`DioClient`, `NetworkInfo`), `error/` (`Failure` sealed class + `FailureMapper`, custom exceptions), `utils/` (including `responsive.dart` — see Responsive layout)
 - **`data/datasources/remote/`** — one class per feature (`TaskRemoteDataSource`, etc.) doing raw Dio calls; throw exceptions on failure
 - **`data/datasources/local/`** — despite the name, `ChatLocalDataSource` is the Firestore SDK access for real-time chat streams (not a cache); `AuthLocalDataSource` is local persistence
 - **`data/repositories/`** — one per feature; wrap every datasource call in a `_guard` that checks `NetworkInfo.isConnected` and returns `Either<Failure, T>` (dartz). Repositories never let Dio/Firebase exceptions escape — `FailureMapper.fromException()` converts them to `Failure` values
@@ -59,10 +59,20 @@ User-facing `Failure.message` strings are in Uzbek. The chain is: datasource thr
 - Live voice (`LiveVoiceScreen`): WebSocket to `${ApiConfig.wsBaseUrl}/ai/live` using `web_socket_channel`, audio via `record` + `flutter_pcm_sound`
 - Manager↔staff chat is real-time via Firestore streams (`messages`, `conversations` collections), not the REST API
 
+### Responsive layout
+
+The app has no fixed phone-width frame — every screen must adapt from a small phone to a tablet/desktop window. Two pieces carry this:
+
+- `core/utils/responsive.dart` — `WindowSize` (Material 3 size classes: compact <600dp, medium 600–839, expanded 840–1199, large ≥1200) plus a `BuildContext` extension: `isCompact` / `isTabletOrWider` / `useNavigationRail` / `useExtendedRail`, `contentMaxWidth`, `wideContentMaxWidth`, `formMaxWidth`, `pageGutter` / `pagePadding`, `statGridColumns`, `gridColumnsFor()`, `watermarkSize`, `bubbleMaxWidth`. Read sizes from here, never hardcode a width.
+- `widgets/common/responsive_layout.dart` — `ResponsiveCenter` (constrains + centers content; `.wide` for grids/dashboards) and `ResponsiveBuilder`.
+- `widgets/common/adaptive_nav_scaffold.dart` — `AdaptiveNavScaffold` swaps a bottom `NavigationBar` (compact) for a side `NavigationRail` (≥600dp, extended ≥1200dp). All three role shells (`staff_shell`, `manager_shell`, `developer_shell`) are thin wrappers over it.
+
+Conventions for new screens: scrollable bodies get `padding: context.pagePadding` and are wrapped in `ResponsiveCenter`; stat grids use `crossAxisCount: context.statGridColumns`; `showModalBottomSheet` passes `useSafeArea: true` and a `constraints: BoxConstraints(maxWidth: …)`; `AlertDialog` form content is wrapped in a `ConstrainedBox` so dialogs don't stretch on tablets.
+
 ### Localization
 
 `flutter gen-l10n` setup (`l10n.yaml`): ARB files in `lib/l10n/`, Uzbek (`app_uz.arb`) is the template, Russian is the other locale. Generated class is `AppL10n` (checked in, not in `.dart_tool`). Access strings via `AppL10n.of(context)`. Adding a UI string means editing both ARB files and regenerating.
 
 ## Testing
 
-Unit tests live under `test/unit/` (repositories, providers) using `mocktail`. Shared `MockX` classes are in `test/helpers/mocks.dart` and JSON fixtures in `test/helpers/fixtures.dart` — extend those rather than defining mocks inline. Repository tests follow the pattern: stub `NetworkInfo.isConnected`, stub the remote datasource, assert on the returned `Either`.
+Layout tests live under `test/widgets/` and size-class tests under `test/unit/core/`; both set the window with `tester.view.physicalSize` + `devicePixelRatio = 1.0` (`setSurfaceSize` does not take effect before the first `pumpWidget`). Unit tests live under `test/unit/` (repositories, providers) using `mocktail`. Shared `MockX` classes are in `test/helpers/mocks.dart` and JSON fixtures in `test/helpers/fixtures.dart` — extend those rather than defining mocks inline. Repository tests follow the pattern: stub `NetworkInfo.isConnected`, stub the remote datasource, assert on the returned `Either`.

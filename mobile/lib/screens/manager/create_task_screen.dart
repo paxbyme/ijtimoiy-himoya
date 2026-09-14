@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../models/auth/user_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/task_provider.dart';
+import '../../core/utils/responsive.dart';
 import '../../widgets/common/app_background.dart';
+import '../../widgets/common/responsive_layout.dart';
 
 final _staffForTaskProvider = FutureProvider<List<User>>((ref) async {
   final result = await ref.read(adminRepositoryProvider).getStaffList();
@@ -71,10 +73,9 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
         'assignedTo': _selectedStaff.first,
       });
     } else {
-      success = await ref.read(taskNotifierProvider.notifier).createBulkTasks(
-            _selectedStaff.toList(),
-            taskData,
-          );
+      success = await ref
+          .read(taskNotifierProvider.notifier)
+          .createBulkTasks(_selectedStaff.toList(), taskData);
     }
 
     if (mounted) {
@@ -82,9 +83,11 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_selectedStaff.length > 1
-                ? '${_selectedStaff.length} ta xodimga topshiriq yuborildi'
-                : 'Topshiriq muvaffaqiyatli yaratildi'),
+            content: Text(
+              _selectedStaff.length > 1
+                  ? '${_selectedStaff.length} ta xodimga topshiriq yuborildi'
+                  : 'Topshiriq muvaffaqiyatli yaratildi',
+            ),
           ),
         );
         context.pop();
@@ -114,168 +117,178 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
           leading: BackButton(onPressed: () => context.pop()),
           title: const Text('Topshiriq yaratish'),
         ),
-        body: AppBackground(child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Sarlavha',
-                    prefixIcon: Icon(Icons.title),
-                  ),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Sarlavha kiritilishi shart'
-                      : null,
-                ),
-                const SizedBox(height: 16),
+        body: AppBackground(
+          child: SingleChildScrollView(
+            padding: context.pagePadding,
+            child: ResponsiveCenter(
+              maxWidth: 700,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Sarlavha',
+                        prefixIcon: Icon(Icons.title),
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? 'Sarlavha kiritilishi shart'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
 
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tavsif',
-                    prefixIcon: Icon(Icons.description),
-                    alignLabelWithHint: true,
-                  ),
-                  maxLines: 4,
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Tavsif kiritilishi shart'
-                      : null,
-                ),
-                const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tavsif',
+                        prefixIcon: Icon(Icons.description),
+                        alignLabelWithHint: true,
+                      ),
+                      maxLines: 4,
+                      validator: (v) => v == null || v.trim().isEmpty
+                          ? 'Tavsif kiritilishi shart'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
 
-                // Multi-select staff
-                staffAsync.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (_, __) =>
-                      const Text('Xodimlar yuklanmadi'),
-                  data: (staff) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                    // Multi-select staff
+                    staffAsync.when(
+                      loading: () => const LinearProgressIndicator(),
+                      error: (_, __) => const Text('Xodimlar yuklanmadi'),
+                      data: (staff) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Xodimlar',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          Row(
+                            children: [
+                              Text(
+                                'Xodimlar',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    if (_selectedStaff.length == staff.length) {
+                                      _selectedStaff.clear();
+                                    } else {
+                                      _selectedStaff.addAll(
+                                        staff.map((s) => s.id),
+                                      );
+                                    }
+                                  });
+                                },
+                                icon: Icon(
+                                  _selectedStaff.length == staff.length
+                                      ? Icons.deselect
+                                      : Icons.select_all,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  _selectedStaff.length == staff.length
+                                      ? 'Bekor qilish'
+                                      : 'Barchasini tanlash',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            constraints: const BoxConstraints(maxHeight: 200),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: staff.length,
+                              itemBuilder: (context, index) {
+                                final s = staff[index];
+                                final selected = _selectedStaff.contains(s.id);
+                                return CheckboxListTile(
+                                  dense: true,
+                                  title: Text(s.displayName),
+                                  value: selected,
+                                  onChanged: (v) {
+                                    setState(() {
+                                      if (v == true) {
+                                        _selectedStaff.add(s.id);
+                                      } else {
+                                        _selectedStaff.remove(s.id);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
                             ),
                           ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                if (_selectedStaff.length == staff.length) {
-                                  _selectedStaff.clear();
-                                } else {
-                                  _selectedStaff
-                                      .addAll(staff.map((s) => s.id));
-                                }
-                              });
-                            },
-                            icon: Icon(
-                              _selectedStaff.length == staff.length
-                                  ? Icons.deselect
-                                  : Icons.select_all,
-                              size: 16,
+                          if (_selectedStaff.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                '${_selectedStaff.length} ta xodim tanlandi',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
                             ),
-                            label: Text(
-                              _selectedStaff.length == staff.length
-                                  ? 'Bekor qilish'
-                                  : 'Barchasini tanlash',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
                         ],
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                              color: theme.colorScheme.outlineVariant),
-                          borderRadius: BorderRadius.circular(8),
+                    ),
+                    const SizedBox(height: 16),
+
+                    InkWell(
+                      onTap: _pickDeadline,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Muddat',
+                          prefixIcon: Icon(Icons.calendar_today),
                         ),
-                        constraints: const BoxConstraints(maxHeight: 200),
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: staff.length,
-                          itemBuilder: (context, index) {
-                            final s = staff[index];
-                            final selected = _selectedStaff.contains(s.id);
-                            return CheckboxListTile(
-                              dense: true,
-                              title: Text(s.displayName),
-                              value: selected,
-                              onChanged: (v) {
-                                setState(() {
-                                  if (v == true) {
-                                    _selectedStaff.add(s.id);
-                                  } else {
-                                    _selectedStaff.remove(s.id);
-                                  }
-                                });
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                      if (_selectedStaff.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            '${_selectedStaff.length} ta xodim tanlandi',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
+                        child: Text(
+                          _deadline != null
+                              ? DateFormat('dd.MM.yyyy').format(_deadline!)
+                              : 'Muddat tanlash',
+                          style: TextStyle(
+                            color: _deadline != null
+                                ? theme.colorScheme.onSurface
+                                : theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                InkWell(
-                  onTap: _pickDeadline,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Muddat',
-                      prefixIcon: Icon(Icons.calendar_today),
-                    ),
-                    child: Text(
-                      _deadline != null
-                          ? DateFormat('dd.MM.yyyy').format(_deadline!)
-                          : 'Muddat tanlash',
-                      style: TextStyle(
-                        color: _deadline != null
-                            ? theme.colorScheme.onSurface
-                            : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
-                staffAsync.maybeWhen(
-                  data: (staff) => ElevatedButton(
-                    onPressed: _isSubmitting ? null : () => _submit(staff),
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        : Text(_selectedStaff.length > 1
-                            ? 'Topshiriq yuborish (${_selectedStaff.length})'
-                            : 'Topshiriq yaratish'),
-                  ),
-                  orElse: () => const SizedBox.shrink(),
+                    staffAsync.maybeWhen(
+                      data: (staff) => ElevatedButton(
+                        onPressed: _isSubmitting ? null : () => _submit(staff),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                _selectedStaff.length > 1
+                                    ? 'Topshiriq yuborish (${_selectedStaff.length})'
+                                    : 'Topshiriq yaratish',
+                              ),
+                      ),
+                      orElse: () => const SizedBox.shrink(),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        )),
+        ),
       ),
     );
   }
