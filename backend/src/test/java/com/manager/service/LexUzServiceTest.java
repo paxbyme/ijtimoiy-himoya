@@ -316,6 +316,52 @@ class LexUzServiceTest {
         assertThat(result.get(0).content()).contains("toifadagi shaxslar qabul qilinadi");
     }
 
+    private static final String DAY_CARE_QUESTION =
+            "kunduzgi parvarish hizmatiga qanday bolalarni hizmatga jalb qilish mumkin";
+
+    private static final String DAY_CARE_REGULATION = """
+            <html><body><div id="divCont">
+              <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish tartibi to'g'risida</div></div>
+              <div class="ACT_TEXT lx_elem"><div name="-7" id="-7">7. Hududiy boshqarmalar har chorakda rasmiy sahifalarida kunduzgi parvarish xizmatiga yo'naltirishga xulosa berilgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish bo'yicha e'lon berib boradi, muddat 10 kun.</div></div>
+              <div class="ACT_TEXT lx_elem"><div name="-4" id="-4">4. Kunduzgi parvarish xizmatiga quyidagi tashxislar qo'yilgan nogironligi bo'lgan bolalar qabul qilinadi: mo'tadil aqliy zaiflik (F71).</div></div>
+              <div class="ACT_TEXT lx_elem"><div name="-28" id="-28">28. Quyidagilar kunduzgi parvarish xizmatiga qabul qilishga qarshi ko'rsatmalar hisoblanadi: o'tkir yuqumli kasalliklar.</div></div>
+            </div></body></html>
+            """;
+
+    @Test
+    void dayCareQuestionWithoutDisabilityWordStillSearchesTheServiceName() throws Exception {
+        server.enqueue(searchResult("-7410361",
+                "Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish",
+                "Vazirlar Mahkamasining 126-son qarori"));
+        // "xizmat bola" finds nothing, and the search then narrows to "xizmat".
+        server.enqueue(htmlResponse("<html><body><table></table></body></html>"));
+        server.enqueue(htmlResponse("<html><body><table></table></body></html>"));
+        server.enqueue(htmlResponse(DAY_CARE_REGULATION));
+
+        List<RagSource> result = service.query(DAY_CARE_QUESTION, 6);
+
+        RecordedRequest dayCareSearch = server.takeRequest();
+        RecordedRequest serviceSearch = server.takeRequest();
+        assertThat(dayCareSearch.getRequestUrl().queryParameter("query")).isEqualTo("kunduzgi parvarish bola");
+        assertThat(serviceSearch.getRequestUrl().queryParameter("query")).isEqualTo("xizmat bola");
+        assertThat(result).extracting(RagSource::documentId).containsOnly("-7410361");
+    }
+
+    @Test
+    void whoCanJoinQuestionRanksDiagnosesAndContraindicationsAboveAnnouncements() {
+        server.enqueue(searchResult("-7410361",
+                "Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish",
+                "Vazirlar Mahkamasining 126-son qarori"));
+        server.enqueue(htmlResponse(DAY_CARE_REGULATION));
+
+        List<RagSource> result = service.query(DAY_CARE_QUESTION, List.of("kunduzgi parvarish xizmati"), 6);
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).content()).contains("tashxislar qo'yilgan");
+        assertThat(result.get(1).content()).contains("qarshi ko'rsatmalar");
+        assertThat(result.get(2).content()).contains("rasmiy sahifalarida");
+    }
+
     private MockResponse searchResult(String documentId, String title, String metadata) {
         return htmlResponse("""
                 <html><body><table>

@@ -270,22 +270,25 @@ public class LexUzService {
         return result;
     }
 
-    /**
-     * Words that name a whole field rather than a subject. Searched alone
-     * ("xizmat"), Lex.uz returns whichever recent act mentions them — a public
-     * procurement rule for a question about the "Yangi kun" service.
-     */
-    private static final Set<String> GENERIC_TERMS = Set.of("xizmat", "ijtimoiy");
-
     /** Question words that carry no subject and only dilute an ordered search. */
     private static final Set<String> QUESTION_WORDS = Set.of(
             "necha", "qilinadi", "qilinishi", "beriladi", "mavjudmi", "bormi", "bo'ladimi", "turlari");
 
     /**
-     * Keyword groups for a question the planner could not handle. The domain
-     * groups only know common legal concepts; when all they keep is a generic
-     * word, the question's own subject is searched in the order the user wrote
-     * it, so a named service ("yangi kun xizmat") is not reduced to "xizmat".
+     * Words too broad to identify a subject. Searched on their own, Lex.uz
+     * returns whichever recent act mentions them: "xizmat" found a public
+     * procurement rule for a question about the "Yangi kun" service, and
+     * "xizmat bola" an education decree for a day-care question.
+     */
+    private static final Set<String> GENERIC_TERMS = Set.of("xizmat", "ijtimoiy", "bola", "farzandi");
+
+    /**
+     * Keyword groups for a question the planner could not handle. When the
+     * domain groups keep nothing but broad words, the question's own terms are
+     * searched in the order the user wrote them, so a named service
+     * ("yangi kun xizmat") is not reduced to "xizmat". Groups that carry a legal
+     * concept are kept as they are: in a long case narrative the first words
+     * are names and addresses, not the subject.
      */
     private List<List<String>> keywordGroups(String question, List<String> terms) {
         List<List<String>> groups = buildQueryGroups(terms);
@@ -362,6 +365,11 @@ public class LexUzService {
             // family describes it only as "complex social services". These
             // formal terms reliably surface VMQ-126 and its PTPK provisions.
             groups.add(List.of("kunduzgi", "parvarish", "nogironligi", "bola"));
+        } else if (hasAll(available, "kunduzgi", "parvarish") && hasAny(available, "bola", "farzandi")) {
+            // Parents name the service without the word "nogironligi"
+            // ("kunduzgi parvarishga qanday bolalar"). Without this group the
+            // service name was dropped and "xizmat bola" found an education decree.
+            addGroup(groups, available, "kunduzgi", "parvarish", "bola", "farzandi");
         }
 
         if (hasAny(available, "nafaqa", "pensiya", "tayinlash")
@@ -430,6 +438,13 @@ public class LexUzService {
             if (values.contains(candidate)) return true;
         }
         return false;
+    }
+
+    private boolean hasAll(Set<String> values, String... candidates) {
+        for (String candidate : candidates) {
+            if (!values.contains(candidate)) return false;
+        }
+        return true;
     }
 
     private List<SearchDocument> search(String query) throws Exception {
@@ -685,13 +700,27 @@ public class LexUzService {
         // decisive clause loses to definitions and procedure that merely repeat
         // the service name.
         if (containsAny(normalizedQuestion,
-                "necha yosh", "yoshdagi", "yoshdan", "yoshgacha", "kimlar", "qabul qilin", "foydalana oladi")) {
+                "necha yosh", "yoshdagi", "yoshdan", "yoshgacha", "kimlar", "qabul qilin", "foydalana oladi",
+                "jalb", "qanday bola", "qaysi bola", "qanday shaxs", "qaysi shaxs")) {
             // "qabul qilinadi" alone also matches staff-hiring clauses, so only
             // wording that names admitted categories counts.
             if (containsAny(text,
-                    "toifadagi shaxslar", "tashxislarning biri", "huquqiga ega")) {
+                    "toifadagi shaxslar", "tashxislarning biri", "tashxislar qo'yilgan", "huquqiga ega")) {
                 score += 45;
             }
+            if (text.contains("yoshdan") && text.contains("yoshgacha")) {
+                score += 25;
+            }
+            // Who may not join or must leave completes the answer; without this
+            // these clauses lose to announcements that merely repeat the name.
+            if (containsAny(text, "qarshi ko'rsatma", "asosida chiqariladi")) {
+                score += 45;
+            }
+            // Provider-side rules (a "talabgor" opening the service) and summary
+            // tables repeat the service name and age range but do not decide who
+            // is admitted; in VMQ-126 they pushed clause 28 out of the budget.
+            if (text.contains("talabgor")) score -= 25;
+            if (text.startsWith("bosqichlar subyektlar") || text.startsWith("t/r ")) score -= 40;
         }
 
         // An age word alone ("necha yoshdagilar") does not make the question
@@ -717,6 +746,13 @@ public class LexUzService {
 
         if (text.matches("^\\d+[.-]?.*")) score += 6;
         if (containsAny(text, "tasdiqlansin", "xulosa berildi", "maqsadga muvofiq")) score -= 8;
+        // Instructions that rewrite another act repeat its subject words but are
+        // not the governing norm; they used to push admission and contraindication
+        // clauses out of the per-document snippet budget.
+        if (containsAny(text, "so'zlari bilan almashtirilsin", "tahrirda bayon etilsin",
+                "so'zlari bilan to'ldirilsin", "chiqarib tashlansin")) {
+            score -= 30;
+        }
 
         // Rank and document position only break otherwise similar matches; a
         // later exact provision must still beat an early generic paragraph.
