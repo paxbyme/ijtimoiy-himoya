@@ -184,4 +184,22 @@ class LegalAssistantPromptTest {
 
         assertThat(prompt).doesNotContain("42-band", "Chunk: 42", "chunkIndex");
     }
+
+    @Test
+    void earlierQuestionsAreListedFromTheFirstOne() {
+        String prompt = LegalAssistantPrompt.buildGroundedPrompt(SOURCES, "",
+                List.of("Yangi kun xizmatiga kimlar qabul qilinadi?", "Hujjatlar qanday?"));
+
+        assertThat(prompt)
+                .contains("SUHBATDAGI OLDINGI SAVOLLAR (birinchisidan")
+                .contains("1. Yangi kun xizmatiga kimlar qabul qilinadi?")
+                .contains("2. Hujjatlar qanday?")
+                .contains("hech qachon oldingi savolni eslay olmayman demang");
+    }
+
+    @Test
+    void firstTurnHasNoQuestionList() {
+        assertThat(LegalAssistantPrompt.buildGroundedPrompt(SOURCES, "", List.of()))
+                .doesNotContain("SUHBATDAGI OLDINGI SAVOLLAR (birinchisidan");
+    }
 }

@@ -530,7 +530,8 @@ public class AiController {
                 .distinct()
                 .toList();
         ctx.departmentRules = deptRulesText;
-        ctx.systemPrompt = LegalAssistantPrompt.buildGroundedPrompt(evidence, deptRulesText);
+        ctx.systemPrompt = LegalAssistantPrompt.buildGroundedPrompt(
+                evidence, deptRulesText, conversation.questions());
 
         return ctx;
     }
@@ -600,7 +601,18 @@ public class AiController {
                     }
                 }
             }
-            return new ConversationState(conversationId, history, false);
+
+            // The recent window above slides; the question list never does, so
+            // the opening question stays available however long the chat runs.
+            List<String> questions = new ArrayList<>();
+            if (conversation.get("userQuestions") instanceof List<?> storedQuestions) {
+                for (Object question : storedQuestions) {
+                    if (question != null && !question.toString().isBlank()) {
+                        questions.add(question.toString());
+                    }
+                }
+            }
+            return new ConversationState(conversationId, history, questions, false);
         }
 
         Map<String, Object> conversation = new HashMap<>();
@@ -610,10 +622,11 @@ public class AiController {
         conversation.put("messageCount", 0);
         conversation.put("messages", new ArrayList<>());
         conversation.put("recentMessages", new ArrayList<>());
+        conversation.put("userQuestions", new ArrayList<>());
         conversation.put("createdAt", Instant.now().toString());
         conversation.put("updatedAt", Instant.now().toString());
         Map<String, Object> saved = aiConversationRepository.save(conversation);
-        return new ConversationState(saved.get("id").toString(), new ArrayList<>(), true);
+        return new ConversationState(saved.get("id").toString(), new ArrayList<>(), List.of(), true);
     }
 
     private String buildDepartmentRulesPrompt(List<AiRuleDto> rules, String departmentId) {
@@ -696,6 +709,7 @@ public class AiController {
     private record ConversationState(
             String id,
             List<Map<String, Object>> history,
+            List<String> questions,
             boolean isNew
     ) {}
 }

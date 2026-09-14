@@ -134,6 +134,34 @@ public final class ConversationContext {
         return trimmed;
     }
 
+    /** Questions listed in full; a longer conversation shortens only its middle. */
+    private static final int MAX_LISTED_QUESTIONS = 40;
+    private static final int KEPT_OPENING_QUESTIONS = 5;
+
+    /**
+     * Every earlier question of the conversation, numbered from the first. The
+     * message window sent to the model slides, so this list is what lets the
+     * assistant answer "what was my first question" however long the chat runs.
+     * The opening questions are never dropped.
+     */
+    public static String questionIndex(List<String> questions) {
+        if (questions == null || questions.isEmpty()) return "";
+
+        int total = questions.size();
+        int recentKept = MAX_LISTED_QUESTIONS - KEPT_OPENING_QUESTIONS;
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            boolean opening = i < KEPT_OPENING_QUESTIONS;
+            boolean recent = i >= total - recentKept;
+            if (opening || recent) {
+                lines.add((i + 1) + ". " + truncate(normalize(questions.get(i))));
+            } else if (i == KEPT_OPENING_QUESTIONS) {
+                lines.add("… (" + (total - MAX_LISTED_QUESTIONS) + " ta oraliq savol qisqartirildi)");
+            }
+        }
+        return String.join("\n", lines);
+    }
+
     /** Extracts the text of a stored {@code {role, parts:[{text}]}} message. */
     public static String textOf(Map<String, Object> message) {
         if (message == null) return "";

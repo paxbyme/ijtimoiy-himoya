@@ -40,35 +40,41 @@ public class AiConversationRepository {
     }
 
     /**
-     * Reads only ownership and the bounded prompt-history projection. Existing
-     * conversations created before that projection was introduced fall back to
-     * one full read until their next completed turn populates it.
+     * Reads ownership, the bounded prompt-history projection and the complete
+     * list of the citizen's questions. The recent window slides, so the question
+     * list is what keeps the conversation's opening question available forever.
+     * Conversations saved before either projection existed fall back to one full
+     * read until their next completed turn populates them.
      */
     public Map<String, Object> findRecentById(String id, int maxMessages)
             throws ExecutionException, InterruptedException {
         DocumentReference docRef = firestore.collection(COLLECTION).document(id);
         List<DocumentSnapshot> selected = firestore.getAll(
                 new DocumentReference[]{docRef},
-                FieldMask.of("staffId", "recentMessages")).get();
+                FieldMask.of("staffId", "recentMessages", "userQuestions")).get();
         if (selected.isEmpty() || !selected.get(0).exists()) return null;
 
         DocumentSnapshot snapshot = selected.get(0);
         Map<String, Object> data = new HashMap<>(snapshot.getData());
         data.put("id", snapshot.getId());
         Object recent = data.get("recentMessages");
-        if (recent instanceof List<?>) {
+        if (recent instanceof List<?> && data.get("userQuestions") instanceof List<?>) {
             data.put("messages", recent);
             return data;
         }
 
-        Map<String, Object> legacy = findById(id);
-        if (legacy == null) return null;
-        Object stored = legacy.get("messages");
-        if (stored instanceof List<?> messages && messages.size() > maxMessages) {
-            legacy.put("messages", new ArrayList<>(
-                    messages.subList(messages.size() - maxMessages, messages.size())));
+        Map<String, Object> full = findById(id);
+        if (full == null) return null;
+        Object stored = full.get("messages");
+        List<?> all = stored instanceof List<?> list ? list : List.of();
+        full.put("userQuestions", userQuestionsOf(all));
+        Object fullRecent = full.get("recentMessages");
+        if (fullRecent instanceof List<?> && !((List<?>) fullRecent).isEmpty()) {
+            full.put("messages", fullRecent);
+        } else if (all.size() > maxMessages) {
+            full.put("messages", new ArrayList<>(all.subList(all.size() - maxMessages, all.size())));
         }
-        return legacy;
+        return full;
     }
 
     public List<Map<String, Object>> findByStaffId(String staffId) throws ExecutionException, InterruptedException {
@@ -124,7 +130,8 @@ public class AiConversationRepository {
     /**
      * Atomically appends a completed chat turn. The transaction prevents
      * simultaneous requests for the same conversation from overwriting one
-     * another with stale history snapshots.
+     * another with stale history snapshots. The question list is rebuilt from
+     * the full message log on every turn, so it can never drift from it.
      */
     public void appendMessages(String id, List<Map<String, Object>> newMessages,
                                int recentMessageLimit)
@@ -157,6 +164,7 @@ public class AiConversationRepository {
             transaction.update(docRef, Map.of(
                     "messages", messages,
                     "recentMessages", recentMessages,
+                    "userQuestions", userQuestionsOf(messages),
                     "messageCount", messages.size(),
                     "updatedAt", java.time.Instant.now().toString()));
             return null;
@@ -165,6 +173,25 @@ public class AiConversationRepository {
 
     public void delete(String id) throws ExecutionException, InterruptedException {
         firestore.collection(COLLECTION).document(id).delete().get();
+    }
+
+    /** Every question the citizen asked, oldest first, from a stored message log. */
+    static List<String> userQuestionsOf(List<?> messages) {
+        List<String> questions = new ArrayList<>();
+        for (Object item : messages) {
+            if (!(item instanceof Map<?, ?> message) || !"user".equals(message.get("role"))) continue;
+            if (!(message.get("parts") instanceof List<?> parts)) continue;
+
+            StringBuilder text = new StringBuilder();
+            for (Object part : parts) {
+                if (part instanceof Map<?, ?> partMap && partMap.get("text") != null) {
+                    text.append(partMap.get("text"));
+                }
+            }
+            String question = text.toString().trim();
+            if (!question.isEmpty()) questions.add(question);
+        }
+        return questions;
     }
 
     private String timestampToString(DocumentSnapshot doc, String field) {

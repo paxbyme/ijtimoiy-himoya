@@ -86,6 +86,37 @@ class ConversationContextTest {
     }
 
     @Test
+    void questionIndexNumbersEveryQuestionFromTheFirst() {
+        String index = ConversationContext.questionIndex(List.of(
+                "Yangi kun xizmatiga kimlar qabul qilinadi?",
+                "Necha yoshdagilar qabul qilinadi?"));
+
+        assertThat(index)
+                .isEqualTo("1. Yangi kun xizmatiga kimlar qabul qilinadi?\n2. Necha yoshdagilar qabul qilinadi?");
+    }
+
+    @Test
+    void veryLongConversationNeverDropsTheOpeningQuestion() {
+        List<String> questions = new java.util.ArrayList<>();
+        for (int i = 1; i <= 100; i++) questions.add("Savol " + i);
+
+        String index = ConversationContext.questionIndex(questions);
+
+        assertThat(index)
+                .startsWith("1. Savol 1\n")
+                .contains("5. Savol 5")
+                .contains("60 ta oraliq savol qisqartirildi")
+                .doesNotContain("6. Savol 6\n")
+                .endsWith("100. Savol 100");
+    }
+
+    @Test
+    void questionIndexOfANewConversationIsEmpty() {
+        assertThat(ConversationContext.questionIndex(List.of())).isEmpty();
+        assertThat(ConversationContext.questionIndex(null)).isEmpty();
+    }
+
+    @Test
     void assistantTurnIsDetected() {
         assertThat(ConversationContext.hasAssistantTurn(HISTORY)).isTrue();
         assertThat(ConversationContext.hasAssistantTurn(
