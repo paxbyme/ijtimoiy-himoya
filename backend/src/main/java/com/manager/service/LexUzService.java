@@ -642,9 +642,26 @@ public class LexUzService {
                     "transport", "amalga oshiriladi") ? 18 : 0;
         }
 
+        // Who is admitted and at what age is decided by the clause that lists the
+        // admitted categories. Service regulations are long, so without this the
+        // decisive clause loses to definitions and procedure that merely repeat
+        // the service name.
+        if (containsAny(normalizedQuestion,
+                "necha yosh", "yoshdagi", "yoshdan", "yoshgacha", "kimlar", "qabul qilin", "foydalana oladi")) {
+            // "qabul qilinadi" alone also matches staff-hiring clauses, so only
+            // wording that names admitted categories counts.
+            if (containsAny(text,
+                    "toifadagi shaxslar", "tashxislarning biri", "huquqiga ega")) {
+                score += 45;
+            }
+        }
+
+        // An age word alone ("necha yoshdagilar") does not make the question
+        // about a child; only explicit child wording selects the child day-care
+        // regulation, otherwise adult services lose their own admission clause.
         boolean childDayCareQuestion = containsAny(normalizeForComparison(query),
                 "kunduzgi", "parvarish")
-                && containsAny(normalizedQuestion, "bola", "farzand", "yosh");
+                && containsAny(normalizedQuestion, "bola", "farzand");
         if (childDayCareQuestion) {
             if (containsAny(normalizedTitle,
                     "nogironligi bo'lgan bolalar uchun kunduzgi parvarish")) {

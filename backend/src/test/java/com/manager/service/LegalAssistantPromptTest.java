@@ -63,6 +63,7 @@ class LegalAssistantPromptTest {
                 .contains("PTPK (Psixologik-tibbiy-pedagogik komissiya)ni IPTK")
                 .contains("2025-yil 27-fevraldagi 126-son qarorini")
                 .contains("271-son qarorni 126-son qarorning o‘rniga")
+                .contains("Normada yosh chegarasi belgilanmagan")
                 .contains("Aniqlashtirish uchun:")
                 .contains("aniq raqam, foiz, BHM ulushi, toifa, hudud, sana, muddat")
                 .contains("javobni sunʼiy qisqartirmang")

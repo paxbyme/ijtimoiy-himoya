@@ -268,6 +268,35 @@ class LexUzServiceTest {
                 .isEqualTo("kunduzgi parvarish nogironligi bola");
     }
 
+    @Test
+    void ageQuestionAboutAdultServiceKeepsTheAdmissionClause() throws Exception {
+        server.enqueue(searchResult("-8218769", "Yangi ijtimoiy xizmatlarni tashkil etish", "2026-yil 21-maydagi 271-son qaror"));
+        StringBuilder page = new StringBuilder("""
+                <html><body><div id="divCont">
+                  <div class="ACT_TITLE lx_elem"><div name="-1" id="-1">Yangi ijtimoiy xizmatlarni tashkil etish to'g'risida</div></div>
+                  <div class="ACT_TEXT lx_elem"><div name="-3" id="-3">3. 1 yoshdan 18 yoshgacha bolalarni psixologik-tibbiy-pedagogik komissiya tekshiradi, Yangi kun kunduzgi qatnov xizmati bundan mustasno.</div></div>
+                """);
+        for (int band = 4; band <= 10; band++) {
+            page.append("""
+                  <div class="ACT_TEXT lx_elem"><div name="-%d" id="-%d">%d. Yangi kun kunduzgi qatnov xizmati 9 soatli ish rejimida tashkil etiladi, ariza tartibi hududda belgilanadi.</div></div>
+                """.formatted(band, band, band));
+        }
+        page.append("""
+                  <div class="ACT_TEXT lx_elem"><div name="-16" id="-16">16. Yangi kun kunduzgi qatnov xizmatiga quyidagi toifadagi shaxslar qabul qilinadi: mo'tadil aqliy zaiflik (F71) tashxisi qo'yilgan I va II guruh nogironligi bo'lgan shaxslar.</div></div>
+                </div></body></html>
+                """);
+        server.enqueue(htmlResponse(page.toString()));
+
+        List<RagSource> result = service.query(
+                "Yangi kun xizmatiga necha yoshdagilar qabul qilinadi",
+                List.of("Yangi kun kunduzgi qatnov xizmati"),
+                10);
+
+        assertThat(result).isNotEmpty();
+        assertThat(result.get(0).content()).contains("quyidagi toifadagi shaxslar qabul qilinadi");
+        assertThat(result.get(0).content()).doesNotContain("psixologik-tibbiy-pedagogik");
+    }
+
     private MockResponse searchResult(String documentId, String title, String metadata) {
         return htmlResponse("""
                 <html><body><table>
