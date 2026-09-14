@@ -63,7 +63,7 @@ public class LexUzService {
 
     /**
      * Wall-clock ceiling for one whole {@link #query} call. It is kept below the
-     * caller's own Lex.uz timeout (18s in AiController), leaving headroom for the
+     * caller's own Lex.uz timeout (22s in AiController), leaving headroom for the
      * upstream LLM query planner, so this method returns whatever evidence has
      * already been extracted instead of being force-killed and yielding nothing.
      * Search time counts against it, shrinking the budget left for document
@@ -189,7 +189,7 @@ public class LexUzService {
         }
         if (selections.isEmpty()) {
             List<String> terms = extractQueryTerms(question);
-            if (!terms.isEmpty()) selections = runSearches(buildQueryGroups(terms));
+            if (!terms.isEmpty()) selections = runSearches(keywordGroups(question, terms));
         }
         if (selections.isEmpty()) {
             return List.of();
@@ -268,6 +268,44 @@ public class LexUzService {
         List<RagSource> result = List.copyOf(sources);
         if (!result.isEmpty()) putCache(cacheKey, result);
         return result;
+    }
+
+    /**
+     * Words that name a whole field rather than a subject. Searched alone
+     * ("xizmat"), Lex.uz returns whichever recent act mentions them — a public
+     * procurement rule for a question about the "Yangi kun" service.
+     */
+    private static final Set<String> GENERIC_TERMS = Set.of("xizmat", "ijtimoiy");
+
+    /** Question words that carry no subject and only dilute an ordered search. */
+    private static final Set<String> QUESTION_WORDS = Set.of(
+            "necha", "qilinadi", "qilinishi", "beriladi", "mavjudmi", "bormi", "bo'ladimi", "turlari");
+
+    /**
+     * Keyword groups for a question the planner could not handle. The domain
+     * groups only know common legal concepts; when all they keep is a generic
+     * word, the question's own subject is searched in the order the user wrote
+     * it, so a named service ("yangi kun xizmat") is not reduced to "xizmat".
+     */
+    private List<List<String>> keywordGroups(String question, List<String> terms) {
+        List<List<String>> groups = buildQueryGroups(terms);
+        boolean onlyGeneric = groups.stream().allMatch(GENERIC_TERMS::containsAll);
+        if (!onlyGeneric) return groups;
+
+        List<String> subject = orderedSubjectTerms(question);
+        return subject.size() >= 2 ? List.of(subject) : groups;
+    }
+
+    private List<String> orderedSubjectTerms(String question) {
+        Matcher matcher = TOKEN_PATTERN.matcher(normalizeForComparison(question));
+        List<String> subject = new ArrayList<>();
+        while (matcher.find() && subject.size() < 4) {
+            String token = canonicalLegalTerm(matcher.group());
+            if (token.length() < 3 || STOP_WORDS.contains(token)
+                    || QUESTION_WORDS.contains(token) || subject.contains(token)) continue;
+            subject.add(token);
+        }
+        return subject;
     }
 
     /**

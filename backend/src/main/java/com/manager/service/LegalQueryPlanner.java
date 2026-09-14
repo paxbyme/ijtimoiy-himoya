@@ -90,7 +90,7 @@ public class LegalQueryPlanner {
             String raw = aiService.chat(PLANNER_INSTRUCTION, List.of(), buildPlannerRequest(question, history));
             List<String> queries = parseQueries(raw);
             if (!queries.isEmpty()) {
-                log.info("Legal query planner produced {} search quer(ies)", queries.size());
+                log.info("Legal query planner produced {} search quer(ies): {}", queries.size(), queries);
             }
             return queries;
         } catch (Exception e) {

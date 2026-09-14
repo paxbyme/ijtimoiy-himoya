@@ -459,7 +459,9 @@ public class AiController {
         CompletableFuture<List<String>> plannerFuture = conversationFuture
                 .thenApplyAsync(conversation -> legalQueryPlanner.plan(message, conversation.history()),
                         aiPipelineExecutor)
-                .completeOnTimeout(List.of(), 5_000, TimeUnit.MILLISECONDS)
+                // A slow planner (6s seen in production) used to be cut at 5s,
+                // and the keyword fallback then searched the wrong documents.
+                .completeOnTimeout(List.of(), 8_000, TimeUnit.MILLISECONDS)
                 .exceptionally(e -> {
                     log.warn("Legal query planner unavailable: {}", e.getMessage());
                     return List.of();
@@ -478,10 +480,10 @@ public class AiController {
                                 return List.<RagSource>of();
                             }
                         }, aiPipelineExecutor)
-                .completeOnTimeout(List.of(), 18_000, TimeUnit.MILLISECONDS);
+                .completeOnTimeout(List.of(), 22_000, TimeUnit.MILLISECONDS);
 
         CompletableFuture.allOf(rulesFuture, ragFuture, conversationFuture)
-                .get(19, TimeUnit.SECONDS);
+                .get(23, TimeUnit.SECONDS);
 
         ConversationState conversation = conversationFuture.join();
         List<AiRuleDto> deptRules = rulesFuture.join();
@@ -534,10 +536,11 @@ public class AiController {
     }
 
     /**
-     * When a draft breaks the response contract — no "Qisqa javob:" opening, no
-     * closing "Manba:" section, or a lex.uz link that is not in the retrieved
-     * context — one repair pass rewrites it against the same evidence. A failed
-     * repair serves the draft: a shape violation must never cost the user their answer.
+     * When a draft breaks the response contract — no closing "Manbalar:" section,
+     * a sources section that admits nothing was found under a full answer, or a
+     * lex.uz link that is not in the retrieved context — one repair pass rewrites
+     * it against the same evidence. A failed repair serves the draft: a shape
+     * violation must never cost the user their answer.
      */
     private String repairIfMalformed(ChatContext ctx, String message, String draft) {
         // Without evidence there is nothing to cite: an answer drawn from the

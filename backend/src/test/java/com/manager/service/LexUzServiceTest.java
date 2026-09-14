@@ -297,6 +297,25 @@ class LexUzServiceTest {
         assertThat(result.get(0).content()).doesNotContain("psixologik-tibbiy-pedagogik");
     }
 
+    @Test
+    void keywordSearchKeepsANamedServiceInsteadOfAGenericWord() throws Exception {
+        server.enqueue(searchResult("-8218769",
+                "Yangi ijtimoiy xizmatlarni tashkil etish to'g'risida",
+                "Vazirlar Mahkamasining 271-son qarori"));
+        server.enqueue(htmlResponse("""
+                <html><body><div id="divCont">
+                  <div class="ACT_TEXT lx_elem"><div name="-16" id="-16">16. Yangi kun kunduzgi qatnov xizmatiga quyidagi toifadagi shaxslar qabul qilinadi: mo'tadil aqliy zaiflik (F71).</div></div>
+                </div></body></html>
+                """));
+
+        List<RagSource> result = service.query("Yangi kun xizmatiga necha yoshdagilar qabul qilinadi", 6);
+
+        RecordedRequest search = server.takeRequest();
+        assertThat(search.getRequestUrl().queryParameter("query")).isEqualTo("yangi kun xizmat yosh");
+        assertThat(result).isNotEmpty();
+        assertThat(result.get(0).content()).contains("toifadagi shaxslar qabul qilinadi");
+    }
+
     private MockResponse searchResult(String documentId, String title, String metadata) {
         return htmlResponse("""
                 <html><body><table>
