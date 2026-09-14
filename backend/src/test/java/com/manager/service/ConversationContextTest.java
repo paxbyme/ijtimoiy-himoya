@@ -69,6 +69,23 @@ class ConversationContextTest {
     }
 
     @Test
+    void promptHistoryKeepsEarlierQuestionsAndTrimsLongAnswers() {
+        List<Map<String, Object>> history = List.of(
+                message("user", "Birinchi savol"),
+                message("model", "x".repeat(5_000)),
+                message("user", "Ikkinchi savol"),
+                message("model", "Qisqa javob"));
+
+        List<Map<String, Object>> prompt = ConversationContext.promptHistory(history, 12, 1_500);
+
+        assertThat(prompt).hasSize(4);
+        assertThat(ConversationContext.textOf(prompt.get(0))).isEqualTo("Birinchi savol");
+        assertThat(prompt.get(1).get("role")).isEqualTo("model");
+        assertThat(ConversationContext.textOf(prompt.get(1)).length()).isLessThan(1_600);
+        assertThat(ConversationContext.textOf(prompt.get(3))).isEqualTo("Qisqa javob");
+    }
+
+    @Test
     void assistantTurnIsDetected() {
         assertThat(ConversationContext.hasAssistantTurn(HISTORY)).isTrue();
         assertThat(ConversationContext.hasAssistantTurn(

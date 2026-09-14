@@ -108,6 +108,32 @@ public final class ConversationContext {
         return String.join("\n", lines);
     }
 
+    /**
+     * The stored turns as sent to the answering model. Earlier answers are long
+     * legal write-ups; trimming them keeps the citizen's own earlier questions
+     * inside the window instead of spending it on repeated legal text.
+     */
+    public static List<Map<String, Object>> promptHistory(List<Map<String, Object>> history,
+                                                          int maxMessages, int maxAssistantChars) {
+        if (history == null || history.isEmpty()) return List.of();
+
+        List<Map<String, Object>> recent = history.size() > maxMessages
+                ? history.subList(history.size() - maxMessages, history.size())
+                : history;
+
+        List<Map<String, Object>> trimmed = new ArrayList<>();
+        for (Map<String, Object> message : recent) {
+            String text = textOf(message).trim();
+            if (text.isEmpty()) continue;
+            String role = "model".equals(roleOf(message)) ? "model" : "user";
+            if ("model".equals(role) && text.length() > maxAssistantChars) {
+                text = text.substring(0, maxAssistantChars).trim() + " …";
+            }
+            trimmed.add(Map.of("role", role, "parts", List.of(Map.of("text", text))));
+        }
+        return trimmed;
+    }
+
     /** Extracts the text of a stored {@code {role, parts:[{text}]}} message. */
     public static String textOf(Map<String, Object> message) {
         if (message == null) return "";

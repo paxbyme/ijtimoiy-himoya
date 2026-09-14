@@ -53,18 +53,6 @@ public class AsyncConfig {
         return executor;
     }
 
-    @Bean(name = "aiPersistenceExecutor")
-    public Executor aiPersistenceExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(250);
-        executor.setThreadNamePrefix("ai-persistence-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-        executor.initialize();
-        return executor;
-    }
-
     @Bean(name = "lexUzExecutor")
     public Executor lexUzExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

@@ -19,22 +19,18 @@ class LegalAssistantPromptTest {
     private static final String WELL_FORMED_ANSWER = """
             Qisqa javob: belgilangan toifadagi shaxslarga dori bepul beriladi.
 
-            Holat va qoida tahlili:
-            1. [Bepul dori olish huquqi]: qoida belgilangan toifaga tegishli. [Asos 1]
+            Kimlarga beriladi:
+            - 17-bandda belgilangan toifadagi shaxslarga.
 
-            Amaliy yechim:
-            1. [Murojaat qiling]: toifani tasdiqlovchi hujjat bilan murojaat qiling. [Asos 1]
+            Qanday olinadi:
+            1. Toifani tasdiqlovchi hujjat bilan murojaat qiling.
 
-            Huquqiy asoslar:
-            [Asos 1]
-            - Hujjat: Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori
-            - Norma joylashuvi: 17-band
-            - Norma mazmuni: belgilangan toifadagi shaxslarga dori bepul beriladi.
-            - Holatga qo'llanishi: foydalanuvchi shu toifaga kirsa, dori bepul beriladi.
-            - Lex.uz: https://lex.uz/uz/docs/-123#-17""";
+            Manba: Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori, 17-band. Lex.uz: https://lex.uz/uz/docs/-123#-17
+
+            Kim uchun so'rayapsiz? Shunga qarab aniqroq yo'l ko'rsataman.""";
 
     @Test
-    void promptRequiresDocumentAndExactClauseForEveryRecommendation() {
+    void promptAsksForADirectAnswerPracticalMeaningAndSources() {
         String prompt = LegalAssistantPrompt.buildGroundedPrompt(
                 List.of(new RagSource(
                         "v1", "d1", "Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori", 7, 0.82,
@@ -44,47 +40,47 @@ class LegalAssistantPromptTest {
 
         assertThat(prompt)
                 .contains("Siz Ijtimoiy himoya milliy agentligining Bosh AI yordamchisisiz")
-                .contains("qaysi qaror yoki boshqa normativ hujjatga asoslanayotganingizni")
-                .contains("Vazifangiz faqat qoidani ko‘chirish yoki qayta aytish emas")
-                .contains("aynan shu qoidadan kelib chiqib holatga mos javob hamda amaliy yechim bering")
-                .contains("Qisqa javob:")
-                .contains("Holat va qoida tahlili:")
-                .contains("Amaliy yechim:")
-                .contains("mos keladigan, mos kelmaydigan va yetishmayotgan shartlarni")
+                .contains("JAVOB USLUBI")
+                .contains("Javobni doimo \"Qisqa javob:\" bilan boshlang")
+                .contains("Har bir javobga bir xil bo‘limlar shablonini qo‘ymang")
+                .contains("Javob oxirida \"Manba:\" bo‘limi SHART")
+                .contains("**, #, jadval va kod bloklarini ishlatmang")
+                .contains("Kim uchun so‘rayapsiz (yoshi, nogironlik guruhi, tashxisi)?")
+                .contains("Normani quruq ko‘chirmang")
+                .contains("AMALIY IZOH")
+                .contains("18 yoshgacha bo‘lganlarga esa \"nogironligi bo‘lgan bola\" maqomi beriladi")
+                .contains("unga Lex.uz manbasini biriktirmang")
+                .contains("summa, foiz, BHM ulushi, muddat, hujjat nomi yoki raqami, band")
+                .contains("mos keladigan, mos kelmaydigan va aniqlashtirilishi kerak bo‘lgan shartlarni")
                 .contains("Qoidada ko‘rsatilmagan ariza tartibi, hujjatlar ro‘yxati")
-                .contains("Har bir xulosa va amaliy qadamdan keyin unga tegishli [Asos N] belgisini yozing")
-                .contains("Huquqiy asoslar:")
-                .contains("- Hujjat:")
-                .contains("- Norma joylashuvi:")
-                .contains("- Norma mazmuni:")
-                .contains("- Holatga qo‘llanishi:")
                 .contains("Amaldagi tahrir manbasi")
                 .contains("uni asosiy hujjat o‘rniga yozmang")
                 .contains("PTPK (Psixologik-tibbiy-pedagogik komissiya)ni IPTK")
                 .contains("2025-yil 27-fevraldagi 126-son qarorini")
                 .contains("271-son qarorni 126-son qarorning o‘rniga")
                 .contains("Normada yosh chegarasi belgilanmagan")
-                .contains("Aniqlashtirish uchun:")
+                .contains("SUHBAT TARIXI")
+                .contains("birinchi savolim nima edi?")
                 .contains("aniq raqam, foiz, BHM ulushi, toifa, hudud, sana, muddat")
                 .contains("javobni sunʼiy qisqartirmang")
+                .contains("NAMUNA")
                 .contains("Hujjat: Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori")
                 .contains("Lex.uz: https://lex.uz/uz/docs/-123#-17")
                 .contains("17-band. Belgilangan toifadagi shaxslarga dori bepul beriladi.")
                 .contains("Ushbu holat boʻyicha Lex.uz bazasidan aniq amaldagi normativ hujjat topilmadi")
-                .contains("MAJBURIY JAVOB FORMATI")
-                .contains("Bu format buzilgan javob yaroqsiz hisoblanadi.");
+                .doesNotContain("Holat va qoida tahlili:", "Huquqiy asoslar:", "[Asos N]");
     }
 
     @Test
-    void noBasisAnswerKeepsTheMandatoryStructure() {
+    void noBasisAnswerIsShortAndPassesTheContract() {
         String answer = LegalAssistantPrompt.noBasisAnswer();
 
-        assertThat(answer).startsWith("Qisqa javob:");
         assertThat(answer)
-                .contains("Holat va qoida tahlili:")
-                .contains("Amaliy yechim:")
-                .contains("Huquqiy asoslar:")
-                .contains("Aniqlashtirish uchun:");
+                .startsWith("Qisqa javob:")
+                .contains("normativ hujjat topilmadi")
+                .contains("Qaysi masala va kim uchun soʻrayapsiz?")
+                .doesNotContain("Huquqiy asoslar:", "**");
+        assertThat(LegalAssistantPrompt.isWellFormed(answer, SOURCES)).isTrue();
     }
 
     @Test
@@ -93,35 +89,47 @@ class LegalAssistantPromptTest {
     }
 
     @Test
-    void answerMissingASectionIsRejected() {
-        String withoutSteps = WELL_FORMED_ANSWER.replace("Amaliy yechim:", "Tavsiyalar:");
+    void severalSourcesUnderManbalarPass() {
+        String answer = WELL_FORMED_ANSWER.replace("Manba: ", "Manbalar:\n[1] ");
 
-        assertThat(LegalAssistantPrompt.isWellFormed(withoutSteps, SOURCES)).isFalse();
+        assertThat(LegalAssistantPrompt.isWellFormed(answer, SOURCES)).isTrue();
     }
 
     @Test
-    void answerWithSectionsOutOfOrderIsRejected() {
+    void answerWithoutShortAnswerIsRejected() {
+        String noDirectAnswer = WELL_FORMED_ANSWER.replace("Qisqa javob:", "Javob:");
+
+        assertThat(LegalAssistantPrompt.isWellFormed(noDirectAnswer, SOURCES)).isFalse();
+    }
+
+    @Test
+    void answerWithoutSourcesIsRejected() {
+        String unsourced = """
+                Qisqa javob: belgilangan toifadagi shaxslarga dori bepul beriladi.
+
+                Qanday olinadi:
+                1. Toifani tasdiqlovchi hujjat bilan murojaat qiling.""";
+
+        assertThat(LegalAssistantPrompt.isWellFormed(unsourced, SOURCES)).isFalse();
+    }
+
+    @Test
+    void sourcesBeforeTheDirectAnswerAreRejected() {
         String reordered = """
-                Qisqa javob: javob.
+                Manba: Dori ta'minoti to'g'risida, 17-band.
 
-                Huquqiy asoslar:
-                [Asos 1]
-                - Hujjat: Qaror
-
-                Holat va qoida tahlili:
-                1. [Masala]: tahlil. [Asos 1]
-
-                Amaliy yechim:
-                1. [Qadam]: bajaring. [Asos 1]""";
+                Qisqa javob: dori bepul beriladi.""";
 
         assertThat(LegalAssistantPrompt.isWellFormed(reordered, SOURCES)).isFalse();
     }
 
     @Test
-    void answerWithoutEvidenceMarkersIsRejected() {
-        String unmarked = WELL_FORMED_ANSWER.replace("[Asos 1]", "");
+    void noBasisReplyThatStillCitesALinkNeedsSources() {
+        String mixed = """
+                Qisqa javob: Ushbu savol boʻyicha aniq amaldagi normativ hujjat topilmadi.
+                Lex.uz: https://lex.uz/uz/docs/-123#-17""";
 
-        assertThat(LegalAssistantPrompt.isWellFormed(unmarked, SOURCES)).isFalse();
+        assertThat(LegalAssistantPrompt.isWellFormed(mixed, SOURCES)).isFalse();
     }
 
     @Test
@@ -145,8 +153,9 @@ class LegalAssistantPromptTest {
         String prompt = LegalAssistantPrompt.buildRepairPrompt(SOURCES, "");
 
         assertThat(prompt)
-                .contains("MAJBURIY JAVOB FORMATI")
+                .contains("JAVOB USLUBI")
                 .contains("QAYTA FORMATLASH VAZIFASI")
+                .contains("\"Manba:\"")
                 .contains("Hujjat: Dori ta'minoti to'g'risida.");
         assertThat(LegalAssistantPrompt.buildRepairRequest("savol", "qoralama"))
                 .contains("Foydalanuvchi savoli:")

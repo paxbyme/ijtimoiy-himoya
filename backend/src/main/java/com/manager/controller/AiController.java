@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.task.TaskRejectedException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -41,7 +40,10 @@ public class AiController {
 
     private static final Logger log = LoggerFactory.getLogger(AiController.class);
 
-    private static final int MAX_HISTORY_MESSAGES = 6;
+    // Six turns, so a citizen's first question is still in view a few follow-ups
+    // later. Earlier answers are trimmed before they reach the model.
+    private static final int MAX_HISTORY_MESSAGES = 12;
+    private static final int MAX_ASSISTANT_HISTORY_CHARS = 1_500;
     private static final int MAX_REQUESTS_PER_MINUTE = 20;
     private static final int MAX_RULE_CONTENT_CHARS = 1_000;
     private static final int MAX_TOTAL_RULE_CHARS = 6_000;
@@ -105,9 +107,12 @@ public class AiController {
             ChatContext ctx = buildChatContext(uid, departmentId, request.getMessage(), request.getConversationId());
 
             String aiResponse;
-            if (ctx.evidence.isEmpty()) {
+            if (ctx.evidence.isEmpty() && ctx.history.isEmpty()) {
                 aiResponse = LegalAssistantPrompt.noBasisAnswer();
             } else {
+                // Inside a conversation the model answers even without new
+                // evidence: a follow-up about earlier turns needs the history,
+                // and the prompt still forbids inventing a legal basis.
                 String draft = aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
                 aiResponse = repairIfMalformed(ctx, request.getMessage(), draft);
             }
@@ -188,10 +193,13 @@ public class AiController {
                 };
 
                 String fullResponse;
-                if (ctx.evidence.isEmpty()) {
+                if (ctx.evidence.isEmpty() && ctx.history.isEmpty()) {
                     fullResponse = LegalAssistantPrompt.noBasisAnswer();
                     tokenSink.accept(fullResponse);
                 } else {
+                    // Inside a conversation the model answers even without new
+                    // evidence: a follow-up about earlier turns needs the history,
+                    // and the prompt still forbids inventing a legal basis.
                     emitter.send(SseEmitter.event().data(
                             objectMapper.writeValueAsString(Map.of(
                                     "type", "status",
@@ -202,7 +210,8 @@ public class AiController {
                     // A streamed draft is already on screen, so a contract
                     // violation is repaired and pushed as a full replacement
                     // rather than as more tokens.
-                    if (!LegalAssistantPrompt.isWellFormed(fullResponse, ctx.evidence)) {
+                    if (!ctx.evidence.isEmpty()
+                            && !LegalAssistantPrompt.isWellFormed(fullResponse, ctx.evidence)) {
                         emitter.send(SseEmitter.event().data(
                                 objectMapper.writeValueAsString(Map.of(
                                         "type", "status",
@@ -218,22 +227,24 @@ public class AiController {
                     }
                 }
 
+                // Save the turn before announcing completion. The app accepts the
+                // next message as soon as the stream closes, so a save queued after
+                // "done" could still be running when the follow-up loads history,
+                // and that follow-up would start from an empty conversation.
+                try {
+                    conversationPersistenceService.persistTurn(
+                            ctx.conversationId, request.getMessage(), fullResponse, MAX_HISTORY_MESSAGES);
+                } catch (Exception e) {
+                    if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+                    log.error("Conversation persistence failed: conversationId={}", ctx.conversationId, e);
+                }
+
                 // Send done
                 emitter.send(SseEmitter.event().data(
                         objectMapper.writeValueAsString(Map.of(
                                 "type", "done",
                                 "sources", ctx.citations != null ? ctx.citations : List.of()))));
                 emitter.complete();
-
-                // Queue persistence only after the completion event was sent. A
-                // disconnected client can retry without duplicating a saved turn.
-                try {
-                    conversationPersistenceService.persistTurnAsync(
-                            ctx.conversationId, request.getMessage(), fullResponse, MAX_HISTORY_MESSAGES);
-                } catch (TaskRejectedException e) {
-                    log.error("Conversation persistence queue is full: conversationId={}",
-                            ctx.conversationId, e);
-                }
 
             } catch (Exception e) {
                 String errorMessage = (e instanceof GeminiRateLimitException)
@@ -503,10 +514,8 @@ public class AiController {
 
         String deptRulesText = buildDepartmentRulesPrompt(deptRules, departmentId);
 
-        List<Map<String, Object>> history = new ArrayList<>(conversation.history());
-        if (history.size() > MAX_HISTORY_MESSAGES) {
-            history = new ArrayList<>(history.subList(history.size() - MAX_HISTORY_MESSAGES, history.size()));
-        }
+        List<Map<String, Object>> history = ConversationContext.promptHistory(
+                conversation.history(), MAX_HISTORY_MESSAGES, MAX_ASSISTANT_HISTORY_CHARS);
 
         ctx.conversationId = conversation.id();
         ctx.isNew = conversation.isNew();
@@ -525,14 +534,15 @@ public class AiController {
     }
 
     /**
-     * Every answer must reach the user in the same shape. When a draft breaks
-     * the response contract — a missing section, no [Asos N] marker, or a
-     * lex.uz link that is not in the retrieved context — one repair pass
-     * rewrites it against the same evidence. A failed repair serves the draft:
-     * a shape violation must never cost the user their answer.
+     * When a draft breaks the response contract — no "Qisqa javob:" opening, no
+     * closing "Manba:" section, or a lex.uz link that is not in the retrieved
+     * context — one repair pass rewrites it against the same evidence. A failed
+     * repair serves the draft: a shape violation must never cost the user their answer.
      */
     private String repairIfMalformed(ChatContext ctx, String message, String draft) {
-        if (LegalAssistantPrompt.isWellFormed(draft, ctx.evidence)) {
+        // Without evidence there is nothing to cite: an answer drawn from the
+        // conversation history has no sources section and is served as is.
+        if (ctx.evidence.isEmpty() || LegalAssistantPrompt.isWellFormed(draft, ctx.evidence)) {
             return draft;
         }
         log.warn("AI answer broke the response contract; repairing: conversationId={}", ctx.conversationId);
