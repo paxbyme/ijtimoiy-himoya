@@ -106,16 +106,11 @@ public class AiController {
 
             ChatContext ctx = buildChatContext(uid, departmentId, request.getMessage(), request.getConversationId());
 
-            String aiResponse;
-            if (ctx.evidence.isEmpty() && ctx.history.isEmpty()) {
-                aiResponse = LegalAssistantPrompt.noBasisAnswer();
-            } else {
-                // Inside a conversation the model answers even without new
-                // evidence: a follow-up about earlier turns needs the history,
-                // and the prompt still forbids inventing a legal basis.
-                String draft = aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
-                aiResponse = repairIfMalformed(ctx, request.getMessage(), draft);
-            }
+            // The model analyses every message, even when retrieval found nothing:
+            // the prompt then asks for a labelled general analysis instead of a
+            // canned "not found" reply, and still forbids inventing a legal basis.
+            String draft = aiService.chat(ctx.systemPrompt, ctx.history, request.getMessage());
+            String aiResponse = repairIfMalformed(ctx, request.getMessage(), draft);
 
             // Save conversation
             String conversationId = saveConversation(ctx, request.getMessage(), aiResponse);
@@ -192,38 +187,32 @@ public class AiController {
                     }
                 };
 
-                String fullResponse;
-                if (ctx.evidence.isEmpty() && ctx.history.isEmpty()) {
-                    fullResponse = LegalAssistantPrompt.noBasisAnswer();
-                    tokenSink.accept(fullResponse);
-                } else {
-                    // Inside a conversation the model answers even without new
-                    // evidence: a follow-up about earlier turns needs the history,
-                    // and the prompt still forbids inventing a legal basis.
+                // The model analyses every message, even when retrieval found
+                // nothing: the prompt then asks for a labelled general analysis
+                // instead of a canned "not found" reply.
+                emitter.send(SseEmitter.event().data(
+                        objectMapper.writeValueAsString(Map.of(
+                                "type", "status",
+                                "message", "Javob tayyorlanmoqda..."))));
+                String fullResponse = aiService.chatStream(
+                        ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
+
+                // A streamed draft is already on screen, so a contract
+                // violation is repaired and pushed as a full replacement
+                // rather than as more tokens.
+                if (!ctx.evidence.isEmpty()
+                        && !LegalAssistantPrompt.isWellFormed(fullResponse, ctx.evidence)) {
                     emitter.send(SseEmitter.event().data(
                             objectMapper.writeValueAsString(Map.of(
                                     "type", "status",
-                                    "message", "Asoslangan javob tayyorlanmoqda..."))));
-                    fullResponse = aiService.chatStream(
-                            ctx.systemPrompt, ctx.history, request.getMessage(), tokenSink);
-
-                    // A streamed draft is already on screen, so a contract
-                    // violation is repaired and pushed as a full replacement
-                    // rather than as more tokens.
-                    if (!ctx.evidence.isEmpty()
-                            && !LegalAssistantPrompt.isWellFormed(fullResponse, ctx.evidence)) {
+                                    "message", "Javob tuzilmasi tekshirilmoqda..."))));
+                    String repaired = repairIfMalformed(ctx, request.getMessage(), fullResponse);
+                    if (!repaired.equals(fullResponse)) {
+                        fullResponse = repaired;
                         emitter.send(SseEmitter.event().data(
                                 objectMapper.writeValueAsString(Map.of(
-                                        "type", "status",
-                                        "message", "Javob tuzilmasi tekshirilmoqda..."))));
-                        String repaired = repairIfMalformed(ctx, request.getMessage(), fullResponse);
-                        if (!repaired.equals(fullResponse)) {
-                            fullResponse = repaired;
-                            emitter.send(SseEmitter.event().data(
-                                    objectMapper.writeValueAsString(Map.of(
-                                            "type", "replace",
-                                            "text", fullResponse))));
-                        }
+                                        "type", "replace",
+                                        "text", fullResponse))));
                     }
                 }
 

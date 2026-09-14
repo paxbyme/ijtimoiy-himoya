@@ -296,6 +296,12 @@ public class LexUzService {
         if (!onlyGeneric) return groups;
 
         List<String> subject = orderedSubjectTerms(question);
+        if (subject.containsAll(List.of("kunduzgi", "parvarish")) && !subject.contains("bola")) {
+            // In legislation "kunduzgi parvarish" is the children's day-care
+            // service (VMQ-126); the adult service is "kunduzgi qatnov". A bare
+            // "kunduzgi parvarish xizmati" otherwise finds only the adult rules.
+            subject = List.of("kunduzgi", "parvarish", "bola");
+        }
         return subject.size() >= 2 ? List.of(subject) : groups;
     }
 
@@ -699,7 +705,10 @@ public class LexUzService {
         // admitted categories. Service regulations are long, so without this the
         // decisive clause loses to definitions and procedure that merely repeat
         // the service name.
-        if (containsAny(normalizedQuestion,
+        // A bare topic ("kunduzgi parvarish xizmati") asks for an overview, and
+        // who is admitted is its core, so it ranks like a who-can-join question.
+        boolean topicOnly = !question.contains("?") && normalizedQuestion.split("\\s+").length <= 4;
+        if (topicOnly || containsAny(normalizedQuestion,
                 "necha yosh", "yoshdagi", "yoshdan", "yoshgacha", "kimlar", "qabul qilin", "foydalana oladi",
                 "jalb", "qanday bola", "qaysi bola", "qanday shaxs", "qaysi shaxs")) {
             // "qabul qilinadi" alone also matches staff-hiring clauses, so only

@@ -30,8 +30,21 @@ class LegalAssistantPromptTest {
 
             Kim uchun so'rayapsiz? Shunga qarab aniqroq yo'l ko'rsataman.""";
 
+    private static final String GENERAL_ANALYSIS_ANSWER = """
+            Kunduzgi parvarish — oila ishlayotgan vaqtda bolani kun davomida parvarish qiladigan ijtimoiy xizmat.
+
+            %s
+
+            Bu masala qaysi yo'nalishga tegishli:
+            - ijtimoiy xizmatlar; odatda bolaning yoshi va sog'lig'i holati hal qiluvchi bo'ladi.
+
+            Nima qilish mumkin:
+            1. Yashash joyidagi "Inson" ijtimoiy xizmatlar markaziga murojaat qiling.
+
+            Farzandingizning yoshi va tashxisi qanday?""".formatted(LegalAssistantPrompt.GENERAL_ANALYSIS_NOTICE);
+
     @Test
-    void promptAsksForADeepFullyGroundedAnswer() {
+    void promptAnalysesEveryMessageAndGroundsLegalFacts() {
         String prompt = LegalAssistantPrompt.buildGroundedPrompt(
                 List.of(new RagSource(
                         "v1", "d1", "Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori", 7, 0.82,
@@ -41,22 +54,27 @@ class LegalAssistantPromptTest {
 
         assertThat(prompt)
                 .contains("Siz Ijtimoiy himoya milliy agentligining Bosh AI yordamchisisiz")
-                .contains("chuqur, to‘liq va amaliy javob")
-                .contains("KONTEKST SAVOLGA ALOQADORMI")
+                .contains("har qanday xabarni — savol, bitta so‘z yoki xizmat nomi, holat bayoni, shikoyat")
+                .contains("XABARNI TAHLIL QILISH")
+                .contains("Faqat mavzu yoki xizmat nomi yozilgan bo‘lsa")
+                .contains("Hech qachon faqat \"savolni aniqroq bering\" deb javob bermang")
+                .contains("KONTEKSTDAN FOYDALANISH")
                 .contains("kontekst esa davlat xaridlari haqida")
+                .contains("lekin javob berishdan bosh tortmang")
+                .contains("UMUMIY TAHLIL")
+                .contains(LegalAssistantPrompt.GENERAL_ANALYSIS_NOTICE)
+                .contains("summa, foiz, BHM ulushi, muddat, hujjat nomi yoki raqami, band raqami va Lex.uz havolasini hech qachon umumiy bilimdan yozmang")
                 .contains("JAVOB USLUBI")
                 .contains("\"Qisqa javob\" kabi yorliq yozmang")
                 .contains("tashxislar (kodlari bilan)")
                 .contains("istisnolar, qarshi ko‘rsatmalar va rad etish asoslari")
                 .contains("javobni sunʼiy qisqartirmang")
                 .contains("\"va boshqalar\" deb qisqartirmang")
-                .contains("Javob oxirida \"Manbalar:\"")
+                .contains("javob oxirida \"Manbalar:\"")
                 .contains("**, #, jadval va kod bloklarini ishlatmang")
                 .contains("AMALIY IZOH")
                 .contains("18 yoshgacha bo‘lganlarga esa \"nogironligi bo‘lgan bola\" maqomi beriladi")
-                .contains("kontekst yo‘q yoki savolga aloqasiz bo‘lsa, amaliy izoh yozmang")
                 .contains("unga Lex.uz manbasini biriktirmang")
-                .contains("summa, foiz, BHM ulushi, muddat, hujjat nomi yoki raqami, band")
                 .contains("mos keladigan, mos kelmaydigan va aniqlashtirilishi kerak bo‘lgan shartlarni")
                 .contains("Qoidada ko‘rsatilmagan ariza tartibi, hujjatlar ro‘yxati")
                 .contains("Amaldagi tahrir manbasi")
@@ -73,25 +91,33 @@ class LegalAssistantPromptTest {
                 .contains("Hujjat: Dori ta'minoti to'g'risida. Vazirlar Mahkamasining 2025-yil 10-yanvardagi 123-son qarori")
                 .contains("Lex.uz: https://lex.uz/uz/docs/-123#-17")
                 .contains("17-band. Belgilangan toifadagi shaxslarga dori bepul beriladi.")
-                .contains("Ushbu holat boʻyicha Lex.uz bazasidan aniq amaldagi normativ hujjat topilmadi")
                 .doesNotContain("Qisqa javob:", "Holat va qoida tahlili:", "Huquqiy asoslar:", "[Asos N]",
-                        "X xizmati uchun");
+                        "X xizmati uchun", "%s", "faqat fallback jumlasi");
     }
 
     @Test
-    void noBasisAnswerPassesTheContract() {
-        String answer = LegalAssistantPrompt.noBasisAnswer();
-
-        assertThat(answer)
-                .contains("normativ hujjat topilmadi")
-                .contains("Qaysi masala va kim uchun soʻrayapsiz?")
-                .doesNotContain("Qisqa javob", "Huquqiy asoslar:", "**");
-        assertThat(LegalAssistantPrompt.isWellFormed(answer, SOURCES)).isTrue();
+    void emptyContextStillAsksForAnAnalysis() {
+        assertThat(LegalAssistantPrompt.buildGroundedPrompt(List.of(), ""))
+                .contains("[Kontekst topilmadi — xabarni UMUMIY TAHLIL qoidalari bo‘yicha, eslatma bilan tahlil qiling]");
     }
 
     @Test
     void wellFormedAnswerPassesTheContract() {
         assertThat(LegalAssistantPrompt.isWellFormed(WELL_FORMED_ANSWER, SOURCES)).isTrue();
+    }
+
+    @Test
+    void labelledGeneralAnalysisWithoutSourcesPasses() {
+        assertThat(LegalAssistantPrompt.isWellFormed(GENERAL_ANALYSIS_ANSWER, SOURCES)).isTrue();
+        assertThat(LegalAssistantPrompt.isWellFormed(GENERAL_ANALYSIS_ANSWER, List.of())).isTrue();
+    }
+
+    @Test
+    void labelledGeneralAnalysisOverSourcesThatAdmitNothingWasFoundPasses() {
+        String answer = GENERAL_ANALYSIS_ANSWER
+                + "\n\nManba: Ushbu holat boʻyicha Lex.uz bazasidan aniq amaldagi normativ hujjat topilmadi.";
+
+        assertThat(LegalAssistantPrompt.isWellFormed(answer, SOURCES)).isTrue();
     }
 
     @Test
@@ -102,7 +128,7 @@ class LegalAssistantPromptTest {
     }
 
     @Test
-    void answerWithoutSourcesIsRejected() {
+    void unlabelledAnswerWithoutSourcesIsRejected() {
         String unsourced = """
                 Belgilangan toifadagi shaxslarga dori bepul beriladi.
 
@@ -122,7 +148,7 @@ class LegalAssistantPromptTest {
     }
 
     @Test
-    void fullAnswerOverSourcesThatAdmitNothingWasFoundIsRejected() {
+    void unlabelledAnswerOverSourcesThatAdmitNothingWasFoundIsRejected() {
         String ungrounded = """
                 Normada yosh chegarasi belgilanmagan.
 
@@ -135,7 +161,7 @@ class LegalAssistantPromptTest {
     }
 
     @Test
-    void noBasisReplyThatStillCitesALinkNeedsSources() {
+    void generalAnalysisThatStillCitesALinkNeedsSources() {
         String mixed = """
                 Ushbu savol boʻyicha aniq amaldagi normativ hujjat topilmadi.
                 Lex.uz: https://lex.uz/uz/docs/-123#-17""";
@@ -160,17 +186,19 @@ class LegalAssistantPromptTest {
     }
 
     @Test
-    void repairPromptCarriesEvidenceAndTheDraft() {
+    void repairPromptKeepsTheAnalysisInsteadOfFallingBack() {
         String prompt = LegalAssistantPrompt.buildRepairPrompt(SOURCES, "");
 
         assertThat(prompt)
                 .contains("JAVOB USLUBI")
                 .contains("QAYTA FORMATLASH VAZIFASI")
                 .contains("Avval kontekst savolga aloqadorligini tekshiring")
+                .contains("xabarni UMUMIY TAHLIL qoidalari bo‘yicha, eslatma bilan to‘liq tahlil qiling")
+                .contains("kontekstda yo‘q qismni o‘chirib tashlamang")
                 .contains("\"Manbalar:\"")
                 .contains("Hujjat: Dori ta'minoti to'g'risida.");
         assertThat(LegalAssistantPrompt.buildRepairRequest("savol", "qoralama"))
-                .contains("Foydalanuvchi savoli:")
+                .contains("Foydalanuvchi xabari:")
                 .contains("savol")
                 .contains("Qoralama javob:")
                 .contains("qoralama");

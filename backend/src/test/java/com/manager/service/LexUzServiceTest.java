@@ -348,6 +348,35 @@ class LexUzServiceTest {
     }
 
     @Test
+    void bareDayCareTopicSearchesTheChildrenService() throws Exception {
+        server.enqueue(searchResult("-7410361",
+                "Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish",
+                "Vazirlar Mahkamasining 126-son qarori"));
+        server.enqueue(htmlResponse(DAY_CARE_REGULATION));
+
+        List<RagSource> result = service.query("kunduzgi parvarish xizmati", 6);
+
+        RecordedRequest search = server.takeRequest();
+        assertThat(search.getRequestUrl().queryParameter("query")).isEqualTo("kunduzgi parvarish bola");
+        assertThat(result).extracting(RagSource::documentId).containsOnly("-7410361");
+    }
+
+    @Test
+    void bareTopicRanksAdmissionAndContraindicationsAboveAnnouncements() {
+        server.enqueue(searchResult("-7410361",
+                "Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish",
+                "Vazirlar Mahkamasining 126-son qarori"));
+        server.enqueue(htmlResponse(DAY_CARE_REGULATION));
+
+        List<RagSource> result = service.query("kunduzgi parvarish xizmati", List.of("kunduzgi parvarish xizmati"), 6);
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).content()).contains("tashxislar qo'yilgan");
+        assertThat(result.get(1).content()).contains("qarshi ko'rsatmalar");
+        assertThat(result.get(2).content()).contains("rasmiy sahifalarida");
+    }
+
+    @Test
     void whoCanJoinQuestionRanksDiagnosesAndContraindicationsAboveAnnouncements() {
         server.enqueue(searchResult("-7410361",
                 "Nogironligi bo'lgan bolalar uchun kunduzgi parvarish xizmatini tashkil etish",
